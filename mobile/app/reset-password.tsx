@@ -228,10 +228,8 @@ export default function ResetPasswordScreen() {
     ? Math.max(insets.bottom, 16) + 28
     : Math.max(insets.bottom, 16)
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <TouchableWithoutFeedback onPress={fecharTecladoETirarFoco}>
-        <KeyboardAvoidingView
+  const conteudoResetPassword = (
+    <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'android' ? 14 : 0}
@@ -375,8 +373,18 @@ export default function ResetPasswordScreen() {
               </View>
             </View>
           </ScrollView>
-        </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
+  )
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      {Platform.OS === 'web' ? (
+        conteudoResetPassword
+      ) : (
+        <TouchableWithoutFeedback onPress={fecharTecladoETirarFoco}>
+          {conteudoResetPassword}
+        </TouchableWithoutFeedback>
+      )}
     </SafeAreaView>
   )
 }

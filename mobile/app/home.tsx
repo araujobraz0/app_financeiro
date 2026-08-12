@@ -38,169 +38,15 @@ import { StatusBar } from 'expo-status-bar'
 import Svg, { Circle, G, Path } from 'react-native-svg'
 import PdfPreview from '../components/PdfPreview'
 import { supabase } from '../src/lib/supabase'
+import type {
+  EntradaItem, SaidaItem, FixoItem, NoteItem, PixItem, CardInstallment, CardItem,
+  GoalItem, ShoppingWishItem, DadosMes, BancoDeDados, InvestmentBaseMode, GlobalData,
+  AppData, PremiumEntitlement, Tema, AbaInferior, SortMode, SettingsThemeMode,
+  TipoVariavelTab, TipoFormularioLancamento, QuickAddType, ModoModal, ModoCategoria,
+  NoteModalMode, SearchResult, CardModalMode, SortTarget, DeleteTarget, CalendarTarget,
+} from './types'
 
 const BRAZLLET_PLATFORM = 'android'
-
-
-type EntradaItem = {
-  id: string
-  nome: string
-  valor: number
-  dia?: number
-}
-
-type SaidaItem = {
-  id: string
-  nome: string
-  valor: number
-  categoria: string
-  dia?: number
-}
-
-type FixoItem = {
-  id: string
-  nome: string
-  valor: number
-  pago: boolean
-  dia?: number
-  recorrenteId?: string
-  criadoEmCompetencia?: string
-}
-
-type NoteItem = {
-  id: string
-  titulo: string
-  conteudo: string
-  links?: string[]
-}
-
-type PixItem = {
-  id: string
-  nome: string
-  chave: string
-  observacao: string
-  links?: string[]
-}
-
-type CardInstallment = {
-  id: string
-  descricao: string
-  valorParcela: number
-  totalParcelas: number
-  parcelaAtual: number
-  competencia: string
-  dia?: number
-  groupId?: string
-}
-
-type CardItem = {
-  id: string
-  nome: string
-  limite?: number
-  fechamento?: number
-  fechamentoMes?: number
-  vencimento?: number
-  vencimentoMes?: number
-  parcelas: CardInstallment[]
-}
-
-type GoalItem = {
-  id: string
-  titulo: string
-  alvo: number
-  atual: number
-}
-
-type ShoppingWishItem = {
-  id: string
-  nome: string
-  precoAtual: number
-  loja: string
-  dataVista: string
-  observacao: string
-  comprado: boolean
-  criadaEmCompetencia?: string
-  compradoEmCompetencia?: string
-}
-
-type DadosMes = {
-  salario: number
-  entradas: EntradaItem[]
-  fixo: FixoItem[]
-  saidas: SaidaItem[]
-  categoriasSaidas: string[]
-}
-
-type BancoDeDados = Record<string, DadosMes>
-
-type InvestmentBaseMode = 'salary' | 'salary_plus_entries'
-
-type GlobalData = {
-  firstAccessCompleted: boolean
-  salaryMode: 'fixo' | 'variavel' | null
-  defaultFixedSalary: number
-  onboardingFixedExpenses: string[]
-  pixContacts: PixItem[]
-  notes: NoteItem[]
-  cards: CardItem[]
-  profileAvatar?: string
-  profileName?: string
-  goals: GoalItem[]
-  shoppingWishes: ShoppingWishItem[]
-  investmentPercentage: number
-  investmentBaseMode: InvestmentBaseMode
-  hideValues: boolean
-}
-
-type AppData = {
-  bancoDeDados: BancoDeDados
-  global: GlobalData
-}
-
-type PremiumEntitlement = {
-  premium_active: boolean
-  premium_expires_at: string | null
-}
-
-type Tema = {
-  background: string
-  backgroundSoft: string
-  card: string
-  cardSoft: string
-  text: string
-  muted: string
-  border: string
-  borderStrong: string
-  primary: string
-  green: string
-  red: string
-  blue: string
-  shadow: string
-  white: string
-}
-
-type AbaInferior = 'home' | 'fixo' | 'variavel' | 'cartao'
-type SortMode = 'recentes' | 'maior_valor' | 'menor_valor' | 'alfabetica'
-type SettingsThemeMode = 'manual' | 'system'
-type TipoVariavelTab = 'entrada' | 'saida'
-type TipoFormularioLancamento = 'entrada' | 'saida' | 'fixo' | 'parcela'
-type QuickAddType = 'entrada' | 'saida' | 'fixo' | 'parcela'
-type ModoModal = 'novo' | 'editar'
-type ModoCategoria = 'nova' | 'editar'
-type NoteModalMode = 'pix' | 'nota'
-
-type SearchResult = {
-  tipo: 'Entrada' | 'Saída' | 'Fixo' | 'Cartão' | 'Parcela' | 'Nota' | 'Pix'
-  titulo: string
-  subtitulo: string
-  id: string
-  relatedId?: string
-}
-
-type CardModalMode = 'card' | 'installment'
-type SortTarget = 'fixo' | 'entradas' | 'saidas' | 'notas' | 'cartao'
-type DeleteTarget = 'fixo' | 'entrada' | 'saida' | 'pix' | 'nota' | 'cartao' | 'parcela' | 'categoria' | 'compra_desejo' | 'objetivo'
-type CalendarTarget = 'dia_edicao' | 'cartao_fechamento' | 'cartao_vencimento' | 'wish_data'
 
 const STORAGE_KEY = 'controle-financeiro-v16'
 const THEME_KEY = 'controle-financeiro-tema-mobile'
@@ -5076,7 +4922,11 @@ export default function HomeScreen() {
 
       <AppModal visible={modalConfiguracoesAberto} onClose={() => setModalConfiguracoesAberto(false)}>
         <View style={[styles.modalCard, styles.modalCardSettings, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps='handled'>
+          <ScrollView
+            style={styles.modalSettingsScroll}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps='handled'
+          >
             <Text style={[styles.modalTitle, { color: theme.text }]}>Perfil e configurações</Text>
 
             <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
@@ -5292,7 +5142,7 @@ export default function HomeScreen() {
         <View style={[styles.modalCard, styles.modalCardSettings, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.modalTitle, { color: theme.text }]}>Prévia da importação</Text>
           <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 10 }]}>Arquivo: {arquivoImportacaoNome}</Text>
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.modalSettingsScroll} showsVerticalScrollIndicator={false}>
             <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
               <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Entradas reconhecidas ({previewImportacao.entradas.length})</Text>
               {previewImportacao.entradas.length === 0 ? <Text style={[styles.rowItemMeta, { color: theme.muted }]}>Nenhuma entrada</Text> : previewImportacao.entradas.slice(0, 8).map((item) => <View key={item.id} style={[styles.fullRowCard, { borderColor: theme.border, backgroundColor: theme.card }]}><Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.nome}</Text><Text style={[styles.rowItemMeta, { color: theme.muted }]}>{formatarValorVisivel(item.valor)} · {formatarDiaMes(item.dia, chaveAtual)}</Text></View>)}
@@ -5634,10 +5484,32 @@ const styles = StyleSheet.create({
   plusButtonText: { fontSize: 23, fontWeight: '900', lineHeight: 24, marginTop: -1 },
   syncBadge: { position: 'absolute', right: 18, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
   syncBadgeText: { fontSize: 12, fontWeight: '800' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.52)', paddingHorizontal: 18, paddingVertical: 14 },
-  modalCenterWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%' },
+  modalOverlay: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    minHeight: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.52)',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+  },
+  modalCenterWrap: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    minHeight: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   modalBackdropTouch: { ...StyleSheet.absoluteFillObject },
-  modalKeyboardWrap: { width: '100%', alignItems: 'center', justifyContent: 'center' },
+  modalKeyboardWrap: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    minHeight: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalCard: {
   width: '84%',
   maxWidth: 420,
@@ -5843,7 +5715,16 @@ switchThumbActive: {
     textAlign: 'right',
     marginTop: 6,
   },
-  modalCardSettings: { paddingBottom: 24, minHeight: 520, maxHeight: '86%' },
+  modalCardSettings: {
+    paddingBottom: 24,
+    minHeight: Platform.OS === 'web' ? 0 : 520,
+    maxHeight: '86%',
+  },
+  modalSettingsScroll: {
+    flex: 1,
+    width: '100%',
+    minHeight: 0,
+  },
   settingsSectionTitle: { fontSize: 13, fontWeight: '900', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.8 },
   settingsCard: { position: 'relative', overflow: 'hidden', borderWidth: 1, borderRadius: 18, padding: 14, marginTop: 10 },
   settingsStack: { gap: 10 },

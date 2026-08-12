@@ -8,6 +8,7 @@ import {
   ImageBackground,
   Linking,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -19,12 +20,14 @@ import * as Updates from 'expo-updates'
 import Constants from 'expo-constants'
 import { supabase } from '../src/lib/supabase'
 
-SplashScreen.preventAutoHideAsync()
+if (Platform.OS !== 'web') {
+  SplashScreen.preventAutoHideAsync()
 
-SplashScreen.setOptions({
-  duration: 800,
-  fade: true,
-})
+  SplashScreen.setOptions({
+    duration: 800,
+    fade: true,
+  })
+}
 
 type AppVersionRow = {
   platform: string
@@ -55,7 +58,7 @@ export default function RootLayout() {
   const [loading, setLoading] = useState(true)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [appReady, setAppReady] = useState(false)
-  const [showVisualSplash, setShowVisualSplash] = useState(true)
+  const [showVisualSplash, setShowVisualSplash] = useState(Platform.OS !== 'web')
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [apkUpdate, setApkUpdate] = useState<AppVersionRow | null>(null)
   const [otaUpdateVisible, setOtaUpdateVisible] = useState(false)
@@ -76,6 +79,7 @@ export default function RootLayout() {
   const currentVersion = Constants.expoConfig?.version ?? '1.0.0'
 
   const checkForOtaUpdate = useCallback(async () => {
+    if (Platform.OS === 'web') return
     if (__DEV__) return
     if (checkingUpdate) return
 
@@ -110,6 +114,7 @@ export default function RootLayout() {
   }, [])
 
   const checkForApkUpdate = useCallback(async () => {
+    if (Platform.OS === 'web') return
     const now = Date.now()
     if (now - lastApkCheckRef.current < 1000 * 60 * 30) return
     lastApkCheckRef.current = now
@@ -211,14 +216,21 @@ export default function RootLayout() {
     if (!appReady) return
 
     const prepare = async () => {
-      await SplashScreen.hideAsync()
+      if (Platform.OS !== 'web') {
+        await SplashScreen.hideAsync()
+      }
 
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 650,
+        duration: Platform.OS === 'web' ? 0 : 650,
         easing: Easing.out(Easing.ease),
         useNativeDriver: true,
       }).start()
+
+      if (Platform.OS === 'web') {
+        setShowVisualSplash(false)
+        return
+      }
 
       setTimeout(() => {
         setShowVisualSplash(false)
