@@ -272,10 +272,8 @@ export default function LoginScreen() {
   const minScrollHeight = Math.max(windowHeight - insets.top - insets.bottom, 0)
   const cadastroCompacto = modo === 'cadastro'
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <TouchableWithoutFeedback onPress={fecharTecladoETirarFoco}>
-        <KeyboardAvoidingView
+  const conteudoLogin = (
+    <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'android' ? 14 : 0}
@@ -498,8 +496,18 @@ export default function LoginScreen() {
               </View>
             </View>
           </ScrollView>
-        </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
+  )
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      {Platform.OS === 'web' ? (
+        conteudoLogin
+      ) : (
+        <TouchableWithoutFeedback onPress={fecharTecladoETirarFoco}>
+          {conteudoLogin}
+        </TouchableWithoutFeedback>
+      )}
     </SafeAreaView>
   )
 }
