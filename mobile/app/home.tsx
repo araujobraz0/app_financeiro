@@ -38,6 +38,12 @@ import PdfPreview from '../components/PdfPreview'
 import AppModal from '../components/common/AppModal'
 import SelectionModal from '../components/modals/SelectionModal'
 import CategoryNameModal from '../components/modals/CategoryNameModal'
+import GoalModal, { emptyGoalFormValues } from '../components/modals/GoalModal'
+import type { GoalFormValues } from '../components/modals/GoalModal'
+import NoteModal, { emptyNoteFormValues } from '../components/modals/NoteModal'
+import type { NoteFormValues } from '../components/modals/NoteModal'
+import ShoppingWishModal, { emptyShoppingWishValues } from '../components/modals/ShoppingWishModal'
+import type { ShoppingWishFormValues } from '../components/modals/ShoppingWishModal'
 import ConfirmDeleteModal from '../components/modals/ConfirmDeleteModal'
 import SettingsModal from '../components/modals/SettingsModal'
 import LaunchModal, { emptyLaunchFormValues } from '../components/modals/LaunchModal'
@@ -549,7 +555,9 @@ export default function HomeScreen() {
   const [modalCategoriaNomeAberto, setModalCategoriaNomeAberto] = useState(false)
   const [modoCategoria, setModoCategoria] = useState<ModoCategoria>('nova')
   const [categoriaOriginal, setCategoriaOriginal] = useState('')
-  const [categoriaDigitada, setCategoriaDigitada] = useState('')
+  // O campo de nome da categoria vive dentro do CategoryNameModal.
+  const [categoriaFormKey, setCategoriaFormKey] = useState(0)
+  const [categoriaInicial, setCategoriaInicial] = useState('')
   const [filtroCategoria, setFiltroCategoria] = useState('Todas')
   const [itemEditandoId, setItemEditandoId] = useState<string | null>(null)
   const [diaEdicao, setDiaEdicao] = useState('1')
@@ -563,13 +571,9 @@ export default function HomeScreen() {
 
   const [noteModalType, setNoteModalType] = useState<NoteModalMode>('pix')
   const [modalAnotacaoAberto, setModalAnotacaoAberto] = useState(false)
-  const [notaTitulo, setNotaTitulo] = useState('')
-  const [notaConteudo, setNotaConteudo] = useState('')
-  const [pixNome, setPixNome] = useState('')
-  const [pixChave, setPixChave] = useState('')
-  const [pixObservacao, setPixObservacao] = useState('')
-  const [pixLinks, setPixLinks] = useState<string[]>([''])
-  const [notaLinks, setNotaLinks] = useState<string[]>([''])
+  // Campos de Pix/anotacao vivem dentro do NoteModal.
+  const [noteFormKey, setNoteFormKey] = useState(0)
+  const [noteInitialValues, setNoteInitialValues] = useState<NoteFormValues>(() => emptyNoteFormValues())
   const [linkPendenteConfirmacao, setLinkPendenteConfirmacao] = useState<string | null>(null)
   const [itemNotaEditandoId, setItemNotaEditandoId] = useState<string | null>(null)
   const [copiedPixId, setCopiedPixId] = useState<string | null>(null)
@@ -610,17 +614,17 @@ export default function HomeScreen() {
   const [previewPdfGerando, setPreviewPdfGerando] = useState(false)
   const [buscaGlobal, setBuscaGlobal] = useState('')
   const [modalObjetivoAberto, setModalObjetivoAberto] = useState(false)
-  const [objetivoTitulo, setObjetivoTitulo] = useState('')
-  const [objetivoAlvo, setObjetivoAlvo] = useState('R$ 0,00')
-  const [objetivoAtual, setObjetivoAtual] = useState('R$ 0,00')
+  // Campos do objetivo vivem dentro do GoalModal.
+  const [goalFormKey, setGoalFormKey] = useState(0)
+  const [goalInitialValues, setGoalInitialValues] = useState<GoalFormValues>(() => emptyGoalFormValues())
   const [objetivoEditandoId, setObjetivoEditandoId] = useState<string | null>(null)
   const [modalCompraDesejoAberto, setModalCompraDesejoAberto] = useState(false)
   const [compraDesejoEditandoId, setCompraDesejoEditandoId] = useState<string | null>(null)
-  const [compraDesejoNome, setCompraDesejoNome] = useState('')
-  const [compraDesejoPreco, setCompraDesejoPreco] = useState('R$ 0,00')
-  const [compraDesejoLoja, setCompraDesejoLoja] = useState('')
+  // Campos da compra desejada vivem dentro do ShoppingWishModal.
+  // A data fica aqui porque e compartilhada com o modal de calendario.
+  const [wishFormKey, setWishFormKey] = useState(0)
+  const [wishInitialValues, setWishInitialValues] = useState<ShoppingWishFormValues>(() => emptyShoppingWishValues())
   const [compraDesejoData, setCompraDesejoData] = useState('')
-  const [compraDesejoObservacao, setCompraDesejoObservacao] = useState('')
   const [compraDesejoComprado, setCompraDesejoComprado] = useState(false)
   const [investmentManualInput, setInvestmentManualInput] = useState('10')
   const [modalPreviewImportacaoAberto, setModalPreviewImportacaoAberto] = useState(false)
@@ -649,8 +653,6 @@ export default function HomeScreen() {
   const highlightFadeAnim = useRef(new Animated.Value(0)).current
   const investmentManualFieldYRef = useRef(0)
   const salaryInputRef = useRef<TextInput | null>(null)
-  const shoppingModalScrollRef = useRef<ScrollView | null>(null)
-  const shoppingFieldLayoutsRef = useRef<Record<string, number>>({})
   const mainScrollYRef = useRef(0)
   const appStateRef = useRef(AppState.currentState)
   const temaStorageCarregadoRef = useRef(false)
@@ -735,20 +737,6 @@ export default function HomeScreen() {
     })
   }
 
-  const registrarShoppingFieldLayout = (field: string, y: number) => {
-    shoppingFieldLayoutsRef.current[field] = y
-  }
-
-  const scrollShoppingModalToField = (field: string) => {
-    const targetY = shoppingFieldLayoutsRef.current[field]
-    if (typeof targetY !== 'number') return
-    setTimeout(() => {
-      shoppingModalScrollRef.current?.scrollTo({
-        y: Math.max(targetY - 26, 0),
-        animated: true,
-      })
-    }, 160)
-  }
 
   const renderHighlightOverlay = (id: string) => {
     if (highlightedItemId !== id) return null
@@ -1846,24 +1834,6 @@ export default function HomeScreen() {
     )
   }
 
-  const atualizarCampoLink = (
-    setter: (value: string[] | ((prev: string[]) => string[])) => void,
-    index: number,
-    value: string
-  ) => {
-    setter((prev) => prev.map((item, idx) => (idx === index ? value : item)))
-  }
-
-  const adicionarCampoLink = (setter: (value: string[] | ((prev: string[]) => string[])) => void) => {
-    setter((prev) => [...prev, ''])
-  }
-
-  const removerCampoLink = (setter: (value: string[] | ((prev: string[]) => string[])) => void, index: number) => {
-    setter((prev) => {
-      if (prev.length <= 1) return ['']
-      return prev.filter((_, idx) => idx !== index)
-    })
-  }
 
   const irParaResultadoBuscaGlobal = (resultado: SearchResult) => {
     setBuscaGlobal('')
@@ -1925,30 +1895,30 @@ export default function HomeScreen() {
 
   const abrirNovoObjetivo = (goal?: GoalItem) => {
     setObjetivoEditandoId(goal?.id || null)
-    setObjetivoTitulo(goal?.titulo || '')
-    setObjetivoAlvo(formatarValorInput(goal?.alvo || 0))
-    setObjetivoAtual(formatarValorInput(goal?.atual || 0))
+    setGoalInitialValues({
+      titulo: goal?.titulo || '',
+      alvo: formatarValorInput(goal?.alvo || 0),
+      atual: formatarValorInput(goal?.atual || 0),
+    })
+    setGoalFormKey((prev) => prev + 1)
     setModalObjetivoAberto(true)
   }
 
-  const salvarObjetivo = () => {
-    if (!objetivoTitulo.trim()) return
-    const alvo = moneyStringToNumber(objetivoAlvo)
-    const atual = moneyStringToNumber(objetivoAtual)
+  const salvarObjetivo = (values: GoalFormValues) => {
+    if (!values.titulo.trim()) return
+    const alvo = moneyStringToNumber(values.alvo)
+    const atual = moneyStringToNumber(values.atual)
     setAppData((prev) => ({
       ...prev,
       global: {
         ...prev.global,
         goals: objetivoEditandoId
-          ? prev.global.goals.map((goal) => goal.id === objetivoEditandoId ? { ...goal, titulo: objetivoTitulo.trim(), alvo, atual } : goal)
-          : [...prev.global.goals, { id: `goal-${Date.now()}`, titulo: objetivoTitulo.trim(), alvo, atual }],
+          ? prev.global.goals.map((goal) => goal.id === objetivoEditandoId ? { ...goal, titulo: values.titulo.trim(), alvo, atual } : goal)
+          : [...prev.global.goals, { id: `goal-${Date.now()}`, titulo: values.titulo.trim(), alvo, atual }],
       },
     }))
     setModalObjetivoAberto(false)
     setObjetivoEditandoId(null)
-    setObjetivoTitulo('')
-    setObjetivoAlvo('R$ 0,00')
-    setObjetivoAtual('R$ 0,00')
   }
 
   const excluirObjetivo = (id: string) => {
@@ -1959,21 +1929,20 @@ export default function HomeScreen() {
   const limparModalCompraDesejo = () => {
     setModalCompraDesejoAberto(false)
     setCompraDesejoEditandoId(null)
-    setCompraDesejoNome('')
-    setCompraDesejoPreco('R$ 0,00')
-    setCompraDesejoLoja('')
     setCompraDesejoData('')
-    setCompraDesejoObservacao('')
     setCompraDesejoComprado(false)
   }
 
   const abrirNovaCompraDesejo = (item?: ShoppingWishItem) => {
     setCompraDesejoEditandoId(item?.id || null)
-    setCompraDesejoNome(item?.nome || '')
-    setCompraDesejoPreco(formatarValorInput(item?.precoAtual || 0))
-    setCompraDesejoLoja(item?.loja || '')
+    setWishInitialValues({
+      nome: item?.nome || '',
+      preco: formatarValorInput(item?.precoAtual || 0),
+      loja: item?.loja || '',
+      observacao: item?.observacao || '',
+    })
+    setWishFormKey((prev) => prev + 1)
     setCompraDesejoData(item?.dataVista || '')
-    setCompraDesejoObservacao(item?.observacao || '')
     setCompraDesejoComprado(Boolean(item?.comprado))
     setModalCompraDesejoAberto(true)
   }
@@ -1996,19 +1965,19 @@ export default function HomeScreen() {
     }))
   }
 
-  const salvarCompraDesejo = () => {
-    if (!compraDesejoNome.trim()) return
-    const precoAtual = moneyStringToNumber(compraDesejoPreco)
+  const salvarCompraDesejo = (values: ShoppingWishFormValues) => {
+    if (!values.nome.trim()) return
+    const precoAtual = moneyStringToNumber(values.preco)
     const itemAnterior = compraDesejoEditandoId
       ? comprasDesejo.find((item) => item.id === compraDesejoEditandoId)
       : null
     const payload: ShoppingWishItem = {
       id: compraDesejoEditandoId || `wish-${Date.now()}`,
-      nome: compraDesejoNome.trim(),
+      nome: values.nome.trim(),
       precoAtual,
-      loja: compraDesejoLoja.trim(),
+      loja: values.loja.trim(),
       dataVista: compraDesejoData.trim(),
-      observacao: compraDesejoObservacao.trim(),
+      observacao: values.observacao.trim(),
       comprado: compraDesejoComprado,
       criadaEmCompetencia: itemAnterior?.criadaEmCompetencia || chaveAtual,
       compradoEmCompetencia: compraDesejoComprado ? itemAnterior?.compradoEmCompetencia || chaveAtual : '',
@@ -2813,14 +2782,16 @@ export default function HomeScreen() {
   const abrirModalNovaCategoria = () => {
     setModoCategoria('nova')
     setCategoriaOriginal('')
-    setCategoriaDigitada('')
+    setCategoriaInicial('')
+    setCategoriaFormKey((prev) => prev + 1)
     setModalCategoriaNomeAberto(true)
   }
 
   const abrirModalEditarCategoria = (categoria: string) => {
     setModoCategoria('editar')
     setCategoriaOriginal(categoria)
-    setCategoriaDigitada(categoria)
+    setCategoriaInicial(categoria)
+    setCategoriaFormKey((prev) => prev + 1)
     setModalCategoriaNomeAberto(true)
   }
 
@@ -2828,11 +2799,11 @@ export default function HomeScreen() {
     setModalCategoriaNomeAberto(false)
     setModoCategoria('nova')
     setCategoriaOriginal('')
-    setCategoriaDigitada('')
+    setCategoriaInicial('')
   }
 
-  const salvarCategoria = () => {
-    const nomeNova = categoriaDigitada.trim()
+  const salvarCategoria = (valorDigitado: string) => {
+    const nomeNova = valorDigitado.trim()
     if (!nomeNova) return
     if (modoCategoria === 'nova') {
       if (categoriasSaidas.includes(nomeNova)) return
@@ -2890,50 +2861,47 @@ export default function HomeScreen() {
   const abrirNovaNota = (tipo: NoteModalMode) => {
     setItemNotaEditandoId(null)
     setNoteModalType(tipo)
-    setNotaTitulo('')
-    setNotaConteudo('')
-    setPixNome('')
-    setPixChave('')
-    setPixObservacao('')
-    setPixLinks([''])
+    setNoteInitialValues(emptyNoteFormValues())
+    setNoteFormKey((prev) => prev + 1)
     setModalAnotacaoAberto(true)
   }
 
   const abrirEditarPix = (item: PixItem) => {
     setItemNotaEditandoId(item.id)
     setNoteModalType('pix')
-    setPixNome(item.nome)
-    setPixChave(item.chave)
-    setPixObservacao(item.observacao)
-    setPixLinks(item.links?.length ? item.links : [''])
+    setNoteInitialValues({
+      ...emptyNoteFormValues(),
+      pixNome: item.nome,
+      pixChave: item.chave,
+      pixObservacao: item.observacao,
+      pixLinks: item.links?.length ? item.links : [''],
+    })
+    setNoteFormKey((prev) => prev + 1)
     setModalAnotacaoAberto(true)
   }
 
   const abrirEditarNota = (item: NoteItem) => {
     setItemNotaEditandoId(item.id)
     setNoteModalType('nota')
-    setNotaTitulo(item.titulo)
-    setNotaConteudo(item.conteudo)
-    setNotaLinks(item.links?.length ? item.links : [''])
+    setNoteInitialValues({
+      ...emptyNoteFormValues(),
+      notaTitulo: item.titulo,
+      notaConteudo: item.conteudo,
+      notaLinks: item.links?.length ? item.links : [''],
+    })
+    setNoteFormKey((prev) => prev + 1)
     setModalAnotacaoAberto(true)
   }
 
   const fecharModalAnotacao = () => {
     setModalAnotacaoAberto(false)
     setItemNotaEditandoId(null)
-    setNotaTitulo('')
-    setNotaConteudo('')
-    setPixNome('')
-    setPixChave('')
-    setPixObservacao('')
-    setPixLinks([''])
-    setNotaLinks([''])
   }
 
-  const salvarAnotacao = () => {
+  const salvarAnotacao = (values: NoteFormValues) => {
     if (noteModalType === 'pix') {
-      if (!pixNome.trim() || !pixChave.trim()) return
-      const linksPixSanitizados = sanitizarListaLinks(pixLinks)
+      if (!values.pixNome.trim() || !values.pixChave.trim()) return
+      const linksPixSanitizados = sanitizarListaLinks(values.pixLinks)
       setAppData((prev) => ({
         ...prev,
         global: {
@@ -2941,18 +2909,18 @@ export default function HomeScreen() {
           pixContacts: itemNotaEditandoId
             ? prev.global.pixContacts.map((item) =>
                 item.id === itemNotaEditandoId
-                  ? { ...item, nome: pixNome.trim(), chave: pixChave.trim(), observacao: pixObservacao.trim(), links: linksPixSanitizados }
+                  ? { ...item, nome: values.pixNome.trim(), chave: values.pixChave.trim(), observacao: values.pixObservacao.trim(), links: linksPixSanitizados }
                   : item
               )
             : [
                 ...prev.global.pixContacts,
-                { id: `pix-${Date.now()}`, nome: pixNome.trim(), chave: pixChave.trim(), observacao: pixObservacao.trim(), links: linksPixSanitizados },
+                { id: `pix-${Date.now()}`, nome: values.pixNome.trim(), chave: values.pixChave.trim(), observacao: values.pixObservacao.trim(), links: linksPixSanitizados },
               ],
         },
       }))
     } else {
-      if (!notaTitulo.trim()) return
-      const linksNotaSanitizados = sanitizarListaLinks(notaLinks)
+      if (!values.notaTitulo.trim()) return
+      const linksNotaSanitizados = sanitizarListaLinks(values.notaLinks)
       setAppData((prev) => ({
         ...prev,
         global: {
@@ -2960,12 +2928,12 @@ export default function HomeScreen() {
           notes: itemNotaEditandoId
             ? prev.global.notes.map((item) =>
                 item.id === itemNotaEditandoId
-                  ? { ...item, titulo: notaTitulo.trim(), conteudo: notaConteudo.trim(), links: linksNotaSanitizados }
+                  ? { ...item, titulo: values.notaTitulo.trim(), conteudo: values.notaConteudo.trim(), links: linksNotaSanitizados }
                   : item
               )
             : [
                 ...prev.global.notes,
-                { id: `note-${Date.now()}`, titulo: notaTitulo.trim(), conteudo: notaConteudo.trim(), links: linksNotaSanitizados },
+                { id: `note-${Date.now()}`, titulo: values.notaTitulo.trim(), conteudo: values.notaConteudo.trim(), links: linksNotaSanitizados },
               ],
         },
       }))
@@ -4029,84 +3997,24 @@ export default function HomeScreen() {
       />
 
       <CategoryNameModal
+        key={`categoria-${categoriaFormKey}`}
         visible={modalCategoriaNomeAberto}
         onClose={fecharModalCategoriaNome}
         mode={modoCategoria}
-        value={categoriaDigitada}
-        onChange={setCategoriaDigitada}
+        initialValue={categoriaInicial}
         onSave={salvarCategoria}
         theme={theme}
       />
 
-      <AppModal visible={modalAnotacaoAberto} onClose={fecharModalAnotacao}>
-        <View style={[styles.modalCard, styles.modalCardNotesFixedFooter, styles.modalCardWithFixedFooter, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.modalContentFill}>
-            <ScrollView
-              style={styles.modalScroll}
-              contentContainerStyle={[styles.modalScrollContent, styles.modalScrollContentWithFooter]}
-              showsVerticalScrollIndicator
-              keyboardShouldPersistTaps='always'
-              nestedScrollEnabled
-              scrollEnabled
-            >
-              <View style={styles.modalContentWrap}>
-                <Text style={[styles.modalTitle, { color: theme.text }]}>{noteModalType === 'pix' ? 'Salvar Pix' : 'Salvar anotação'}</Text>
-                {noteModalType === 'pix' ? (
-                  <>
-                    <View style={styles.modalField}><Text style={[styles.modalLabel, { color: theme.muted }]}>Nome</Text><TextInput value={pixNome} onChangeText={setPixNome} placeholder='Ex.: Mãe, João, fornecedor...' placeholderTextColor={theme.muted} style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /></View>
-                    <View style={styles.modalField}><Text style={[styles.modalLabel, { color: theme.muted }]}>Chave Pix</Text><TextInput value={pixChave} onChangeText={setPixChave} placeholder='CPF, e-mail, telefone...' placeholderTextColor={theme.muted} style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /></View>
-                    <View style={styles.modalField}><Text style={[styles.modalLabel, { color: theme.muted }]}>Observação</Text><TextInput value={pixObservacao} onChangeText={setPixObservacao} placeholder='Apelido, banco, detalhe...' placeholderTextColor={theme.muted} style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /></View>
-                    <View style={styles.modalField}>
-                      <View style={styles.linkFieldHeader}>
-                        <Text style={[styles.modalLabel, { color: theme.muted }]}>Links</Text>
-                        <Pressable onPress={() => adicionarCampoLink(setPixLinks)} style={[styles.smallActionBtn, styles.linkAddBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                          <Text style={[styles.smallActionBtnIcon, { color: theme.text }]}>＋</Text>
-                        </Pressable>
-                      </View>
-                      {pixLinks.map((link, index) => (
-                        <View key={`pix-link-${index}`} style={styles.linkInputRow}>
-                          <TextInput value={link} onChangeText={(value) => atualizarCampoLink(setPixLinks, index, value)} placeholder='Cole um link aqui' placeholderTextColor={theme.muted} autoCapitalize='none' autoCorrect={false} keyboardType='url' style={[styles.modalInput, styles.linkInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-                          <Pressable onPress={() => removerCampoLink(setPixLinks, index)} style={[styles.linkRemoveBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                            <Text style={[styles.linkRemoveBtnText, { color: theme.red }]}>×</Text>
-                          </Pressable>
-                        </View>
-                      ))}
-                    </View>
-                  </>
-                ) : (
-                  <>
-                    <View style={styles.modalField}><Text style={[styles.modalLabel, { color: theme.muted }]}>Título</Text><TextInput value={notaTitulo} onChangeText={setNotaTitulo} placeholder='Digite o título' placeholderTextColor={theme.muted} style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /></View>
-                    <View style={styles.modalField}><Text style={[styles.modalLabel, { color: theme.muted }]}>Conteúdo</Text><TextInput value={notaConteudo} onChangeText={setNotaConteudo} multiline scrollEnabled textAlignVertical='top' placeholder='Escreva sua anotação' placeholderTextColor={theme.muted} style={[styles.modalInput, styles.modalInputMultiline, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /></View>
-                    <View style={styles.modalField}>
-                      <View style={styles.linkFieldHeader}>
-                        <Text style={[styles.modalLabel, { color: theme.muted }]}>Links</Text>
-                        <Pressable onPress={() => adicionarCampoLink(setNotaLinks)} style={[styles.smallActionBtn, styles.linkAddBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                          <Text style={[styles.smallActionBtnIcon, { color: theme.text }]}>＋</Text>
-                        </Pressable>
-                      </View>
-                      {notaLinks.map((link, index) => (
-                        <View key={`nota-link-${index}`} style={styles.linkInputRow}>
-                          <TextInput value={link} onChangeText={(value) => atualizarCampoLink(setNotaLinks, index, value)} placeholder='Cole um link aqui' placeholderTextColor={theme.muted} autoCapitalize='none' autoCorrect={false} keyboardType='url' style={[styles.modalInput, styles.linkInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-                          <Pressable onPress={() => removerCampoLink(setNotaLinks, index)} style={[styles.linkRemoveBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                            <Text style={[styles.linkRemoveBtnText, { color: theme.red }]}>×</Text>
-                          </Pressable>
-                        </View>
-                      ))}
-                    </View>
-                  </>
-                )}
-              </View>
-            </ScrollView>
-
-            <View style={[styles.modalActionsSticky, { borderTopColor: theme.border, backgroundColor: theme.card }]}>
-              <View style={styles.modalActions}>
-                <Pressable onPress={fecharModalAnotacao} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text></Pressable>
-                <Pressable onPress={salvarAnotacao} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text></Pressable>
-              </View>
-            </View>
-          </View>
-        </View>
-      </AppModal>
+      <NoteModal
+        key={`note-${noteFormKey}`}
+        visible={modalAnotacaoAberto}
+        onClose={fecharModalAnotacao}
+        theme={theme}
+        type={noteModalType}
+        initialValues={noteInitialValues}
+        onSave={salvarAnotacao}
+      />
 
       <CardPurchaseModal
         key={`card-${cardFormKey}`}
@@ -4367,75 +4275,28 @@ export default function HomeScreen() {
       </AppModal>
 
 
-      <AppModal visible={modalCompraDesejoAberto} onClose={limparModalCompraDesejo}>
-        <View style={[styles.modalCard, styles.modalCardNotesFixedFooter, styles.modalCardWithFixedFooter, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.modalContentFill}>
-            <ScrollView
-              ref={shoppingModalScrollRef}
-              style={styles.modalScroll}
-              contentContainerStyle={[styles.modalScrollContent, styles.modalScrollContentWithFooter]}
-              showsVerticalScrollIndicator
-              keyboardShouldPersistTaps='always'
-              nestedScrollEnabled
-              scrollEnabled
-            >
-              <View style={styles.modalContentWrap}>
-                <Text style={[styles.modalTitle, { color: theme.text }]}>{compraDesejoEditandoId ? 'Editar item' : 'Novo item para comprar'}</Text>
+      <ShoppingWishModal
+        key={`wish-${wishFormKey}`}
+        visible={modalCompraDesejoAberto}
+        onClose={limparModalCompraDesejo}
+        theme={theme}
+        editing={!!compraDesejoEditandoId}
+        initialValues={wishInitialValues}
+        data={compraDesejoData}
+        onDataChange={setCompraDesejoData}
+        onOpenCalendar={() => abrirCalendario('wish_data', compraDesejoData, meses.indexOf(mesSelecionado) + 1)}
+        onSave={salvarCompraDesejo}
+      />
 
-                <View style={styles.modalField} onLayout={(event) => registrarShoppingFieldLayout('nome', event.nativeEvent.layout.y)}>
-                  <Text style={[styles.modalLabel, { color: theme.muted }]}>Nome do item</Text>
-                  <TextInput value={compraDesejoNome} onChangeText={setCompraDesejoNome} onFocus={() => scrollShoppingModalToField('nome')} placeholder='Ex.: Fone, tênis, mochila...' placeholderTextColor={theme.muted} style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-                </View>
-
-                <View style={styles.modalField} onLayout={(event) => registrarShoppingFieldLayout('preco', event.nativeEvent.layout.y)}>
-                  <Text style={[styles.modalLabel, { color: theme.muted }]}>Preço encontrado</Text>
-                  <TextInput value={compraDesejoPreco} onChangeText={(value) => handleMaskedMoneyInput(value, setCompraDesejoPreco)} onFocus={() => scrollShoppingModalToField('preco')} placeholder='R$ 0,00' placeholderTextColor={theme.muted} keyboardType='number-pad' inputMode='numeric' style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-                </View>
-
-                <View style={styles.modalField} onLayout={(event) => registrarShoppingFieldLayout('loja', event.nativeEvent.layout.y)}>
-                  <Text style={[styles.modalLabel, { color: theme.muted }]}>Loja</Text>
-                  <TextInput value={compraDesejoLoja} onChangeText={setCompraDesejoLoja} onFocus={() => scrollShoppingModalToField('loja')} placeholder='Onde você encontrou' placeholderTextColor={theme.muted} style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-                </View>
-
-                <View style={styles.modalField} onLayout={(event) => registrarShoppingFieldLayout('data', event.nativeEvent.layout.y)}>
-                  <Text style={[styles.modalLabel, { color: theme.muted }]}>Data que viu</Text>
-                  <View style={styles.dateInputRow}>
-                    <TextInput value={compraDesejoData} onChangeText={(value) => setCompraDesejoData(formatarInputDiaMes(value))} onFocus={() => scrollShoppingModalToField('data')} keyboardType='number-pad' inputMode='numeric' placeholder='dd/mm' placeholderTextColor={theme.muted} style={[styles.modalInput, styles.dateInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-                    <Pressable onPress={() => abrirCalendario('wish_data', compraDesejoData, meses.indexOf(mesSelecionado) + 1)} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                      <Text style={[styles.calendarBtnText, { color: theme.text }]}>📅</Text>
-                    </Pressable>
-                  </View>
-                </View>
-
-                <View style={styles.modalField} onLayout={(event) => registrarShoppingFieldLayout('obs', event.nativeEvent.layout.y)}>
-                  <Text style={[styles.modalLabel, { color: theme.muted }]}>Observação</Text>
-                  <TextInput value={compraDesejoObservacao} onChangeText={setCompraDesejoObservacao} onFocus={() => scrollShoppingModalToField('obs')} multiline scrollEnabled={false} textAlignVertical='top' placeholder='Cor, modelo, condição, prioridade...' placeholderTextColor={theme.muted} style={[styles.modalInput, styles.modalInputMultilineSmall, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-                </View>
-              </View>
-            </ScrollView>
-
-            <View style={[styles.modalActionsSticky, { borderTopColor: theme.border, backgroundColor: theme.card }]}>
-              <View style={styles.modalActions}>
-                <Pressable onPress={limparModalCompraDesejo} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text></Pressable>
-                <Pressable onPress={salvarCompraDesejo} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text></Pressable>
-              </View>
-            </View>
-          </View>
-        </View>
-      </AppModal>
-
-      <AppModal visible={modalObjetivoAberto} onClose={() => setModalObjetivoAberto(false)}>
-        <View style={[styles.modalCard, styles.modalCardGoal, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.modalTitle, { color: theme.text }]}>{objetivoEditandoId ? 'Editar objetivo' : 'Novo objetivo'}</Text>
-          <View style={styles.modalField}><Text style={[styles.modalLabel, { color: theme.muted }]}>Título</Text><TextInput value={objetivoTitulo} onChangeText={setObjetivoTitulo} placeholder='Ex.: Reserva de emergência' placeholderTextColor={theme.muted} style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /></View>
-          <View style={styles.modalField}><Text style={[styles.modalLabel, { color: theme.muted }]}>Valor alvo</Text><TextInput value={objetivoAlvo} onChangeText={(value) => handleMaskedMoneyInput(value, setObjetivoAlvo)} placeholder='R$ 0,00' placeholderTextColor={theme.muted} keyboardType='number-pad' inputMode='numeric' style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /></View>
-          <View style={styles.modalField}><Text style={[styles.modalLabel, { color: theme.muted }]}>Quanto já tenho</Text><TextInput value={objetivoAtual} onChangeText={(value) => handleMaskedMoneyInput(value, setObjetivoAtual)} placeholder='R$ 0,00' placeholderTextColor={theme.muted} keyboardType='number-pad' inputMode='numeric' style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /></View>
-          <View style={styles.modalActions}>
-            <Pressable onPress={() => setModalObjetivoAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text></Pressable>
-            <Pressable onPress={salvarObjetivo} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text></Pressable>
-          </View>
-        </View>
-      </AppModal>
+      <GoalModal
+        key={`goal-${goalFormKey}`}
+        visible={modalObjetivoAberto}
+        onClose={() => setModalObjetivoAberto(false)}
+        theme={theme}
+        editing={!!objetivoEditandoId}
+        initialValues={goalInitialValues}
+        onSave={salvarObjetivo}
+      />
 
       <AppModal visible={modalCalendarioAberto} onClose={() => setModalCalendarioAberto(false)}>
         <View style={[styles.modalCard, styles.modalCardCalendar, { backgroundColor: theme.card, borderColor: theme.border }]}>

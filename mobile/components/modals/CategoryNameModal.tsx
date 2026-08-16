@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import type { ModoCategoria, Tema } from '../../app/types'
 import AppModal from '../common/AppModal'
@@ -6,9 +7,8 @@ type CategoryNameModalProps = {
   visible: boolean
   onClose: () => void
   mode: ModoCategoria
-  value: string
-  onChange: (value: string) => void
-  onSave: () => void
+  initialValue: string
+  onSave: (value: string) => void
   theme: Tema
 }
 
@@ -16,11 +16,17 @@ export default function CategoryNameModal({
   visible,
   onClose,
   mode,
-  value,
-  onChange,
+  initialValue,
   onSave,
   theme,
 }: CategoryNameModalProps) {
+  // O campo e do modal: digitar aqui nao re-renderiza a tela inteira.
+  const [value, setValue] = useState(initialValue)
+
+  const handleSave = () => {
+    onSave(value)
+  }
+
   return (
     <AppModal visible={visible} onClose={onClose}>
       <View style={[styles.modalCard, styles.modalCardNewCategory, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -31,7 +37,7 @@ export default function CategoryNameModal({
           <Text style={[styles.modalLabel, { color: theme.muted }]}>Nome</Text>
           <TextInput
             value={value}
-            onChangeText={onChange}
+            onChangeText={setValue}
             placeholder='Digite o nome'
             placeholderTextColor={theme.muted}
             style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
@@ -41,7 +47,7 @@ export default function CategoryNameModal({
           <Pressable onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
             <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
           </Pressable>
-          <Pressable onPress={onSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
+          <Pressable onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
             <Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text>
           </Pressable>
         </View>
