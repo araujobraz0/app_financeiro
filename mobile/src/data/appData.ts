@@ -27,6 +27,33 @@ export const fixosLegadoPadrao = [
   { nome: 'YouTube Music', valor: 9 },
 ]
 
+// Helpers usados pela normalizacao. Ficam aqui porque normalizarAppData
+// depende deles; o home.tsx importa daqui em vez de redefinir.
+export const extrairLinksTexto = (texto?: string) => {
+  if (!texto) return [] as string[]
+  const matches = texto.match(/https?:\/\/[^\s]+/gi) || []
+  return Array.from(new Set(matches.map((item) => item.replace(/[),.;!?]+$/g, ''))))
+}
+
+export const sanitizarListaLinks = (links?: string[]) => {
+  if (!Array.isArray(links)) return [] as string[]
+  return Array.from(
+    new Set(
+      links
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
+        .map((item) => (/^https?:\/\//i.test(item) ? item : `https://${item}`))
+    )
+  )
+}
+
+export const normalizarCategoriaNome = (categoria: unknown) => String(categoria || '').trim()
+
+export const categoriaEhImportado = (categoria: unknown) => {
+  const valor = normalizarCategoriaNome(categoria).toLowerCase()
+  return valor === 'importado' || valor === 'importada' || valor === 'importados' || valor === 'importadas'
+}
+
 export function globalDefaults(): GlobalData {
   return {
     firstAccessCompleted: false,

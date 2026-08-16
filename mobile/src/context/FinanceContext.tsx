@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import { AppState, useColorScheme } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router } from 'expo-router'
@@ -33,7 +33,7 @@ import type {
 type FinanceContextValue = {
   // dados
   appData: AppData
-  setAppData: React.Dispatch<React.SetStateAction<AppData>>
+  setAppData: Dispatch<SetStateAction<AppData>>
   carregando: boolean
   sincronizando: boolean
   dadosRemotosCarregados: boolean

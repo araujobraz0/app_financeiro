@@ -12,7 +12,6 @@ import {
   Pressable,
   ScrollView,
   Share,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -54,7 +53,18 @@ import ManageCategoriesModal from '../components/modals/ManageCategoriesModal'
 import ImageCropModal from '../components/modals/ImageCropModal'
 import { supabase } from '../src/lib/supabase'
 import { FinanceProvider, useFinance } from '../src/context/FinanceContext'
-import { categoriasPadrao, normalizarAppData } from '../src/data/appData'
+import { styles } from '../src/theme/homeStyles'
+import FixoTab from '../components/tabs/FixoTab'
+import VariavelTab from '../components/tabs/VariavelTab'
+import CartaoTab from '../components/tabs/CartaoTab'
+import {
+  categoriaEhImportado,
+  categoriasPadrao,
+  extrairLinksTexto,
+  normalizarAppData,
+  normalizarCategoriaNome,
+  sanitizarListaLinks,
+} from '../src/data/appData'
 import {
   digitsToMoneyString,
   formatarMoeda,
@@ -147,31 +157,6 @@ const obterVersaoInstalada = () => {
   return String(config?.version || '1.0.0')
 }
 
-
-const extrairLinksTexto = (texto?: string) => {
-  if (!texto) return [] as string[]
-  const matches = texto.match(/https?:\/\/[^\s]+/gi) || []
-  return Array.from(new Set(matches.map((item) => item.replace(/[),.;!?]+$/g, ''))))
-}
-
-const sanitizarListaLinks = (links?: string[]) => {
-  if (!Array.isArray(links)) return [] as string[]
-  return Array.from(
-    new Set(
-      links
-        .map((item) => String(item || '').trim())
-        .filter(Boolean)
-        .map((item) => (/^https?:\/\//i.test(item) ? item : `https://${item}`))
-    )
-  )
-}
-
-const normalizarCategoriaNome = (categoria: unknown) => String(categoria || '').trim()
-
-const categoriaEhImportado = (categoria: unknown) => {
-  const valor = normalizarCategoriaNome(categoria).toLowerCase()
-  return valor === 'importado' || valor === 'importada' || valor === 'importados' || valor === 'importadas'
-}
 
 function calcularCompetenciaInicialPorFechamento(
   chaveBase: string,
@@ -3188,250 +3173,77 @@ function HomeScreenContent() {
         )}
 
         {abaInferior === 'fixo' && (
-          <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-            <View style={styles.manageHeaderRow}><View style={{ flex: 1 }}><Text style={[styles.manageTitle, { color: theme.text }]}>Gastos fixos</Text><Text style={[styles.manageSub, { color: theme.muted }]}>Pago: {formatarValorVisivel(totalFixoPago)} · Não pago: {formatarValorVisivel(totalFixoNaoPago)}</Text></View><Pressable onPress={() => abrirFiltro('fixo')} style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.smallActionBtnIcon, { color: theme.text }]}>☷</Text></Pressable></View>
-
-            {fixosOrdenados.map((item) => (
-              <View key={item.id} onLayout={(event) => registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)} style={[styles.fullRowCard, highlightedItemId === item.id && styles.searchHighlightCard, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}>
-                    {renderHighlightOverlay(item.id)}
-                <View style={styles.fullRowTop}>
-                  <View style={styles.fullRowTitleWrap}>
-                    <Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.nome}</Text>
-                          <Text style={[styles.rowItemMeta, { color: theme.muted }]}>{formatarDiaMes(item.dia, chaveAtual)}</Text>
-                  </View>
-                  <View style={styles.inlineActions}>
-                    <Text style={[styles.rowItemValue, { color: theme.text }]}>{formatarValorVisivel(item.valor)}</Text>
-                    <Pressable style={[styles.statusBtn, { backgroundColor: item.pago ? theme.green : theme.red }]} onPress={() => alternarPagoFixo(item.id)}>
-                      <Text style={styles.statusBtnText}>{item.pago ? 'Pago' : 'Não pago'}</Text>
-                    </Pressable>
-                    <Pressable onPress={() => abrirEditarFixo(item)} style={styles.iconBtn}><Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text></Pressable>
-                    <Pressable onPress={() => abrirConfirmacaoExclusao('fixo', item.id, item.nome)} style={styles.iconBtn}><Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text></Pressable>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
+          <FixoTab
+            theme={theme}
+            chaveAtual={chaveAtual}
+            fixosOrdenados={fixosOrdenados}
+            totalFixoPago={totalFixoPago}
+            totalFixoNaoPago={totalFixoNaoPago}
+            highlightedItemId={highlightedItemId}
+            formatarValorVisivel={formatarValorVisivel}
+            registrarLayoutItem={registrarLayoutItem}
+            renderHighlightOverlay={renderHighlightOverlay}
+            onAbrirFiltro={() => abrirFiltro('fixo')}
+            onAlternarPago={alternarPagoFixo}
+            onEditar={abrirEditarFixo}
+            onExcluir={(id, nome) => abrirConfirmacaoExclusao('fixo', id, nome)}
+          />
         )}
 
         {abaInferior === 'variavel' && (
-          <>
-            <View style={[styles.manageCard, styles.sectionCardSpaced, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <View style={styles.manageHeaderRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.manageTitle, { color: theme.text }]}>VARIÁVEL</Text>
-                  <Text style={[styles.manageSub, { color: theme.muted }]}>
-                    {tipoVariavelTab === 'entrada'
-                      ? `Total de entradas: ${formatarValorVisivel(totalEntradas)}`
-                      : `Total da categoria marcada: ${formatarMoeda(totalCategoriaSelecionada)}`}
-                  </Text>
-                </View>
-                <View style={styles.categoryToolbar}>
-                  {tipoVariavelTab === 'saida' && (
-                    <>
-                      <Pressable onPress={abrirModalNovaCategoria} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}>
-                        <Text style={[styles.smallActionBtnText, { color: theme.white }]}>+ Categoria</Text>
-                      </Pressable>
-                      <Pressable onPress={() => setModalCategoriasAberto(true)} style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                        <Text style={[styles.smallActionBtnText, { color: theme.text }]}>Gerenciar</Text>
-                      </Pressable>
-                    </>
-                  )}
-                  <Pressable onPress={() => abrirFiltro(tipoVariavelTab === 'entrada' ? 'entradas' : 'saidas')} style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                    <Text style={[styles.smallActionBtnIcon, { color: theme.text }]}>☷</Text>
-                  </Pressable>
-                </View>
-              </View>
-
-              <View style={styles.variableSwitchRow}>
-                <Pressable
-                  onPress={() => setTipoVariavelTab('entrada')}
-                  style={[styles.variableSwitchBtn, { backgroundColor: tipoVariavelTab === 'entrada' ? theme.primary : theme.cardSoft, borderColor: tipoVariavelTab === 'entrada' ? theme.primary : theme.border }]}
-                >
-                  <Text style={[styles.variableSwitchBtnText, { color: tipoVariavelTab === 'entrada' ? theme.white : theme.text }]}>Entradas</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setTipoVariavelTab('saida')}
-                  style={[styles.variableSwitchBtn, { backgroundColor: tipoVariavelTab === 'saida' ? theme.primary : theme.cardSoft, borderColor: tipoVariavelTab === 'saida' ? theme.primary : theme.border }]}
-                >
-                  <Text style={[styles.variableSwitchBtnText, { color: tipoVariavelTab === 'saida' ? theme.white : theme.text }]}>Saídas</Text>
-                </Pressable>
-              </View>
-
-              {tipoVariavelTab === 'saida' && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-                  <Pressable onPress={() => setFiltroCategoria('Todas')} style={[styles.filterPill, { backgroundColor: filtroCategoria === 'Todas' ? theme.primary : theme.cardSoft, borderColor: filtroCategoria === 'Todas' ? theme.primary : theme.border }]}>
-                    <Text style={[styles.filterPillText, { color: filtroCategoria === 'Todas' ? theme.white : theme.text }]}>Todas</Text>
-                  </Pressable>
-                  {categoriasSaidas.map((categoria) => (
-                    <Pressable key={categoria} onPress={() => setFiltroCategoria(categoria)} style={[styles.filterPill, { backgroundColor: filtroCategoria === categoria ? theme.primary : theme.cardSoft, borderColor: filtroCategoria === categoria ? theme.primary : theme.border }]}>
-                      <Text style={[styles.filterPillText, { color: filtroCategoria === categoria ? theme.white : theme.text }]}>{categoria}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              )}
-            </View>
-
-            <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              {tipoVariavelTab === 'entrada' ? (
-                entradas.length === 0 ? (
-                  <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft }]}>
-                    <Text style={[styles.emptyChartText, { color: theme.muted }]}>Nenhuma entrada cadastrada.</Text>
-                  </View>
-                ) : (
-                  entradasOrdenadas.map((item) => (
-                    <View key={item.id} onLayout={(event) => registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)} style={[styles.fullRowCard, highlightedItemId === item.id && styles.searchHighlightCard, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}>
-                    {renderHighlightOverlay(item.id)}
-                      <View style={styles.fullRowTop}>
-                        <View style={styles.fullRowTitleWrap}>
-                          <Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.nome}</Text>
-                          <Text style={[styles.rowItemMeta, { color: theme.muted }]}>{formatarDiaMes(item.dia, chaveAtual)}</Text>
-                        </View>
-                        <View style={styles.inlineActions}>
-                          <Text style={[styles.rowItemValue, { color: theme.green }]}>{formatarValorVisivel(item.valor)}</Text>
-                          <Pressable onPress={() => abrirEditarEntrada(item)} style={styles.iconBtn}><Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text></Pressable>
-                          <Pressable onPress={() => abrirConfirmacaoExclusao('entrada', item.id, item.nome)} style={styles.iconBtn}><Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text></Pressable>
-                        </View>
-                      </View>
-                    </View>
-                  ))
-                )
-              ) : saidasOrdenadas.length === 0 ? (
-                <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft }]}>
-                  <Text style={[styles.emptyChartText, { color: theme.muted }]}>Nenhuma saída nesta categoria.</Text>
-                </View>
-              ) : (
-                saidasOrdenadas.map((item) => (
-                  <View key={item.id} onLayout={(event) => registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)} style={[styles.fullRowCard, highlightedItemId === item.id && styles.searchHighlightCard, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}>
-                    {renderHighlightOverlay(item.id)}
-                    <View style={styles.fullRowTop}>
-                      <View style={styles.fullRowTitleWrap}>
-                        <Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.nome}</Text>
-                        <Text style={[styles.rowItemMeta, { color: theme.muted }]}>{item.categoria} · {formatarDiaMes(item.dia, chaveAtual)}</Text>
-                      </View>
-                      <View style={styles.inlineActions}>
-                        <Text style={[styles.rowItemValue, { color: theme.red }]}>{formatarValorVisivel(item.valor)}</Text>
-                        <Pressable onPress={() => abrirEditarSaida(item)} style={styles.iconBtn}><Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text></Pressable>
-                        <Pressable onPress={() => abrirConfirmacaoExclusao('saida', item.id, item.nome)} style={styles.iconBtn}><Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text></Pressable>
-                      </View>
-                    </View>
-                  </View>
-                ))
-              )}
-            </View>
-          </>
+          <VariavelTab
+            theme={theme}
+            chaveAtual={chaveAtual}
+            tipoVariavelTab={tipoVariavelTab}
+            onTipoChange={setTipoVariavelTab}
+            totalEntradas={totalEntradas}
+            totalCategoriaSelecionada={totalCategoriaSelecionada}
+            categoriasSaidas={categoriasSaidas}
+            filtroCategoria={filtroCategoria}
+            onFiltroCategoriaChange={setFiltroCategoria}
+            entradas={entradas}
+            entradasOrdenadas={entradasOrdenadas}
+            saidasOrdenadas={saidasOrdenadas}
+            highlightedItemId={highlightedItemId}
+            formatarValorVisivel={formatarValorVisivel}
+            registrarLayoutItem={registrarLayoutItem}
+            renderHighlightOverlay={renderHighlightOverlay}
+            onNovaCategoria={abrirModalNovaCategoria}
+            onGerenciarCategorias={() => setModalCategoriasAberto(true)}
+            onAbrirFiltro={abrirFiltro}
+            onEditarEntrada={abrirEditarEntrada}
+            onExcluirEntrada={(id, nome) => abrirConfirmacaoExclusao('entrada', id, nome)}
+            onEditarSaida={abrirEditarSaida}
+            onExcluirSaida={(id, nome) => abrirConfirmacaoExclusao('saida', id, nome)}
+          />
         )}
 
         {abaInferior === 'cartao' && (
-          <>
-            <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <View style={styles.manageHeaderRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.manageTitle, { color: theme.text }]}>Cartões</Text>
-                  <Text style={[styles.manageSub, { color: theme.muted }]}>Total do mês selecionado: {formatarValorVisivel(totalCartaoSelecionado)}</Text>
-                </View>
-                <View style={styles.categoryToolbar}>
-                  <Pressable onPress={abrirModalNovoCartao} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}>
-                    <Text style={[styles.smallActionBtnIcon, { color: theme.white }]}>＋</Text>
-                  </Pressable>
-                  <Pressable onPress={abrirGerenciarCartoes} style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                    <Text style={[styles.smallActionBtnText, { color: theme.text }]}>Gerenciar</Text>
-                  </Pressable>
-                  <Pressable onPress={() => abrirFiltro('cartao')} style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                    <Text style={[styles.smallActionBtnIcon, { color: theme.text }]}>☷</Text>
-                  </Pressable>
-                </View>
-              </View>
-
-              {selectedCard && (
-                <View onLayout={(event) => registrarLayoutItem(selectedCard.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)} style={[styles.settingsCard, highlightedItemId === selectedCard.id && styles.searchHighlightCard, { backgroundColor: theme.cardSoft, borderColor: theme.border, marginTop: 0, marginBottom: 10 }]}>
-                  {renderHighlightOverlay(selectedCard.id)} 
-                  <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Fatura real</Text>
-                  <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 10 }]}>Fechamento da parcela: {datasFaturaCartao.fechamentoAtual} · Vencimento: {datasFaturaCartao.vencimentoAtual}</Text>
-                  <View style={styles.settingsInfoGrid}>
-                    <View style={[styles.settingsInfoPill, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-                      <Text style={[styles.settingsInfoLabel, { color: theme.muted }]}>Limite</Text>
-                      <Text style={[styles.settingsInfoValue, { color: theme.text }]}>{formatarValorVisivel(limiteCartaoSelecionado)}</Text>
-                    </View>
-                    <View style={[styles.settingsInfoPill, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-                      <Text style={[styles.settingsInfoLabel, { color: theme.muted }]}>Disponível</Text>
-                      <Text style={[styles.settingsInfoValue, { color: theme.text }]}>{formatarValorVisivel(limiteDisponivelCartao)}</Text>
-                    </View>
-                    <View style={[styles.settingsInfoPill, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-                      <Text style={[styles.settingsInfoLabel, { color: theme.muted }]}>Fatura atual</Text>
-                      <Text style={[styles.settingsInfoValue, { color: theme.text }]}>{formatarValorVisivel(totalFaturaAtual)}</Text>
-                    </View>
-                    <View style={[styles.settingsInfoPill, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-                      <Text style={[styles.settingsInfoLabel, { color: theme.muted }]}>Próxima</Text>
-                      <Text style={[styles.settingsInfoValue, { color: theme.text }]}>{formatarValorVisivel(totalProximaFatura)}</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.compareBarTrack, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 10 }]}> 
-                    <View style={[styles.compareBarFill, { width: `${Math.max(4, percentualUsoCartao)}%` as const, backgroundColor: percentualUsoCartao >= 85 ? theme.red : theme.blue }]} />
-                  </View>
-                  <Text style={[styles.cardLimitPercent, { color: theme.muted }]}>{percentualUsoCartao.toFixed(1).replace('.', ',')}% do limite usado</Text>
-                  {totalProximaFatura > 0 ? (
-                    <Pressable onPress={anteciparFaturaSeguinte} style={[styles.settingsActionBtn, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 12 }]}> 
-                      <Text style={[styles.settingsActionBtnText, { color: theme.text }]}>Antecipar fatura do mês seguinte</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              )}
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-                {cards.map((card) => (
-                  <Pressable
-                    key={card.id}
-                    onPress={() => setSelectedCardId(card.id)}
-                    style={[
-                      styles.filterPill,
-                      {
-                        backgroundColor: selectedCardId === card.id ? theme.primary : theme.cardSoft,
-                        borderColor: selectedCardId === card.id ? theme.primary : theme.border,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.filterPillText, { color: selectedCardId === card.id ? theme.white : theme.text }]}>
-                      {card.nome}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-
-            <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              {!selectedCard ? (
-                <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft }]}>
-                  <Text style={[styles.emptyChartText, { color: theme.muted }]}>Crie ou selecione um cartão.</Text>
-                </View>
-              ) : parcelasOrdenadas.length === 0 ? (
-                <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft }]}>
-                  <Text style={[styles.emptyChartText, { color: theme.muted }]}>Nenhuma parcela neste mês.</Text>
-                </View>
-              ) : (
-                parcelasOrdenadas.map((item) => (
-                  <View key={item.id} onLayout={(event) => registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)} style={[styles.fullRowCard, highlightedItemId === item.id && styles.searchHighlightCard, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}>
-                    {renderHighlightOverlay(item.id)}
-                    <View style={styles.fullRowTop}>
-                      <View style={styles.fullRowTitleWrap}>
-                        <Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.descricao}</Text>
-                        <Text style={[styles.rowItemMeta, { color: theme.muted }]}>
-                          {item.parcelaAtual}/{item.totalParcelas} parcelas · {formatarDiaMes(item.dia, item.competencia)}
-                        </Text>
-                      </View>
-                      <View style={styles.inlineActions}>
-                        <Text style={[styles.rowItemValue, { color: theme.blue }]}>{formatarValorVisivel(item.valorParcela)}</Text>
-                        <Pressable onPress={() => abrirEditarParcela(item)} style={styles.iconBtn}>
-                          <Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text>
-                        </Pressable>
-                        <Pressable onPress={() => abrirConfirmacaoExclusao('parcela', item.id, item.descricao)} style={styles.iconBtn}>
-                          <Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  </View>
-                ))
-              )}
-            </View>
-          </>
+          <CartaoTab
+            theme={theme}
+            cards={cards}
+            selectedCard={selectedCard}
+            selectedCardId={selectedCardId}
+            onSelectCard={setSelectedCardId}
+            parcelasOrdenadas={parcelasOrdenadas}
+            totalCartaoSelecionado={totalCartaoSelecionado}
+            limiteCartaoSelecionado={limiteCartaoSelecionado}
+            limiteDisponivelCartao={limiteDisponivelCartao}
+            totalFaturaAtual={totalFaturaAtual}
+            totalProximaFatura={totalProximaFatura}
+            percentualUsoCartao={percentualUsoCartao}
+            datasFaturaCartao={datasFaturaCartao}
+            highlightedItemId={highlightedItemId}
+            formatarValorVisivel={formatarValorVisivel}
+            registrarLayoutItem={registrarLayoutItem}
+            renderHighlightOverlay={renderHighlightOverlay}
+            onNovoCartao={abrirModalNovoCartao}
+            onGerenciarCartoes={abrirGerenciarCartoes}
+            onAbrirFiltro={() => abrirFiltro('cartao')}
+            onAnteciparFatura={anteciparFaturaSeguinte}
+            onEditarParcela={abrirEditarParcela}
+            onExcluirParcela={(id, descricao) => abrirConfirmacaoExclusao('parcela', id, descricao)}
+          />
         )}
       </ScrollView>
       </View>
@@ -3932,460 +3744,6 @@ function HomeScreenContent() {
   )
 }
 
-const styles = StyleSheet.create({
-  sectionSpacer: { height: 12 },
-  sectionSpacerLarge: { height: 18 },
-  safeArea: { flex: 1 },
-  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  loadingText: { fontSize: 16, fontWeight: '700' },
-  scrollContent: { paddingHorizontal: 14, paddingTop: 10 },
-  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  homePremiumBadgeWrap: {
-    alignSelf: 'flex-start',
-    minHeight: 36,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-    marginBottom: 12,
-  },
-
-  homePremiumBadgeText: {
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.2,
-  },
-
-  topActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  avatar: { width: 46, height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  avatarText: { fontSize: 16, fontWeight: '900' },
-  themeButton: { width: 40, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  valueToggleButton: { marginLeft: -2 },
-  themeButtonText: { fontSize: 17, fontWeight: '900', lineHeight: 17 },
-  logoutButton: { minHeight: 40, paddingHorizontal: 14, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  logoutButtonText: { fontSize: 13, fontWeight: '800' },
-  eyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6, textAlign: 'center' },
-  title: { fontSize: 24, fontWeight: '900', textAlign: 'center' },
-  subtitle: { fontSize: 12, lineHeight: 16, textAlign: 'center', marginTop: 3, marginBottom: 12 },
-  brandHeroCard: { position: 'relative', overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 22, paddingLeft: 14, paddingRight: 14, paddingVertical: 12, borderWidth: 1, marginBottom: 12, shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 5 },
-  brandHeroAccentLine: { position: 'absolute', left: 0, top: 8, bottom: 8, width: 4, borderRadius: 999 },
-  brandHeroIconShell: { width: 62, height: 62, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  brandHeroIcon: { width: 44, height: 44 },
-  brandHeroTextWrap: { flex: 1, justifyContent: 'center' },
-  brandHeroBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1, marginBottom: 6 },
-  brandHeroEyebrow: { fontSize: 9, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.1 },
-  brandHeroTitle: { fontSize: 16, fontWeight: '900', marginBottom: 3 },
-  brandHeroSub: { fontSize: 12, fontWeight: '700', lineHeight: 16, maxWidth: '94%' },
-  selectorGroup: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  dropdownButton: { flex: 1, minHeight: 58, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, justifyContent: 'center' },
-  dropdownLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3, textAlign: 'center' },
-  dropdownValueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  dropdownValue: { fontSize: 16, fontWeight: '900', textAlign: 'center' },
-  dropdownIcon: { fontSize: 15, fontWeight: '900', marginTop: -2 },
-  salaryCard: { borderRadius: 20, padding: 14, borderWidth: 1, marginBottom: 8 },
-  cardLabelCentered: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, textAlign: 'center' },
-  salaryRowCentered: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  salaryValueCentered: { fontSize: 25, fontWeight: '900', textAlign: 'center' },
-  salaryInput: { minWidth: 170, fontSize: 24, fontWeight: '900', textAlign: 'center', paddingVertical: 0 },
-  salaryEditButton: { width: 32, height: 32, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  salaryEditText: { fontSize: 16, fontWeight: '800' },
-  balanceCard: { borderRadius: 20, padding: 14, borderWidth: 1, marginBottom: 8 },
-  balanceValueCentered: { fontSize: 27, fontWeight: '900', textAlign: 'center' },
-  summaryRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  summaryCard: { flex: 1, minWidth: '47%', borderRadius: 18, padding: 12, borderWidth: 1 },
-  smallLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, textAlign: 'center' },
-  smallValue: { fontSize: 16, fontWeight: '900', textAlign: 'center' },
-  chartCard: { borderRadius: 20, padding: 12, borderWidth: 1, marginTop: 14 },
-  investmentCard: { borderRadius: 24, padding: 16, borderWidth: 1, marginTop: 14, shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
-  investmentHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
-  investmentEyebrow: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.1, marginBottom: 6 },
-  investmentTitle: { fontSize: 18, fontWeight: '900' },
-  investmentSub: { marginTop: 4, fontSize: 13, lineHeight: 18, fontWeight: '700' },
-  investmentBadge: { minWidth: 72, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 16, borderWidth: 1 },
-  investmentBadgeText: { fontSize: 18, fontWeight: '900' },
-  investmentBaseRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  investmentBaseChip: { flex: 1, minHeight: 44, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
-  investmentBaseChipText: { fontSize: 13, fontWeight: '800', textAlign: 'center' },
-  investmentHighlightCard: { borderRadius: 20, borderWidth: 1, padding: 14, marginBottom: 14 },
-  investmentHighlightTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
-  investmentHighlightLabel: { fontSize: 12, fontWeight: '700', marginBottom: 4 },
-  investmentHighlightValue: { fontSize: 24, fontWeight: '900' },
-  investmentMiniLabel: { fontSize: 11, fontWeight: '700', marginBottom: 4 },
-  investmentMiniValue: { fontSize: 14, fontWeight: '800' },
-  investmentHelperText: { marginTop: 10, fontSize: 12, lineHeight: 17, fontWeight: '600' },
-  investmentSliderBlock: { marginTop: 2 },
-  investmentSliderHeader: { flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center', marginBottom: 10 },
-  investmentSliderLabel: { fontSize: 14, fontWeight: '800' },
-  investmentSliderValue: { fontSize: 16, fontWeight: '900' },
-  investmentSliderMetaRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, paddingHorizontal: 2 },
-  investmentSliderMetaText: { fontSize: 11, fontWeight: '800' },
-  investmentTrackOuter: { position: 'relative', borderWidth: 1, borderRadius: 22, minHeight: 64, justifyContent: 'center', paddingHorizontal: 14, marginTop: 2 },
-  investmentTrackBar: { height: 8, borderRadius: 999 },
-  investmentTrackFill: { position: 'absolute', left: 14, top: '50%', marginTop: -4, height: 8, borderRadius: 999 },
-  investmentTrackTick: { position: 'absolute', top: 20, width: 2, height: 24, marginLeft: -1, borderRadius: 999, opacity: 0.6 },
-  investmentKnob: { position: 'absolute', top: '50%', marginTop: -14, marginLeft: -14, width: 28, height: 28, borderRadius: 999, borderWidth: 2, alignItems: 'center', justifyContent: 'center', shadowOpacity: 0.14, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
-  investmentKnobInner: { width: 10, height: 10, borderRadius: 999 },
-  investmentSliderScale: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 12, flexWrap: 'wrap' },
-  investmentScalePill: { minWidth: 46, paddingHorizontal: 10, minHeight: 34, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  investmentScalePillText: { fontSize: 11, fontWeight: '800' },
-  investmentManualField: { marginTop: 10, width: '44%', minWidth: 140, maxWidth: 175, alignSelf: 'flex-start' },
-  investmentManualInput: { flex: 1, textAlign: 'center', fontSize: 15, fontWeight: '800' },
-  investmentManualInputRow: { flexDirection: 'row', alignItems: 'center', width: '100%', gap: 8 },
-  investmentManualSuffix: { fontSize: 16, fontWeight: '900' },
-  modalInputMultilineSmall: { minHeight: 96, maxHeight: 118, textAlignVertical: 'top', paddingTop: 12, paddingBottom: 12 },
-  chartTitle: { fontSize: 15, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
-  chartContentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  pieWrapSide: { width: 140, height: 140, alignItems: 'center', justifyContent: 'center' },
-  emptyChart: { borderRadius: 14, padding: 16, alignItems: 'center', justifyContent: 'center' },
-  emptyChartText: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
-  pieCenterLabel: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  pieCenterSmall: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2 },
-  pieCenterValue: { fontSize: 11, fontWeight: '900', textAlign: 'center', paddingHorizontal: 20 },
-  legendSideList: { flex: 1, gap: 6 },
-  legendSideItem: { borderRadius: 14, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  legendSideTop: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 },
-  legendDot: { width: 10, height: 10, borderRadius: 999 },
-  legendCategory: { fontSize: 12, fontWeight: '800', flex: 1 },
-  legendPercentInline: { fontSize: 11, fontWeight: '700', marginHorizontal: 6 },
-  legendValueInline: { fontSize: 11, fontWeight: '900', maxWidth: 88, textAlign: 'right' },
-  manageCard: { borderRadius: 20, padding: 12, borderWidth: 1, marginTop: 14 },
-  manageHeader: { marginBottom: 8 },
-  manageHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 10 },
-  manageTitle: { fontSize: 15, fontWeight: '900', flexShrink: 1 },
-  manageSub: { fontSize: 11, fontWeight: '700', marginTop: 2 },
-  sectionBlockTitle: { fontSize: 14, fontWeight: '900', marginBottom: 10 },
-  fullRowCard: { position: 'relative', overflow: 'hidden', borderRadius: 16, paddingVertical: 12, paddingHorizontal: 12, borderWidth: 1, marginTop: 8, width: '100%' },
-  fullRowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  fullRowTitleWrap: { flex: 1, minWidth: 0 },
-  rowItemTitle: { fontSize: 14, fontWeight: '800', lineHeight: 18 },
-  rowItemMeta: { fontSize: 11, fontWeight: '700', marginTop: 3 },
-  linkListWrap: { marginTop: 6, gap: 6 },
-  linkChip: { alignSelf: 'flex-start', maxWidth: '100%', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: 'rgba(212,170,76,0.12)', borderWidth: 1 },
-  linkChipText: { fontSize: 11, fontWeight: '800' },
-  linkFieldHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  linkInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  linkInputField: { flex: 1, minHeight: 44 },
-  linkAddBtn: { minWidth: 30, minHeight: 30, paddingHorizontal: 0, borderRadius: 10 },
-  linkRemoveBtn: { width: 34, height: 34, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  linkRemoveBtnText: { fontSize: 18, fontWeight: '900', lineHeight: 18 },
-  modalCardLinkConfirm: { alignItems: 'center', justifyContent: 'center' },
-  linkConfirmIconWrap: { width: 52, height: 52, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  linkConfirmIcon: { fontSize: 24, fontWeight: '900' },
-  linkPreviewCard: { width: '100%', borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 12, marginBottom: 2 },
-  linkPreviewText: { fontSize: 12, fontWeight: '800', textAlign: 'center' },
-  modalCardUpdateNotice: { alignItems: 'center', justifyContent: 'center' },
-  updateNoticeIconWrap: { width: 58, height: 58, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  updateNoticeIcon: { fontSize: 26, fontWeight: '900' },
-  rowItemValue: { fontSize: 13, fontWeight: '900' },
-  inlineActions: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'nowrap', justifyContent: 'center', maxWidth: '62%' },
-  statusBtn: { minHeight: 28, paddingHorizontal: 10, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  statusBtnText: { fontSize: 10, fontWeight: '900', color: '#ffffff' },
-  iconBtn: { width: 28, height: 28, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  iconBtnText: { fontSize: 18, fontWeight: '900', lineHeight: 18 },
-  categoryToolbar: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
-  smallActionBtn: { minHeight: 34, minWidth: 34, paddingHorizontal: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  smallActionBtnText: { fontSize: 11, fontWeight: '800' },
-  smallActionBtnIcon: { fontSize: 14, fontWeight: '900' },
-  filterRow: { gap: 8, paddingRight: 10 },
-  filterPill: { minHeight: 34, paddingHorizontal: 12, borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  filterPillText: { fontSize: 12, fontWeight: '800' },
-  variableSwitchRow: { flexDirection: 'row', gap: 8, marginTop: 2, marginBottom: 12 },
-  variableSwitchBtn: { flex: 1, minHeight: 42, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  variableSwitchBtnText: { fontSize: 13, fontWeight: '900' },
-  sectionCardSpaced: { marginTop: 18 },
-  quickActionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  quickActionBtn: { width: '47%', minHeight: 48, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  quickActionBtnText: { fontSize: 14, fontWeight: '900' },
-  dateInputRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dateInputField: { flex: 1, minWidth: 0 },
-  calendarBtn: { width: 42, minHeight: 46, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  calendarBtnText: { fontSize: 18 },
-  modalCardCalendar: { paddingBottom: 45, minHeight: 470 },
-  calendarSection: { marginBottom: 10 },
-  calendarDaysGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
-  calendarDayBtn: { width: '14%', minWidth: 40, minHeight: 40, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  calendarDayText: { fontSize: 12, fontWeight: '800' },
-  bottomBar: { position: 'absolute', left: 12, right: 12, minHeight: 64, borderRadius: 30, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 6, paddingBottom: 6, shadowOpacity: 0.12, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 10 },
-  bottomHalf: { flex: 1, flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', gap: 4, paddingBottom: 0 },
-  bottomDivider: { width: 1, height: 20, borderRadius: 999, opacity: 0.9 },
-  bottomItem: { flex: 1, alignItems: 'center', justifyContent: 'center', minWidth: 0 },
-  bottomItemText: { fontSize: 12, fontWeight: '900', lineHeight: 16, textTransform: 'uppercase', letterSpacing: 0.6 },
-  plusButton: { width: 56, height: 56, borderRadius: 999, alignItems: 'center', justifyContent: 'center', marginTop: 0, alignSelf: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
-  plusButtonText: { fontSize: 23, fontWeight: '900', lineHeight: 24, marginTop: -1 },
-  syncBadge: { position: 'absolute', right: 18, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
-  syncBadgeText: { fontSize: 12, fontWeight: '800' },
-  modalCard: {
-  width: '84%',
-  maxWidth: 420,
-  maxHeight: '94%',
-  alignSelf: 'center',
-  borderRadius: 28,
-  paddingHorizontal: 18,
-  paddingTop: 18,
-  paddingBottom: 30,
-  borderWidth: 1,
-  overflow: 'hidden',
-  shadowColor: '#000000',
-  shadowOpacity: 0.18,
-  shadowRadius: 22,
-  shadowOffset: { width: 0, height: 12 },
-  elevation: 14,
-},
-  modalCardExtraBottom: { paddingBottom: 36 },
-  modalCardExtraTall: { paddingBottom: 40 },
-  modalCardNotesFixedFooter: { width: '88%', maxWidth: 440, minHeight: 430, maxHeight: '86%', paddingBottom: 0 },
-  modalCardYear: { paddingBottom: 34 },
-  modalCardScrollHint: { paddingBottom: 30 },
-  modalCardConfirmDelete: { width: '78%', maxWidth: 360, minHeight: 180, paddingBottom: 20 },
-  modalCardGoal: { paddingBottom: 40, minHeight: 270 },
-  modalCardLancamentoEntrada: { paddingBottom: 0, minHeight: 378, maxHeight: '86%' },
-  modalCardEditEntrada: { paddingBottom: 0, minHeight: 330, maxHeight: '86%' },
-  modalCardEditFixo: { paddingBottom: 35, minHeight: 330 },
-  modalCardEditSaida: { paddingBottom: 0, minHeight: 440, maxHeight: '86%' },
-  modalCardLancamentoSaida: { paddingBottom: 0, minHeight: 470, maxHeight: '86%' },
-  modalCardLancamentoSaidaKeyboard: { paddingBottom: 0, minHeight: 336, maxHeight: '68%' },
-  modalCardManageCards: { paddingBottom: 24, minHeight: 360 },
-  modalCardNewCard: { paddingBottom: 30, minHeight: 225 },
-  modalCardNewCategory: { paddingBottom: 20, minHeight: 204 },
-  modalCardLancamentoParcela: { paddingBottom: 0, minHeight: 500, maxHeight: '86%' },
-  modalCardLancamentoParcelaKeyboard: { paddingBottom: 0, minHeight: 336, maxHeight: '68%' },
-  modalCardCartaoCompra: { paddingBottom: 36, minHeight: 430 },
-  modalQuickActions: { paddingBottom: 26 },
-  modalTitle: { fontSize: 18, fontWeight: '900', textAlign: 'center', marginBottom: 14 },
-  modalHintWrap: { alignSelf: 'center', minHeight: 28, borderRadius: 999, paddingHorizontal: 12, marginBottom: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  modalOption: { minHeight: 38, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 5, paddingHorizontal: 12 },
-  modalOptionText: { fontSize: 15, fontWeight: '800' },
-  monthModalScroll: { maxHeight: 340 },
-  switchRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  switchRowThree: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
-  switchBtnThree: { width: '48%', minHeight: 42, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  switchBtn: { flex: 1, minHeight: 42, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  switchBtnText: { fontSize: 13, fontWeight: '900' },
-  modalField: { marginBottom: 10 },
-  modalLabel: { fontSize: 12, fontWeight: '800', marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.8 },
-  modalInput: { minHeight: 46, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, fontSize: 15, fontWeight: '700' },
-  modalInputMultiline: { minHeight: 120, maxHeight: 140, textAlignVertical: 'top', paddingTop: 12, paddingBottom: 12 },
-  noteInputWrap: { position: 'relative' },
-  noteInputWithIndicator: { paddingRight: 26 },
-  noteScrollIndicatorTrack: { position: 'absolute', right: 10, top: 14, bottom: 14, width: 4, borderRadius: 999, overflow: 'hidden' },
-  noteScrollIndicatorThumb: { position: 'absolute', top: 0, width: 4, height: 34, borderRadius: 999 },
-  dualFieldRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  dualFieldItem: { flex: 1 },
-  dualFieldLabel: { textAlign: 'center' },
-  totalParcelasField: { alignItems: 'center' },
-  totalParcelasFieldWide: { alignItems: 'stretch' },
-  totalParcelasInput: { width: '48%', minWidth: 120, textAlign: 'center' },
-  totalParcelasInputWide: { width: '100%', minWidth: 0 },
-  modalHintText: { fontSize: 11, fontWeight: '700', textAlign: 'center' },
-  modalActions: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginTop: 12, width: '100%' },
-  modalActionsLower: { marginTop: 16 },
-  modalActionsFixedFooter: { marginTop: 12, paddingTop: 10 },
-  modalActionBtn: { flex: 1, minHeight: 42, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  modalActionText: { fontSize: 13, fontWeight: '900' },
-  categoryScroll: { maxHeight: 340 },
-  categoryManageRow: { borderRadius: 14, padding: 10, borderWidth: 1, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  categoryManageText: { fontSize: 14, fontWeight: '800', flex: 1, marginRight: 10 },
-  categoryManageActions: { flexDirection: 'row', gap: 8 },
-  manageMiniBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  manageMiniBtnText: { fontSize: 14, fontWeight: '900' },
-  deleteCardButton: { marginTop: 12, minHeight: 42, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  deleteCardButtonText: { fontSize: 12, fontWeight: '800' },
-  compareSelectorRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 8,
-  marginTop: 10,
-},  modalContentWrap: {
-    width: '100%',
-  },
-  modalFormScroll: { width: '100%', maxHeight: 320 },
-  modalFormScrollContent: { paddingBottom: 4 },
-
-  modalScroll: {
-    width: '100%',
-  },
-
-  modalScrollContent: {
-    paddingBottom: 4,
-    flexGrow: 1,
-  },
-
-compareArrow: {
-  width: 40,
-  height: 40,
-  borderRadius: 999,
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderWidth: 1,
-},
-
-compareArrowText: {
-  fontSize: 24,
-  fontWeight: '800',
-  lineHeight: 24,
-},
-
-comparePill: {
-  flex: 1,
-  minHeight: 42,
-  borderRadius: 14,
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderWidth: 1,
-  paddingHorizontal: 10,
-},
-
-comparePillText: {
-  fontSize: 14,
-  fontWeight: '800',
-},
-
-comparisonGrid: {
-  flexDirection: 'row',
-  flexWrap: 'wrap',
-  gap: 8,
-},
-
-compareMetaText: {
-  fontSize: 11,
-  fontWeight: '700',
-  marginTop: 4,
-  textAlign: 'center',
-},
-
-  compareBarTrack: {
-    height: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  compareBarFill: {
-    height: '100%',
-    borderRadius: 999,
-  },
-  searchWrap: {
-    marginTop: 10,
-    marginBottom: 10,
-  },
-  modalContentFill: { flex: 1 },
-  modalScrollContentWithFooter: { paddingBottom: 26 },
-  modalCardWithFixedFooter: { overflow: 'hidden' },
-  modalActionsSticky: { borderTopWidth: 1, paddingTop: 1, paddingHorizontal: 2, paddingBottom: 10 },
-  searchHighlightCard: { overflow: 'visible' },
-  searchHighlightOverlay: { position: 'absolute', top: -1, right: -1, bottom: -1, left: -1, borderWidth: 2, borderRadius: 16, opacity: 0, backgroundColor: 'transparent' },
-
-  searchInput: {
-    minHeight: 42,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  cardLimitPercent: {
-    fontSize: 11,
-    fontWeight: '700',
-    textAlign: 'right',
-    marginTop: 6,
-  },
-  modalCardSettings: {
-    paddingBottom: 24,
-    minHeight: Platform.OS === 'web' ? 0 : 520,
-    maxHeight: '86%',
-  },
-  modalSettingsScroll: {
-    flex: 1,
-    width: '100%',
-    minHeight: 0,
-  },
-  settingsSectionTitle: { fontSize: 13, fontWeight: '900', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.8 },
-  settingsCard: { position: 'relative', overflow: 'hidden', borderWidth: 1, borderRadius: 18, padding: 14, marginTop: 10 },
-  avatarImage: { width: '100%', height: '100%', borderRadius: 999 },
-  settingsInfoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  settingsInfoPill: { width: '48%', borderWidth: 1, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 10 },
-  settingsInfoLabel: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 4, textAlign: 'center' },
-  settingsInfoValue: { fontSize: 14, fontWeight: '900', textAlign: 'center' },
-  settingsActionBtn: { minHeight: 42, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
-  settingsActionBtnText: { fontSize: 13, fontWeight: '900' },
-  modalCardExportPreview: { width: '90%', maxWidth: 560, minHeight: 460, maxHeight: '86%', paddingBottom: 0 },
-  exportPreviewBodyWrap: { flexGrow: 1 },
-  exportPreviewPdfWrap: { minHeight: 420, height: 420, marginBottom: 0 },
-  exportPreviewPdfCard: { flex: 1, borderWidth: 1, borderRadius: 18, overflow: 'hidden' },
-  exportPreviewPdfNative: { flex: 1, width: '100%' },
-
-  modalCardPremiumLock: { width: '84%', maxWidth: 390, minHeight: 258, paddingBottom: 35 },
-  modalTitleCentered: { textAlign: 'center' },
-  premiumLockGlow: {
-    alignSelf: 'center',
-    width: 56,
-    height: 56,
-    borderRadius: 999,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-    shadowColor: '#000000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-  },
-  premiumLockGlowText: { fontSize: 24, fontWeight: '900', color: '#b08b33' },
-  premiumLockDescription: { fontSize: 14, fontWeight: '700', lineHeight: 20, textAlign: 'center', marginBottom: 14 },
-  premiumLockInfoCard: { borderWidth: 1, borderRadius: 16, padding: 12, marginBottom: 14 },
-  premiumLockInfoTitle: { fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, textAlign: 'center' },
-  premiumLockInfoText: { fontSize: 13, fontWeight: '700', lineHeight: 18, textAlign: 'center' },
-  premiumBlockerOverlay: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-    paddingBottom: 112,
-    backgroundColor: 'rgba(2, 8, 6, 0.22)',
-  },
-  premiumBlockerCard: {
-    width: '92%',
-    maxWidth: 380,
-    borderRadius: 22,
-    borderWidth: 1,
-    paddingVertical: 18,
-    paddingHorizontal: 18,
-    alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 10,
-  },
-  premiumBlockerEyebrow: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-    color: '#d4a93e',
-    marginBottom: 6,
-  },
-  premiumBlockerTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#ffffff',
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  premiumBlockerText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.88)',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-})
 
 /**
  * A tela e embrulhada pelo FinanceProvider. Como o Provider e dono do estado
