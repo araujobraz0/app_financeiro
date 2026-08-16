@@ -56,10 +56,10 @@ export type CardItem = {
   id: string
   nome: string
   limite?: number
-  fechamento?: number
-  fechamentoMes?: number
-  vencimento?: number
-  vencimentoMes?: number
+  fechamento?: number | null
+  fechamentoMes?: number | null
+  vencimento?: number | null
+  vencimentoMes?: number | null
   parcelas: CardInstallment[]
 }
 

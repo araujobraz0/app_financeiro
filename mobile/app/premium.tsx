@@ -17,11 +17,9 @@ import { router } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { supabase } from '../src/lib/supabase'
-
-type PremiumEntitlement = {
-  premium_active: boolean
-  premium_expires_at: string | null
-}
+import { darkTheme, lightTheme, THEME_KEY, THEME_MODE_KEY } from '../src/theme/themes'
+import { formatarMoeda } from '../src/utils/currency'
+import type { PremiumEntitlement, SettingsThemeMode, Tema } from './types'
 
 type PixResponse = {
   payment_id: string
@@ -32,68 +30,6 @@ type PixResponse = {
   ticket_url: string | null
   expires_at: string | null
 }
-
-type Tema = {
-  background: string
-  backgroundSoft: string
-  card: string
-  cardSoft: string
-  text: string
-  muted: string
-  border: string
-  borderStrong: string
-  primary: string
-  green: string
-  red: string
-  blue: string
-  shadow: string
-  white: string
-}
-
-type SettingsThemeMode = 'manual' | 'system'
-
-const THEME_KEY = 'controle-financeiro-tema-mobile'
-const THEME_MODE_KEY = 'controle-financeiro-tema-modo-mobile'
-
-const lightTheme: Tema = {
-  background: '#f6f4ee',
-  backgroundSoft: '#eeeadf',
-  card: '#fffdf8',
-  cardSoft: '#f4efe4',
-  text: '#17361f',
-  muted: '#6f7c67',
-  border: '#ddd3be',
-  borderStrong: '#ccb98f',
-  primary: '#1f5a34',
-  green: '#2c7a4a',
-  red: '#c24f4f',
-  blue: '#3c6d88',
-  shadow: 'rgba(49, 41, 17, 0.12)',
-  white: '#ffffff',
-}
-
-const darkTheme: Tema = {
-  background: '#000000',
-  backgroundSoft: '#0d1512',
-  card: '#111a16',
-  cardSoft: '#16231d',
-  text: '#f7f4ea',
-  muted: '#ddd7c9',
-  border: '#2b3d33',
-  borderStrong: '#ffffff',
-  primary: '#d4a93e',
-  green: '#57ba77',
-  red: '#f17373',
-  blue: '#8ab8df',
-  shadow: 'rgba(0, 0, 0, 0.46)',
-  white: '#ffffff',
-}
-
-const formatarMoeda = (valor: number) =>
-  Number(valor || 0).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  })
 
 type AppPopupProps = {
   visible: boolean

@@ -244,7 +244,7 @@ export default function ResetPasswordScreen() {
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode='never'
-            scrollEnabled={keyboardAberto}
+            scrollEnabled
           >
             <View style={styles.contentInner}>
               <View style={styles.hero}>

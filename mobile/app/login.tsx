@@ -293,7 +293,7 @@ export default function LoginScreen() {
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode='never'
-            scrollEnabled={keyboardAberto}
+            scrollEnabled
           >
             <View style={styles.hero}>
               <View style={styles.logoWrap}>

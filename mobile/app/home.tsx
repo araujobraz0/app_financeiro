@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   AppState,
@@ -8,8 +8,6 @@ import {
   Image,
   Linking,
   Keyboard,
-  KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -37,11 +35,43 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import Svg, { Circle, G, Path } from 'react-native-svg'
 import PdfPreview from '../components/PdfPreview'
+import AppModal from '../components/common/AppModal'
+import SelectionModal from '../components/modals/SelectionModal'
+import CategoryNameModal from '../components/modals/CategoryNameModal'
+import ConfirmDeleteModal from '../components/modals/ConfirmDeleteModal'
+import SettingsModal from '../components/modals/SettingsModal'
+import LaunchModal from '../components/modals/LaunchModal'
+import CardPurchaseModal from '../components/modals/CardPurchaseModal'
+import ManageCardsModal from '../components/modals/ManageCardsModal'
+import CardEditorModal from '../components/modals/CardEditorModal'
+import ManageCategoriesModal from '../components/modals/ManageCategoriesModal'
 import { supabase } from '../src/lib/supabase'
+import { darkTheme, lightTheme, THEME_KEY, THEME_MODE_KEY } from '../src/theme/themes'
+import {
+  digitsToMoneyString,
+  formatarMoeda,
+  formatarNumeroBR,
+  formatarValorInput,
+  handleMaskedMoneyInput,
+  moneyStringToNumber,
+} from '../src/utils/currency'
+import {
+  formatarDiaMes,
+  formatarDiaMesInput,
+  formatarInputDiaMes,
+  getDiasNoMes,
+  meses,
+  parseDiaMesInput,
+} from '../src/utils/dates'
+import {
+  addMonthsToCompetencia,
+  competenciaMaiorOuIgual,
+  listaAnosAtual,
+} from '../src/utils/competency'
 import type {
   EntradaItem, SaidaItem, FixoItem, NoteItem, PixItem, CardInstallment, CardItem,
   GoalItem, ShoppingWishItem, DadosMes, BancoDeDados, InvestmentBaseMode, GlobalData,
-  AppData, PremiumEntitlement, Tema, AbaInferior, SortMode, SettingsThemeMode,
+  AppData, PremiumEntitlement, AbaInferior, SortMode, SettingsThemeMode,
   TipoVariavelTab, TipoFormularioLancamento, QuickAddType, ModoModal, ModoCategoria,
   NoteModalMode, SearchResult, CardModalMode, SortTarget, DeleteTarget, CalendarTarget,
 } from './types'
@@ -49,57 +79,6 @@ import type {
 const BRAZLLET_PLATFORM = 'android'
 
 const STORAGE_KEY = 'controle-financeiro-v16'
-const THEME_KEY = 'controle-financeiro-tema-mobile'
-const THEME_MODE_KEY = 'controle-financeiro-tema-modo-mobile'
-const lightTheme: Tema = {
-  background: '#f6f4ee',
-  backgroundSoft: '#eeeadf',
-  card: '#fffdf8',
-  cardSoft: '#f4efe4',
-  text: '#17361f',
-  muted: '#6f7c67',
-  border: '#ddd3be',
-  borderStrong: '#ccb98f',
-  primary: '#1f5a34',
-  green: '#2c7a4a',
-  red: '#c24f4f',
-  blue: '#3c6d88',
-  shadow: 'rgba(49, 41, 17, 0.12)',
-  white: '#ffffff',
-}
-
-const darkTheme: Tema = {
-  background: '#000000',
-  backgroundSoft: '#0d1512',
-  card: '#111a16',
-  cardSoft: '#16231d',
-  text: '#f7f4ea',
-  muted: '#ddd7c9',
-  border: '#2b3d33',
-  borderStrong: '#ffffff',
-  primary: '#d4a93e',
-  green: '#57ba77',
-  red: '#f17373',
-  blue: '#8ab8df',
-  shadow: 'rgba(0, 0, 0, 0.46)',
-  white: '#ffffff',
-}
-
-const meses = [
-  'Janeiro',
-  'Fevereiro',
-  'Março',
-  'Abril',
-  'Maio',
-  'Junho',
-  'Julho',
-  'Agosto',
-  'Setembro',
-  'Outubro',
-  'Novembro',
-  'Dezembro',
-]
-
 const categoriasPadrao = ['Mercado', 'Saúde', 'Extra', 'Lazer', 'Uber', 'Comida']
 const onboardingFixosBase = [
   { nome: 'Comissão de formatura', valor: 130 },
@@ -151,47 +130,6 @@ function createDonutSlicePath(
   ].join(' ')
 }
 
-const formatarMoeda = (valor: number) =>
-  Number(valor || 0).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  })
-
-const formatarNumeroBR = (valor: number) =>
-  Number(valor || 0).toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-
-const formatarValorInput = (valor: number) => `R$ ${formatarNumeroBR(valor)}`
-
-const formatarDiaMes = (dia?: number, competencia?: string) => {
-  const diaNumero = Math.max(1, Number(dia || 1))
-  const mesNome = competencia?.split('-')[1] || ''
-  const mesIndex = meses.indexOf(mesNome)
-  const mesNumero = mesIndex >= 0 ? mesIndex + 1 : new Date().getMonth() + 1
-  return `${String(diaNumero).padStart(2, '0')}/${String(mesNumero).padStart(2, '0')}`
-}
-
-const digitsToMoneyString = (digits: string) => {
-  const onlyDigits = String(digits || '').replace(/\D/g, '')
-  const normalized = onlyDigits === '' ? '0' : onlyDigits
-  const number = Number(normalized) / 100
-
-  return `R$ ${number.toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
-}
-
-const moneyStringToNumber = (text: string) => {
-  if (!text) return 0
-  const cleaned = String(text).replace(/[^\d,]/g, '')
-  const normalized = cleaned.replace(/\./g, '').replace(',', '.')
-  const n = Number(normalized)
-  return Number.isNaN(n) ? 0 : n
-}
-
 const compararVersoesApp = (versaoAtual: string, versaoNova: string) => {
   const atual = String(versaoAtual || '0').split('.').map((parte) => Number(parte.replace(/\D/g, '') || 0))
   const nova = String(versaoNova || '0').split('.').map((parte) => Number(parte.replace(/\D/g, '') || 0))
@@ -231,23 +169,6 @@ const sanitizarListaLinks = (links?: string[]) => {
   )
 }
 
-const handleMaskedMoneyInput = (rawValue: string, setter: (value: string) => void) => {
-  const digits = rawValue.replace(/\D/g, '')
-
-  if (!digits) {
-    setter('')
-    return
-  }
-
-  setter(digitsToMoneyString(digits))
-}
-
-const getDiasNoMes = (ano: number, mes: number) => {
-  const anoSeguro = Number.isFinite(Number(ano)) ? Number(ano) : new Date().getFullYear()
-  const mesSeguro = Math.min(12, Math.max(1, Number(mes || 1)))
-  return new Date(anoSeguro, mesSeguro, 0).getDate()
-}
-
 const normalizarCategoriaNome = (categoria: unknown) => String(categoria || '').trim()
 
 const categoriaEhImportado = (categoria: unknown) => {
@@ -255,32 +176,10 @@ const categoriaEhImportado = (categoria: unknown) => {
   return valor === 'importado' || valor === 'importada' || valor === 'importados' || valor === 'importadas'
 }
 
-const formatarInputDiaMes = (rawValue: string) => {
-  const digits = String(rawValue || '').replace(/\D/g, '').slice(0, 4)
-  if (digits.length <= 2) return digits
-  return `${digits.slice(0, 2)}/${digits.slice(2)}`
-}
-
-const parseDiaMesInput = (rawValue: string, fallbackMonth?: number, fallbackYear?: number) => {
-  const digits = String(rawValue || '').replace(/\D/g, '').slice(0, 4)
-  const mes = Math.min(12, Math.max(1, Number(digits.slice(2, 4) || fallbackMonth || 1)))
-  const ano = Number(fallbackYear || new Date().getFullYear())
-  const diaMaximo = getDiasNoMes(ano, mes)
-  const dia = Math.min(diaMaximo, Math.max(1, Number(digits.slice(0, 2) || 1)))
-  return { dia, mes }
-}
-
-const formatarDiaMesInput = (dia?: number, mes?: number, ano?: number) => {
-  if (!dia && !mes) return ''
-  const mesSeguro = Math.min(12, Math.max(1, Number(mes || 1)))
-  const diaSeguro = Math.min(getDiasNoMes(Number(ano || new Date().getFullYear()), mesSeguro), Math.max(1, Number(dia || 1)))
-  return `${String(diaSeguro).padStart(2, '0')}/${String(mesSeguro).padStart(2, '0')}`
-}
-
 function calcularCompetenciaInicialPorFechamento(
   chaveBase: string,
   diaCompra: number,
-  fechamento?: number
+  fechamento?: number | null
 ) {
   if (!fechamento) return addMonthsToCompetencia(chaveBase, 1)
   return diaCompra <= fechamento
@@ -316,32 +215,6 @@ function getCardBillingDates(
     fechamentoMesAtual,
     vencimentoMesAtual,
   }
-}
-
-function listaAnosAtual() {
-  const anoAtual = new Date().getFullYear()
-  return [anoAtual - 2, anoAtual - 1, anoAtual, anoAtual + 1, anoAtual + 2]
-}
-
-function addMonthsToCompetencia(chaveBase: string, offset: number) {
-  const [anoTexto, mesNome] = chaveBase.split('-')
-  const ano = Number(anoTexto)
-  const mesIndex = meses.indexOf(mesNome)
-  const data = new Date(ano, mesIndex >= 0 ? mesIndex : 0, 1)
-  data.setMonth(data.getMonth() + offset)
-  return `${data.getFullYear()}-${meses[data.getMonth()]}`
-}
-
-function competenciaToNumber(chave: string) {
-  const [anoTexto, mesNome] = String(chave || '').split('-')
-  const ano = Number(anoTexto)
-  const mesIndex = meses.indexOf(mesNome)
-  if (!Number.isFinite(ano) || mesIndex < 0) return 0
-  return ano * 12 + mesIndex
-}
-
-function competenciaMaiorOuIgual(chave: string, referencia: string) {
-  return competenciaToNumber(chave) >= competenciaToNumber(referencia)
 }
 
 function listaAnosComDados(banco: BancoDeDados) {
@@ -619,73 +492,6 @@ function EyeToggleIcon({ closed, color }: { closed: boolean; color: string }) {
       />
       <Circle cx={12} cy={12} r={3.2} stroke={color} strokeWidth={2} />
     </Svg>
-  )
-}
-
-type AppModalProps = {
-  visible: boolean
-  onClose: () => void
-  children: ReactNode
-}
-
-function AppModal({ visible, onClose, children }: AppModalProps) {
-  const translateY = useRef(new Animated.Value(0)).current
-  const { height: windowHeight } = useWindowDimensions()
-
-  useEffect(() => {
-    if (!visible) {
-      translateY.stopAnimation()
-      translateY.setValue(0)
-      return
-    }
-
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
-
-    const onKeyboardShow = (event: any) => {
-      const keyboardHeight = Number(event?.endCoordinates?.height || 0)
-      const deslocamento = Math.min(Math.max(keyboardHeight * 0.022, 4), Math.min(12, windowHeight * 0.018))
-
-      Animated.timing(translateY, {
-        toValue: -deslocamento,
-        duration: Platform.OS === 'ios' ? 220 : 180,
-        useNativeDriver: true,
-      }).start()
-    }
-
-    const onKeyboardHide = () => {
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: Platform.OS === 'ios' ? 220 : 180,
-        useNativeDriver: true,
-      }).start()
-    }
-
-    const showSubscription = Keyboard.addListener(showEvent as any, onKeyboardShow)
-    const hideSubscription = Keyboard.addListener(hideEvent as any, onKeyboardHide)
-
-    return () => {
-      showSubscription.remove()
-      hideSubscription.remove()
-    }
-  }, [translateY, visible, windowHeight])
-
-  return (
-    <Modal visible={visible} transparent animationType='fade' onRequestClose={onClose} statusBarTranslucent>
-      <View style={styles.modalOverlay}>
-        <Pressable style={styles.modalBackdropTouch} onPress={onClose} />
-        <KeyboardAvoidingView
-          pointerEvents='box-none'
-          style={styles.modalCenterWrap}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}
-        >
-          <Animated.View style={[styles.modalKeyboardWrap, { transform: [{ translateY }] }]}> 
-            {children}
-          </Animated.View>
-        </KeyboardAvoidingView>
-      </View>
-    </Modal>
   )
 }
 
@@ -2073,7 +1879,7 @@ export default function HomeScreen() {
     }))
   }
 
-  const calcularCompetenciaInicialParcela = (fechamento?: number) => {
+  const calcularCompetenciaInicialParcela = (fechamento?: number | null) => {
     const hoje = new Date()
     return calcularCompetenciaInicialPorFechamento(chaveAtual, hoje.getDate(), fechamento)
   }
@@ -2590,7 +2396,7 @@ export default function HomeScreen() {
     const html = buildPdfHtml()
 
     if (Platform.OS === 'web') {
-      const { gerarArquivoPdfWeb } = await import('../utils/exportPdfWeb')
+      const { gerarArquivoPdfWeb } = await import('../src/utils/exportPdfWeb')
       return gerarArquivoPdfWeb(html)
     }
 
@@ -4367,300 +4173,95 @@ export default function HomeScreen() {
         </View>
       </AppModal>
 
-      <AppModal visible={anoModalAberto} onClose={() => setAnoModalAberto(false)}>
-        <View style={[styles.modalCard, styles.modalCardYear, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.modalTitle, { color: theme.text }]}>Selecionar ano</Text>
-          {listaAnos.map((ano) => (
-            <Pressable key={ano} style={[styles.modalOption, { backgroundColor: anoSelecionado === ano ? theme.cardSoft : 'transparent', borderColor: theme.border }]} onPress={() => { setAnoSelecionado(ano); setAnoModalAberto(false) }}>
-              <Text style={[styles.modalOptionText, { color: anoSelecionado === ano ? theme.text : theme.muted }]}>{ano}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </AppModal>
+      <SelectionModal
+        visible={anoModalAberto}
+        onClose={() => setAnoModalAberto(false)}
+        title='Selecionar ano'
+        options={listaAnos.map((ano) => ({ value: ano, label: String(ano) }))}
+        selectedValue={anoSelecionado}
+        onSelect={(value) => {
+          setAnoSelecionado(Number(value))
+          setAnoModalAberto(false)
+        }}
+        theme={theme}
+      />
 
-      <AppModal visible={mesModalAberto} onClose={() => setMesModalAberto(false)}>
-        <View style={[styles.modalCard, styles.modalCardScrollHint, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.modalTitle, { color: theme.text }]}>Selecionar mês</Text>
-          <View style={[styles.modalHintWrap, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalHintText, { color: theme.muted }]}>Deslize para ver mais ↓</Text></View>
-          <ScrollView showsVerticalScrollIndicator={false} style={styles.monthModalScroll}>
-            {meses.map((mes) => (
-              <Pressable key={mes} style={[styles.modalOption, { backgroundColor: mesSelecionado === mes ? theme.cardSoft : 'transparent', borderColor: theme.border }]} onPress={() => { setMesSelecionado(mes); setMesModalAberto(false) }}>
-                <Text style={[styles.modalOptionText, { color: mesSelecionado === mes ? theme.text : theme.muted }]}>{mes}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      </AppModal>
+      <SelectionModal
+        visible={mesModalAberto}
+        onClose={() => setMesModalAberto(false)}
+        title='Selecionar mês'
+        options={meses.map((mes) => ({ value: mes, label: mes }))}
+        selectedValue={mesSelecionado}
+        onSelect={(value) => {
+          setMesSelecionado(String(value))
+          setMesModalAberto(false)
+        }}
+        theme={theme}
+        scrollable
+        hint='Deslize para ver mais ↓'
+      />
 
-      <AppModal visible={modalLancamentoAberto} onClose={fecharModalLancamento}>
-        <View
-          style={[
-            styles.modalCard,
-            (tipoFormularioLancamento === 'parcela' || isSaidaFormulario || isEntradaFormulario) && styles.modalCardWithFixedFooter,
-            modoModalLancamento === 'editar'
-              ? tipoFormularioLancamento === 'saida'
-                ? styles.modalCardEditSaida
-                : tipoFormularioLancamento === 'fixo'
-                ? styles.modalCardEditFixo
-                : styles.modalCardEditEntrada
-              : tipoFormularioLancamento === 'saida'
-              ? keyboardAberto
-                ? styles.modalCardLancamentoSaidaKeyboard
-                : styles.modalCardLancamentoSaida
-              : tipoFormularioLancamento === 'parcela'
-              ? keyboardAberto
-                ? styles.modalCardLancamentoParcelaKeyboard
-                : styles.modalCardLancamentoParcela
-              : keyboardAberto
-              ? styles.modalCardLancamentoSaidaKeyboard
-              : styles.modalCardLancamentoEntrada,
-            { backgroundColor: theme.card, borderColor: theme.border },
-          ]}
-        >
-          {(tipoFormularioLancamento === 'parcela' || isSaidaFormulario || isEntradaFormulario) ? (
-            <View style={styles.modalContentFill}>
-            <ScrollView
-              style={styles.modalScroll}
-              contentContainerStyle={[styles.modalScrollContent, styles.modalScrollContentWithFooter]}
-              showsVerticalScrollIndicator
-              keyboardShouldPersistTaps='always'
-              nestedScrollEnabled
-              scrollEnabled
-            >
-              <View style={styles.modalContentWrap}>
-                <Text style={[styles.modalTitle, { color: theme.text }]}>{tituloModalLancamento}</Text>
+      <LaunchModal
+        visible={modalLancamentoAberto}
+        onClose={fecharModalLancamento}
+        theme={theme}
+        formType={tipoFormularioLancamento}
+        mode={modoModalLancamento}
+        keyboardOpen={keyboardAberto}
+        title={tituloModalLancamento}
+        isOutputForm={isSaidaFormulario}
+        isInputForm={isEntradaFormulario}
+        cards={cards}
+        selectedCardId={selectedCardId}
+        onSelectedCardIdChange={setSelectedCardId}
+        installmentDescription={novaParcelaDescricao}
+        onInstallmentDescriptionChange={setNovaParcelaDescricao}
+        installmentValue={novaParcelaValor}
+        onInstallmentValueChange={setNovaParcelaValor}
+        installmentTotal={novaParcelaTotal}
+        onInstallmentTotalChange={setNovaParcelaTotal}
+        name={novoNome}
+        onNameChange={setNovoNome}
+        categories={categoriasSaidas}
+        selectedCategory={novaCategoria}
+        onSelectedCategoryChange={setNovaCategoria}
+        value={novoValor}
+        onValueChange={setNovoValor}
+        day={diaEdicao}
+        onDayChange={setDiaEdicao}
+        onOpenDayCalendar={() => abrirCalendario('dia_edicao', diaEdicao, meses.indexOf(mesSelecionado) + 1)}
+        onTypeChange={(tipo) => {
+          setTipoFormularioLancamento(tipo)
+          if (tipo === 'entrada' || tipo === 'saida') {
+            setTipoVariavelTab(tipo)
+            setAbaInferior('variavel')
+          } else if (tipo === 'fixo') {
+            setAbaInferior('fixo')
+          } else {
+            setAbaInferior('cartao')
+          }
+        }}
+        onSave={salvarLancamento}
+      />
 
-                {modoModalLancamento === 'novo' && (
-                  <View style={styles.switchRowThree}>
-                    {([
-                      ['entrada', 'Entrada'],
-                      ['saida', 'Saída'],
-                      ['fixo', 'Fixo'],
-                      ['parcela', 'Parcela'],
-                    ] as [QuickAddType, string][]).map(([tipo, label]) => (
-                      <Pressable
-                        key={tipo}
-                        onPress={() => {
-                          setTipoFormularioLancamento(tipo)
-                          if (tipo === 'entrada' || tipo === 'saida') {
-                            setTipoVariavelTab(tipo)
-                            setAbaInferior('variavel')
-                          } else if (tipo === 'fixo') {
-                            setAbaInferior('fixo')
-                          } else if (tipo === 'parcela') {
-                            setAbaInferior('cartao')
-                          }
-                        }}
-                        style={[
-                          styles.switchBtnThree,
-                          {
-                            backgroundColor: tipoFormularioLancamento === tipo ? theme.primary : theme.cardSoft,
-                            borderColor: tipoFormularioLancamento === tipo ? theme.primary : theme.border,
-                          },
-                        ]}
-                      >
-                        <Text style={[styles.switchBtnText, { color: tipoFormularioLancamento === tipo ? theme.white : theme.text }]}>
-                          {label}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
+      <ManageCategoriesModal
+        visible={modalCategoriasAberto}
+        onClose={() => setModalCategoriasAberto(false)}
+        theme={theme}
+        categories={categoriasSaidas}
+        onEdit={abrirModalEditarCategoria}
+        onDelete={(categoria) => abrirConfirmacaoExclusao('categoria', categoria, categoria)}
+      />
 
-                {tipoFormularioLancamento === 'parcela' ? (
-                  <>
-                    <View style={styles.modalField}>
-                      <Text style={[styles.modalLabel, { color: theme.muted }]}>CARTÃO</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-                        {cards.map((card) => (
-                          <Pressable
-                            key={card.id}
-                            onPress={() => setSelectedCardId(card.id)}
-                            style={[
-                              styles.filterPill,
-                              {
-                                backgroundColor: selectedCardId === card.id ? theme.primary : theme.cardSoft,
-                                borderColor: selectedCardId === card.id ? theme.primary : theme.border,
-                              },
-                            ]}
-                          >
-                            <Text style={[styles.filterPillText, { color: selectedCardId === card.id ? theme.white : theme.text }]}>{card.nome}</Text>
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    </View>
-
-                    <View style={styles.modalField}>
-                      <Text style={[styles.modalLabel, { color: theme.muted }]}>Descrição</Text>
-                      <TextInput value={novaParcelaDescricao} onChangeText={setNovaParcelaDescricao} placeholder='Ex.: tênis, curso...' placeholderTextColor={theme.muted} style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-                    </View>
-
-                    <View style={styles.modalField}>
-                      <Text style={[styles.modalLabel, { color: theme.muted }]}>Valor total da compra</Text>
-                      <TextInput value={novaParcelaValor} onChangeText={(value) => handleMaskedMoneyInput(value, setNovaParcelaValor)} placeholder='R$ 0,00' placeholderTextColor={theme.muted} keyboardType='number-pad' inputMode='numeric' style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-                    </View>
-
-                    <View style={[styles.modalField, styles.totalParcelasField, styles.totalParcelasFieldWide]}>
-                      <Text style={[styles.modalLabel, styles.dualFieldLabel, { color: theme.muted }]}>Total de parcelas</Text>
-                      <TextInput value={novaParcelaTotal} onChangeText={setNovaParcelaTotal} keyboardType='number-pad' inputMode='numeric' placeholder='Exemplo: 1' placeholderTextColor={theme.muted} style={[styles.modalInput, styles.totalParcelasInput, styles.totalParcelasInputWide, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-                    </View>
-
-                    <View style={styles.modalField}>
-                      <Text style={[styles.modalLabel, { color: theme.muted }]}>Dia da compra</Text>
-                      <View style={styles.dateInputRow}><TextInput value={diaEdicao} onChangeText={setDiaEdicao} keyboardType='number-pad' inputMode='numeric' placeholder='1' placeholderTextColor={theme.muted} style={[styles.modalInput, styles.dateInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /><Pressable onPress={() => abrirCalendario('dia_edicao', diaEdicao, meses.indexOf(mesSelecionado) + 1)} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.calendarBtnText, { color: theme.text }]}>📅</Text></Pressable></View>
-                    </View>
-                  </>
-                ) : (
-                  <>
-                    <View style={styles.modalField}>
-                      <Text style={[styles.modalLabel, { color: theme.muted }]}>Nome</Text>
-                      <TextInput value={novoNome} onChangeText={setNovoNome} placeholder='Digite o nome' placeholderTextColor={theme.muted} style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-                    </View>
-
-                    {tipoFormularioLancamento === 'saida' && (
-                      <View style={styles.modalField}>
-                        <Text style={[styles.modalLabel, { color: theme.muted }]}>Categoria</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-                          {categoriasSaidas.map((categoria) => (
-                            <Pressable key={categoria} onPress={() => setNovaCategoria(categoria)} style={[styles.filterPill, { backgroundColor: novaCategoria === categoria ? theme.primary : theme.cardSoft, borderColor: novaCategoria === categoria ? theme.primary : theme.border }]}>
-                              <Text style={[styles.filterPillText, { color: novaCategoria === categoria ? theme.white : theme.text }]}>{categoria}</Text>
-                            </Pressable>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    )}
-
-                    <View style={styles.modalField}>
-                      <Text style={[styles.modalLabel, { color: theme.muted }]}>Valor</Text>
-                      <TextInput value={novoValor} onChangeText={(value) => handleMaskedMoneyInput(value, setNovoValor)} placeholder='R$ 0,00' placeholderTextColor={theme.muted} keyboardType='number-pad' inputMode='numeric' style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-                    </View>
-
-                    <View style={styles.modalField}>
-                      <Text style={[styles.modalLabel, { color: theme.muted }]}>Dia</Text>
-                      <View style={styles.dateInputRow}><TextInput value={diaEdicao} onChangeText={setDiaEdicao} keyboardType='number-pad' inputMode='numeric' placeholder='1' placeholderTextColor={theme.muted} style={[styles.modalInput, styles.dateInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /><Pressable onPress={() => abrirCalendario('dia_edicao', diaEdicao, meses.indexOf(mesSelecionado) + 1)} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.calendarBtnText, { color: theme.text }]}>📅</Text></Pressable></View>
-                    </View>
-                  </>
-                )}
-
-              </View>
-            </ScrollView>
-            <View style={[styles.modalActionsSticky, { borderTopColor: theme.border, backgroundColor: theme.card }]}> 
-              <View style={styles.modalActions}>
-              <Pressable onPress={fecharModalLancamento} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-              </Pressable>
-              <Pressable onPress={salvarLancamento} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}> 
-                <Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text>
-              </Pressable>
-              </View>
-            </View>
-            </View>
-          ) : (
-            <View style={styles.modalContentWrap}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>{tituloModalLancamento}</Text>
-
-              {modoModalLancamento === 'novo' && (
-                <View style={styles.switchRowThree}>
-                  {([
-                    ['entrada', 'Entrada'],
-                    ['saida', 'Saída'],
-                    ['fixo', 'Fixo'],
-                    ['parcela', 'Parcela'],
-                  ] as [QuickAddType, string][]).map(([tipo, label]) => (
-                    <Pressable key={tipo} onPress={() => {
-                      setTipoFormularioLancamento(tipo)
-                      if (tipo === 'entrada' || tipo === 'saida') {
-                        setTipoVariavelTab(tipo)
-                        setAbaInferior('variavel')
-                      } else if (tipo === 'fixo') {
-                        setAbaInferior('fixo')
-                      } else if (tipo === 'parcela') {
-                        setAbaInferior('cartao')
-                      }
-                    }} style={[styles.switchBtnThree, { backgroundColor: tipoFormularioLancamento === tipo ? theme.primary : theme.cardSoft, borderColor: tipoFormularioLancamento === tipo ? theme.primary : theme.border }]}>
-                      <Text style={[styles.switchBtnText, { color: tipoFormularioLancamento === tipo ? theme.white : theme.text }]}>{label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-
-              <View style={styles.modalField}>
-                <Text style={[styles.modalLabel, { color: theme.muted }]}>Nome</Text>
-                <TextInput value={novoNome} onChangeText={setNovoNome} placeholder='Digite o nome' placeholderTextColor={theme.muted} style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-              </View>
-
-              {tipoFormularioLancamento === 'saida' && (
-                <View style={styles.modalField}>
-                  <Text style={[styles.modalLabel, { color: theme.muted }]}>Categoria</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-                    {categoriasSaidas.map((categoria) => (
-                      <Pressable key={categoria} onPress={() => setNovaCategoria(categoria)} style={[styles.filterPill, { backgroundColor: novaCategoria === categoria ? theme.primary : theme.cardSoft, borderColor: novaCategoria === categoria ? theme.primary : theme.border }]}>
-                        <Text style={[styles.filterPillText, { color: novaCategoria === categoria ? theme.white : theme.text }]}>{categoria}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-
-              <View style={styles.modalField}>
-                <Text style={[styles.modalLabel, { color: theme.muted }]}>Valor</Text>
-                <TextInput value={novoValor} onChangeText={(value) => handleMaskedMoneyInput(value, setNovoValor)} placeholder='R$ 0,00' placeholderTextColor={theme.muted} keyboardType='number-pad' inputMode='numeric' style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-              </View>
-
-              {modoModalLancamento === 'editar' ? (
-                <View style={styles.modalField}>
-                  <Text style={[styles.modalLabel, { color: theme.muted }]}>Dia</Text>
-                  <View style={styles.dateInputRow}><TextInput value={diaEdicao} onChangeText={setDiaEdicao} keyboardType='number-pad' inputMode='numeric' placeholder='1' placeholderTextColor={theme.muted} style={[styles.modalInput, styles.dateInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /><Pressable onPress={() => abrirCalendario('dia_edicao', diaEdicao, meses.indexOf(mesSelecionado) + 1)} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.calendarBtnText, { color: theme.text }]}>📅</Text></Pressable></View>
-                </View>
-              ) : null}
-
-              <View style={styles.modalActions}>
-                <Pressable onPress={fecharModalLancamento} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                  <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-                </Pressable>
-                <Pressable onPress={salvarLancamento} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}> 
-                  <Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
-        </View>
-      </AppModal>
-
-      <AppModal visible={modalCategoriasAberto} onClose={() => setModalCategoriasAberto(false)}>
-        <View style={[styles.modalCard, styles.modalCardScrollHint, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Gerenciar categorias</Text>
-            <View style={[styles.modalHintWrap, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalHintText, { color: theme.muted }]}>Deslize para ver mais ↓</Text></View>
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.categoryScroll} contentContainerStyle={{ paddingBottom: 8 }}>
-              {categoriasSaidas.map((categoria) => (
-                <View key={categoria} style={[styles.categoryManageRow, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}>
-                  <Text style={[styles.categoryManageText, { color: theme.text }]} numberOfLines={1}>{categoria}</Text>
-                  <View style={styles.categoryManageActions}>
-                    <Pressable onPress={() => abrirModalEditarCategoria(categoria)} style={[styles.manageMiniBtn, { backgroundColor: theme.card, borderColor: theme.border }]}><Text style={[styles.manageMiniBtnText, { color: theme.text }]}>✎</Text></Pressable>
-                    <Pressable onPress={() => abrirConfirmacaoExclusao('categoria', categoria, categoria)} style={[styles.manageMiniBtn, { backgroundColor: theme.card, borderColor: theme.border }]}><Text style={[styles.manageMiniBtnText, { color: theme.red }]}>×</Text></Pressable>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-            <View style={styles.modalActions}>
-              <Pressable onPress={() => setModalCategoriasAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>Fechar</Text></Pressable>
-            </View>
-          </View>
-      </AppModal>
-
-      <AppModal visible={modalCategoriaNomeAberto} onClose={fecharModalCategoriaNome}>
-        <View style={[styles.modalCard, styles.modalCardNewCategory, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>{modoCategoria === 'nova' ? 'Nova categoria' : 'Renomear categoria'}</Text>
-            <View style={styles.modalField}>
-              <Text style={[styles.modalLabel, { color: theme.muted }]}>Nome</Text>
-              <TextInput value={categoriaDigitada} onChangeText={setCategoriaDigitada} placeholder='Digite o nome' placeholderTextColor={theme.muted} style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-            </View>
-            <View style={styles.modalActions}>
-              <Pressable onPress={fecharModalCategoriaNome} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text></Pressable>
-              <Pressable onPress={salvarCategoria} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text></Pressable>
-            </View>
-          </View>
-      </AppModal>
+      <CategoryNameModal
+        visible={modalCategoriaNomeAberto}
+        onClose={fecharModalCategoriaNome}
+        mode={modoCategoria}
+        value={categoriaDigitada}
+        onChange={setCategoriaDigitada}
+        onSave={salvarCategoria}
+        theme={theme}
+      />
 
       <AppModal visible={modalAnotacaoAberto} onClose={fecharModalAnotacao}>
         <View style={[styles.modalCard, styles.modalCardNotesFixedFooter, styles.modalCardWithFixedFooter, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -4732,134 +4333,90 @@ export default function HomeScreen() {
         </View>
       </AppModal>
 
-      <AppModal visible={modalCartaoAberto} onClose={fecharModalCartao}>
-        <View style={[styles.modalCard, styles.modalCardCartaoCompra, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-            <Text style={[styles.modalTitle, { color: theme.text }]}>{parcelaEditandoId ? 'Editar parcela' : 'Nova compra parcelada'}</Text>
-            <>
-                <View style={styles.modalField}>
-                  <Text style={[styles.modalLabel, { color: theme.muted }]}>CARTÃO</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-                    {cards.map((card) => (
-                      <Pressable
-                        key={card.id}
-                        onPress={() => setSelectedCardId(card.id)}
-                        style={[styles.filterPill, { backgroundColor: selectedCardId === card.id ? theme.primary : theme.cardSoft, borderColor: selectedCardId === card.id ? theme.primary : theme.border }]}
-                      >
-                        <Text style={[styles.filterPillText, { color: selectedCardId === card.id ? theme.white : theme.text }]}>{card.nome}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </View>
-                <View style={styles.modalField}><Text style={[styles.modalLabel, { color: theme.muted }]}>Descrição</Text><TextInput value={novaParcelaDescricao} onChangeText={setNovaParcelaDescricao} placeholder='Ex.: tênis, curso...' placeholderTextColor={theme.muted} style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /></View>
-                <View style={styles.modalField}><Text style={[styles.modalLabel, { color: theme.muted }]}>Valor total da compra</Text><TextInput value={novaParcelaValor} onChangeText={(value) => handleMaskedMoneyInput(value, setNovaParcelaValor)} keyboardType='number-pad' inputMode='numeric' placeholder='R$ 0,00' placeholderTextColor={theme.muted} style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /></View>
-                <View style={[styles.modalField, styles.totalParcelasField, styles.totalParcelasFieldWide]}><Text style={[styles.modalLabel, styles.dualFieldLabel, { color: theme.muted }]}>Total de parcelas</Text><TextInput value={novaParcelaTotal} onChangeText={setNovaParcelaTotal} keyboardType='number-pad' inputMode='numeric' placeholder='Exemplo: 1' placeholderTextColor={theme.muted} style={[styles.modalInput, styles.totalParcelasInput, styles.totalParcelasInputWide, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /></View>
-                {parcelaEditandoId ? <View style={styles.modalField}><Text style={[styles.modalLabel, { color: theme.muted }]}>Dia</Text><View style={styles.dateInputRow}><TextInput value={diaEdicao} onChangeText={setDiaEdicao} keyboardType='number-pad' inputMode='numeric' placeholder='1' placeholderTextColor={theme.muted} style={[styles.modalInput, styles.dateInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /><Pressable onPress={() => abrirCalendario('dia_edicao', diaEdicao, meses.indexOf(mesSelecionado) + 1)} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.calendarBtnText, { color: theme.text }]}>📅</Text></Pressable></View></View> : null}
-              </>
-            <View style={styles.modalActions}>
-              <Pressable onPress={fecharModalCartao} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text></Pressable>
-              <Pressable onPress={salvarCartaoOuParcela} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text></Pressable>
-            </View>
-          </View>
-      </AppModal>
+      <CardPurchaseModal
+        visible={modalCartaoAberto}
+        onClose={fecharModalCartao}
+        theme={theme}
+        editingInstallment={!!parcelaEditandoId}
+        cards={cards}
+        selectedCardId={selectedCardId}
+        onSelectedCardIdChange={setSelectedCardId}
+        description={novaParcelaDescricao}
+        onDescriptionChange={setNovaParcelaDescricao}
+        totalValue={novaParcelaValor}
+        onTotalValueChange={setNovaParcelaValor}
+        totalInstallments={novaParcelaTotal}
+        onTotalInstallmentsChange={setNovaParcelaTotal}
+        day={diaEdicao}
+        onDayChange={setDiaEdicao}
+        onOpenDayCalendar={() => abrirCalendario('dia_edicao', diaEdicao, meses.indexOf(mesSelecionado) + 1)}
+        onSave={salvarCartaoOuParcela}
+      />
 
-      <AppModal visible={modalAnoComparacaoAberto} onClose={() => setModalAnoComparacaoAberto(false)}>
-        <View style={[styles.modalCard, styles.modalCardYear, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Selecionar ano</Text>
-            {listaAnos.map((ano) => (
-              <Pressable key={ano} style={[styles.modalOption, { backgroundColor: anoComparacao === ano ? theme.cardSoft : 'transparent', borderColor: theme.border }]} onPress={() => { setAnoComparacao(ano); setModalAnoComparacaoAberto(false) }}>
-                <Text style={[styles.modalOptionText, { color: anoComparacao === ano ? theme.text : theme.muted }]}>{ano}</Text>
-              </Pressable>
-            ))}
-          </View>
-      </AppModal>
+      <SelectionModal
+        visible={modalAnoComparacaoAberto}
+        onClose={() => setModalAnoComparacaoAberto(false)}
+        title='Selecionar ano'
+        options={listaAnos.map((ano) => ({ value: ano, label: String(ano) }))}
+        selectedValue={anoComparacao}
+        onSelect={(value) => {
+          setAnoComparacao(Number(value))
+          setModalAnoComparacaoAberto(false)
+        }}
+        theme={theme}
+      />
 
-      <AppModal visible={modalMesComparacaoAberto} onClose={() => setModalMesComparacaoAberto(false)}>
-        <View style={[styles.modalCard, styles.modalCardScrollHint, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Selecionar mês</Text>
-            <View style={[styles.modalHintWrap, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalHintText, { color: theme.muted }]}>Deslize para ver mais ↓</Text></View>
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.monthModalScroll}>
-              {meses.map((mes) => (
-                <Pressable key={mes} style={[styles.modalOption, { backgroundColor: mesComparacao === mes ? theme.cardSoft : 'transparent', borderColor: theme.border }]} onPress={() => { setMesComparacao(mes); setModalMesComparacaoAberto(false) }}>
-                  <Text style={[styles.modalOptionText, { color: mesComparacao === mes ? theme.text : theme.muted }]}>{mes}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-      </AppModal>
+      <SelectionModal
+        visible={modalMesComparacaoAberto}
+        onClose={() => setModalMesComparacaoAberto(false)}
+        title='Selecionar mês'
+        options={meses.map((mes) => ({ value: mes, label: mes }))}
+        selectedValue={mesComparacao}
+        onSelect={(value) => {
+          setMesComparacao(String(value))
+          setModalMesComparacaoAberto(false)
+        }}
+        theme={theme}
+        scrollable
+        hint='Deslize para ver mais ↓'
+      />
 
-      <AppModal visible={modalFiltroAberto} onClose={() => setModalFiltroAberto(false)}>
-        <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Filtro</Text>
-            {opcoesFiltro.map((opcao) => (
-              <Pressable key={opcao.value} style={[styles.modalOption, { backgroundColor: filtroSelecionado === opcao.value ? theme.cardSoft : 'transparent', borderColor: theme.border }]} onPress={() => aplicarFiltro(opcao.value)}>
-                <Text style={[styles.modalOptionText, { color: filtroSelecionado === opcao.value ? theme.text : theme.muted }]}>{opcao.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-      </AppModal>
+      <SelectionModal
+        visible={modalFiltroAberto}
+        onClose={() => setModalFiltroAberto(false)}
+        title='Filtro'
+        options={opcoesFiltro}
+        selectedValue={filtroSelecionado}
+        onSelect={(value) => aplicarFiltro(value as SortMode)}
+        theme={theme}
+      />
 
-      <AppModal visible={modalGerenciarCartoesAberto} onClose={() => setModalGerenciarCartoesAberto(false)}>
-        <View style={[styles.modalCard, styles.modalCardManageCards, styles.modalCardScrollHint, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Gerenciar cartões</Text>
-            <Text style={[styles.modalHintText, { color: theme.muted }]}>Edite ou exclua um cartão ↓</Text>
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.categoryScroll} contentContainerStyle={{ paddingBottom: 8, marginTop: 6 }}>
-              {cards.map((card) => (
-                <View key={card.id} style={[styles.categoryManageRow, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}>
-                  <Text style={[styles.categoryManageText, { color: theme.text }]} numberOfLines={1}>{card.nome}</Text>
-                  <View style={styles.categoryManageActions}>
-                    <Pressable onPress={() => iniciarEdicaoCartao(card)} style={[styles.manageMiniBtn, { backgroundColor: theme.card, borderColor: theme.border }]}><Text style={[styles.manageMiniBtnText, { color: theme.text }]}>✎</Text></Pressable>
-                    <Pressable onPress={() => abrirConfirmacaoExclusao('cartao', card.id, card.nome)} style={[styles.manageMiniBtn, { backgroundColor: theme.card, borderColor: theme.border }]}><Text style={[styles.manageMiniBtnText, { color: theme.red }]}>×</Text></Pressable>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-            <View style={[styles.modalActions, styles.modalActionsLower]}>
-              <Pressable onPress={() => setModalGerenciarCartoesAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
-                <Text style={[styles.modalActionText, { color: theme.white }]}>Fechar</Text>
-              </Pressable>
-            </View>
-          </View>
-      </AppModal>
+      <ManageCardsModal
+        visible={modalGerenciarCartoesAberto}
+        onClose={() => setModalGerenciarCartoesAberto(false)}
+        theme={theme}
+        cards={cards}
+        onEdit={iniciarEdicaoCartao}
+        onDelete={(card) => abrirConfirmacaoExclusao('cartao', card.id, card.nome)}
+      />
 
-      <AppModal visible={modalNovoCartaoAberto} onClose={fecharModalNovoCartao}>
-        <View style={[styles.modalCard, styles.modalCardNewCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.modalTitle, { color: theme.text }]}>{cartaoEditandoId ? 'Editar cartão' : 'Novo cartão'}</Text>
-          <View style={styles.modalField}>
-            <Text style={[styles.modalLabel, { color: theme.muted }]}>Nome do cartão</Text>
-            <TextInput
-              value={gerenciarCartaoNome}
-              onChangeText={setGerenciarCartaoNome}
-              placeholder='Ex.: Nubank, Inter...'
-              placeholderTextColor={theme.muted}
-              style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
-            />
-          </View>
-          <View style={styles.modalField}>
-            <Text style={[styles.modalLabel, { color: theme.muted }]}>Limite</Text>
-            <TextInput value={gerenciarCartaoLimite} onChangeText={(value) => handleMaskedMoneyInput(value, setGerenciarCartaoLimite)} placeholder='R$ 0,00' placeholderTextColor={theme.muted} keyboardType='number-pad' inputMode='numeric' style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} />
-          </View>
-          <View style={styles.dualFieldRow}>
-            <View style={[styles.modalField, styles.dualFieldItem]}>
-              <Text style={[styles.modalLabel, { color: theme.muted }]}>Fechamento (dia/mês)</Text>
-              <View style={styles.dateInputRow}><TextInput value={gerenciarCartaoFechamento} onChangeText={(value) => setGerenciarCartaoFechamento(formatarInputDiaMes(value))} placeholder='DD/MM' placeholderTextColor={theme.muted} keyboardType='number-pad' inputMode='numeric' style={[styles.modalInput, styles.dateInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /><Pressable onPress={() => abrirCalendario('cartao_fechamento', gerenciarCartaoFechamento, meses.indexOf(mesSelecionado) + 1)} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.calendarBtnText, { color: theme.text }]}>📅</Text></Pressable></View>
-            </View>
-            <View style={[styles.modalField, styles.dualFieldItem]}>
-              <Text style={[styles.modalLabel, { color: theme.muted }]}>Vencimento (dia/mês)</Text>
-              <View style={styles.dateInputRow}><TextInput value={gerenciarCartaoVencimento} onChangeText={(value) => setGerenciarCartaoVencimento(formatarInputDiaMes(value))} placeholder='DD/MM' placeholderTextColor={theme.muted} keyboardType='number-pad' inputMode='numeric' style={[styles.modalInput, styles.dateInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]} /><Pressable onPress={() => abrirCalendario('cartao_vencimento', gerenciarCartaoVencimento, Math.min(12, Math.max(1, (meses.indexOf(mesSelecionado) + 2))))} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.calendarBtnText, { color: theme.text }]}>📅</Text></Pressable></View>
-            </View>
-          </View>
-          <View style={styles.modalActions}>
-            <Pressable onPress={fecharModalNovoCartao} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-            </Pressable>
-            <Pressable onPress={salvarCartaoGerenciado} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
-              <Text style={[styles.modalActionText, { color: theme.white }]}>{cartaoEditandoId ? 'Salvar' : 'Adicionar'}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </AppModal>
-
-
+      <CardEditorModal
+        visible={modalNovoCartaoAberto}
+        onClose={fecharModalNovoCartao}
+        theme={theme}
+        editing={!!cartaoEditandoId}
+        name={gerenciarCartaoNome}
+        onNameChange={setGerenciarCartaoNome}
+        limit={gerenciarCartaoLimite}
+        onLimitChange={setGerenciarCartaoLimite}
+        closing={gerenciarCartaoFechamento}
+        onClosingChange={setGerenciarCartaoFechamento}
+        due={gerenciarCartaoVencimento}
+        onDueChange={setGerenciarCartaoVencimento}
+        onOpenClosingCalendar={() => abrirCalendario('cartao_fechamento', gerenciarCartaoFechamento, meses.indexOf(mesSelecionado) + 1)}
+        onOpenDueCalendar={() => abrirCalendario('cartao_vencimento', gerenciarCartaoVencimento, Math.min(12, Math.max(1, meses.indexOf(mesSelecionado) + 2)))}
+        onSave={salvarCartaoGerenciado}
+      />
 
       <AppModal visible={!!linkPendenteConfirmacao} onClose={() => setLinkPendenteConfirmacao(null)}>
         <View style={[styles.modalCard, styles.modalCardConfirmDelete, styles.modalCardLinkConfirm, { backgroundColor: theme.card, borderColor: theme.borderStrong }]}> 
@@ -4902,177 +4459,44 @@ export default function HomeScreen() {
         </View>
       </AppModal>
 
-      <AppModal visible={!!confirmacaoExclusao} onClose={() => setConfirmacaoExclusao(null)}>
-        <View style={[styles.modalCard, styles.modalCardNewCategory, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.modalTitle, { color: theme.text }]}>Confirmar exclusão</Text>
-          <Text style={[styles.emptyChartText, { color: theme.muted, marginBottom: 16 }]}>
-            Tem certeza que deseja excluir {confirmacaoExclusao?.label ? `"${confirmacaoExclusao.label}"` : 'este item'}?
-          </Text>
-          <View style={styles.modalActions}>
-            <Pressable onPress={() => setConfirmacaoExclusao(null)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-            </Pressable>
-            <Pressable onPress={confirmarExclusao} style={[styles.modalActionBtn, { backgroundColor: '#dc2626' }]}>
-              <Text style={[styles.modalActionText, { color: theme.white }]}>Excluir</Text>
-            </Pressable>
-          </View>
-        </View>
-      </AppModal>
+      <ConfirmDeleteModal
+        visible={!!confirmacaoExclusao}
+        label={confirmacaoExclusao?.label}
+        onClose={() => setConfirmacaoExclusao(null)}
+        onConfirm={confirmarExclusao}
+        theme={theme}
+      />
 
-
-      <AppModal visible={modalConfiguracoesAberto} onClose={() => setModalConfiguracoesAberto(false)}>
-        <View style={[styles.modalCard, styles.modalCardSettings, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <ScrollView
-            style={styles.modalSettingsScroll}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps='handled'
-          >
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Perfil e configurações</Text>
-
-            <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Premium Brazllet</Text>
-              <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 10 }]}>{premiumStatusTexto}</Text>
-              <View style={styles.settingsStack}>
-                <Pressable onPress={irParaTelaPremium} style={[styles.settingsActionBtn, { backgroundColor: premiumValido ? theme.card : theme.primary, borderColor: premiumValido ? theme.border : theme.primary }]}> 
-                  <Text style={[styles.settingsActionBtnText, { color: premiumValido ? theme.text : theme.white }]}>{premiumValido ? 'Gerenciar Premium' : 'Virar Premium'}</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={[styles.settingsCard, styles.profileSettingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Perfil</Text>
-
-              <View style={styles.profilePreviewWrap}>
-                <View style={[styles.profileBadgeLarge, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  {avatarEhImagem(avatarEditavel || avatarPerfil) ? (
-                    <Image source={{ uri: avatarEditavel || avatarPerfil }} style={styles.profileBadgeImage} />
-                  ) : (
-                    <Text style={[styles.profileBadgeLargeText, { color: theme.text }]}>{iniciais || 'U'}</Text>
-                  )}
-                </View>
-                <View style={styles.profilePreviewTextWrap}>
-                  <Text style={[styles.profilePreviewTitle, { color: theme.text }]}>{nomeEditavel.trim() || nome || 'Seu perfil'}</Text>
-                  <Text style={[styles.profilePreviewSub, { color: theme.muted }]}>{email || 'Sem e-mail'}</Text>
-                  <Text style={[styles.profilePreviewHint, { color: theme.muted }]}>Ao escolher pela galeria, ajuste o recorte antes de confirmar.</Text>
-                </View>
-              </View>
-
-              <View style={styles.profileFormBlock}>
-                <Text style={[styles.profileLabel, { color: theme.muted }]}>Nome</Text>
-                <TextInput value={nomeEditavel} onChangeText={setNomeEditavel} placeholder='Seu nome' placeholderTextColor={theme.muted} style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text, minHeight: 40 }]} />
-
-                <Text style={[styles.profileLabel, { color: theme.muted, marginTop: 10 }]}>Foto de perfil</Text>
-                <View style={styles.profilePhotoActions}>
-                  <Pressable onPress={escolherImagemPerfil} style={[styles.settingsActionBtn, styles.profilePhotoButton, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                    <Text style={[styles.settingsActionBtnText, { color: theme.text }]}>Abrir galeria</Text>
-                  </Pressable>
-                </View>
-
-                <Pressable onPress={salvarPerfil} style={[styles.settingsActionBtn, { backgroundColor: theme.primary, borderColor: theme.primary, marginTop: 12 }]}>
-                  <Text style={[styles.settingsActionBtnText, { color: theme.white }]}>Salvar perfil</Text>
-                </Pressable>
-
-                <View style={[styles.profileInfoLine, { borderColor: theme.border }]}>
-                  <Text style={[styles.profileLabel, { color: theme.muted, marginBottom: 0 }]}>Competência atual</Text>
-                  <Text style={[styles.profileValue, { color: theme.text }]}>{mesSelecionado} de {anoSelecionado}</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Tema</Text>
-              <View style={[styles.settingsRow, { borderColor: theme.border, backgroundColor: 'transparent', marginTop: 4, borderWidth: 0, paddingHorizontal: 0, paddingVertical: 0 }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.rowItemTitle, { color: theme.text }]}>Seguir tema do celular</Text>
-                  <Text style={[styles.rowItemMeta, { color: theme.muted }]}>Quando ativo, o app alterna sozinho entre claro e escuro.</Text>
-                </View>
-                <Pressable onPress={alternarModoTemaSistema} style={[styles.switchTrack, { backgroundColor: themeMode === 'system' ? theme.primary : theme.card, borderColor: themeMode === 'system' ? theme.primary : theme.borderStrong }]}>
-                  <View style={[styles.switchThumb, { backgroundColor: themeMode === 'system' ? theme.white : theme.muted }, themeMode === 'system' ? styles.switchThumbActive : null]} />
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Resumo</Text>
-              <View style={styles.settingsInfoGrid}>
-                <View style={[styles.settingsInfoPill, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  <Text style={[styles.settingsInfoLabel, { color: theme.muted }]}>Pix</Text>
-                  <Text style={[styles.settingsInfoValue, { color: theme.text }]}>{pixContacts.length}</Text>
-                </View>
-                <View style={[styles.settingsInfoPill, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  <Text style={[styles.settingsInfoLabel, { color: theme.muted }]}>Notas</Text>
-                  <Text style={[styles.settingsInfoValue, { color: theme.text }]}>{notes.length}</Text>
-                </View>
-                <View style={[styles.settingsInfoPill, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  <Text style={[styles.settingsInfoLabel, { color: theme.muted }]}>Cartões</Text>
-                  <Text style={[styles.settingsInfoValue, { color: theme.text }]}>{cards.length}</Text>
-                </View>
-                <View style={[styles.settingsInfoPill, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  <Text style={[styles.settingsInfoLabel, { color: theme.muted }]}>Categorias</Text>
-                  <Text style={[styles.settingsInfoValue, { color: theme.text }]}>{categoriasSaidas.length}</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Backup e exportação</Text>
-              <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 12 }]}>Exportações com identidade Brazllet, estrutura mais elegante e apresentação mais limpa.</Text>
-              <View style={styles.exportGrid}>
-                <Pressable onPress={() => abrirPreviewExportacao('csv')} style={[styles.exportPremiumBtn, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: theme.shadow }]}> 
-                  <View style={[styles.exportPremiumIcon, { backgroundColor: theme.backgroundSoft, borderColor: theme.border }]}><Text style={styles.exportPremiumIconText}>◫</Text></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.exportPremiumTitle, { color: theme.text }]}>{processandoArquivo === 'csv' ? 'Gerando CSV...' : 'Exportar CSV'}</Text>
-                    <Text style={[styles.exportPremiumSub, { color: theme.muted }]}>Resumo estruturado com assinatura Brazllet.</Text>
-                  </View>
-                </Pressable>
-                <Pressable onPress={() => abrirPreviewExportacao('excel')} style={[styles.exportPremiumBtn, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: theme.shadow }]}> 
-                  <View style={[styles.exportPremiumIcon, { backgroundColor: theme.backgroundSoft, borderColor: theme.border }]}><Text style={styles.exportPremiumIconText}>▦</Text></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.exportPremiumTitle, { color: theme.text }]}>{processandoArquivo === 'excel' ? 'Gerando Excel...' : 'Exportar Excel'}</Text>
-                    <Text style={[styles.exportPremiumSub, { color: theme.muted }]}>Planilha organizada em abas por área.</Text>
-                  </View>
-                </Pressable>
-                <Pressable onPress={() => abrirPreviewExportacao('pdf')} style={[styles.exportPremiumBtn, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: theme.shadow }]}> 
-                  <View style={[styles.exportPremiumIcon, { backgroundColor: theme.backgroundSoft, borderColor: theme.border }]}><Text style={styles.exportPremiumIconText}>▤</Text></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.exportPremiumTitle, { color: theme.text }]}>{processandoArquivo === 'pdf' ? 'Gerando PDF...' : 'Exportar PDF'}</Text>
-                    <Text style={[styles.exportPremiumSub, { color: theme.muted }]}>Relatório visual completo para compartilhar.</Text>
-                  </View>
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Importação</Text>
-              <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 10 }]}>Importe arquivos CSV, Excel (.xlsx) ou OFX. PDF aparece na seleção, mas ainda não possui leitura automática nesta versão.</Text>
-              <View style={styles.settingsStack}>
-                <Pressable onPress={importarDadosBanco} style={[styles.exportPremiumBtn, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: theme.shadow }]}> 
-                  <View style={[styles.exportPremiumIcon, { backgroundColor: theme.backgroundSoft, borderColor: theme.border }]}><Text style={styles.exportPremiumIconText}>⇪</Text></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.exportPremiumTitle, { color: theme.text }]}>{processandoArquivo === 'importar' ? 'Importando...' : 'Importar dados'}</Text>
-                    <Text style={[styles.exportPremiumSub, { color: theme.muted }]}>PDF, CSV, Excel ou OFX com pré-visualização.</Text>
-                  </View>
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
-              <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Atualizações</Text>
-              <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 12 }]}>Verifique se existe uma atualização rápida do app ou uma nova versão do APK disponível.</Text>
-              <Pressable onPress={checarAtualizacoesManual} disabled={checandoAtualizacoes} style={[styles.updateCheckBoxBtn, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: theme.shadow, opacity: checandoAtualizacoes ? 0.65 : 1 }]}> 
-                <Text style={[styles.updateCheckBoxText, { color: theme.text }]}>{checandoAtualizacoes ? 'Checando...' : 'Checar atualizações'}</Text>
-              </Pressable>
-            </View>
-
-          </ScrollView>
-          <View style={styles.modalActions}>
-            <Pressable onPress={() => setModalConfiguracoesAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
-              <Text style={[styles.modalActionText, { color: theme.white }]}>Fechar</Text>
-            </Pressable>
-          </View>
-        </View>
-      </AppModal>
-
+      <SettingsModal
+        visible={modalConfiguracoesAberto}
+        onClose={() => setModalConfiguracoesAberto(false)}
+        theme={theme}
+        premiumStatusText={premiumStatusTexto}
+        premiumValid={premiumValido}
+        onPremiumPress={irParaTelaPremium}
+        editableName={nomeEditavel}
+        onEditableNameChange={setNomeEditavel}
+        currentName={nome}
+        email={email}
+        editableAvatar={avatarEditavel}
+        currentAvatar={avatarPerfil}
+        initials={iniciais}
+        onChooseProfileImage={escolherImagemPerfil}
+        onSaveProfile={salvarPerfil}
+        selectedMonth={mesSelecionado}
+        selectedYear={anoSelecionado}
+        themeMode={themeMode}
+        onToggleSystemTheme={alternarModoTemaSistema}
+        pixCount={pixContacts.length}
+        notesCount={notes.length}
+        cardsCount={cards.length}
+        categoriesCount={categoriasSaidas.length}
+        processingFile={processandoArquivo}
+        onOpenExportPreview={abrirPreviewExportacao}
+        onImportData={importarDadosBanco}
+        checkingUpdates={checandoAtualizacoes}
+        onCheckUpdates={checarAtualizacoesManual}
+      />
 
       <AppModal visible={modalPreviewExportacaoAberto} onClose={() => setModalPreviewExportacaoAberto(false)}>
         <View style={[styles.modalCard, styles.modalCardExportPreview, styles.modalCardWithFixedFooter, { backgroundColor: theme.card, borderColor: theme.border }]}> 
@@ -5484,32 +4908,6 @@ const styles = StyleSheet.create({
   plusButtonText: { fontSize: 23, fontWeight: '900', lineHeight: 24, marginTop: -1 },
   syncBadge: { position: 'absolute', right: 18, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
   syncBadgeText: { fontSize: 12, fontWeight: '800' },
-  modalOverlay: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-    minHeight: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.52)',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-  },
-  modalCenterWrap: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-    minHeight: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalBackdropTouch: { ...StyleSheet.absoluteFillObject },
-  modalKeyboardWrap: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-    minHeight: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   modalCard: {
   width: '84%',
   maxWidth: 420,
@@ -5649,37 +5047,6 @@ compareMetaText: {
   textAlign: 'center',
 },
 
-settingsRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
-  marginTop: 10,
-  borderRadius: 16,
-  borderWidth: 1,
-  paddingHorizontal: 2,
-  paddingVertical: 2,
-},
-
-switchTrack: {
-  width: 58,
-  height: 34,
-  borderRadius: 999,
-  padding: 3,
-  justifyContent: 'center',
-  borderWidth: 1,
-},
-
-switchThumb: {
-  width: 26,
-  height: 26,
-  borderRadius: 999,
-},
-
-switchThumbActive: {
-  alignSelf: 'flex-end',
-},
-
   compareBarTrack: {
     height: 12,
     borderRadius: 999,
@@ -5727,40 +5094,13 @@ switchThumbActive: {
   },
   settingsSectionTitle: { fontSize: 13, fontWeight: '900', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.8 },
   settingsCard: { position: 'relative', overflow: 'hidden', borderWidth: 1, borderRadius: 18, padding: 14, marginTop: 10 },
-  settingsStack: { gap: 10 },
-  profileHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  profileSettingsCard: { padding: 16 },
-  profileBadge: { width: 48, height: 48, borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 1, overflow: 'hidden' },
-  profileBadgeText: { fontSize: 16, fontWeight: '900' },
   avatarImage: { width: '100%', height: '100%', borderRadius: 999 },
-  profileBadgeImage: { width: '100%', height: '100%', borderRadius: 999 },
-  profileBadgeLarge: { width: 78, height: 78, borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 1, overflow: 'hidden' },
-  profileBadgeLargeText: { fontSize: 24, fontWeight: '900' },
-  profilePreviewWrap: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  profilePreviewTextWrap: { flex: 1 },
-  profilePreviewTitle: { fontSize: 16, fontWeight: '900', marginBottom: 2 },
-  profilePreviewSub: { fontSize: 12, fontWeight: '700', marginBottom: 4 },
-  profilePreviewHint: { fontSize: 11, fontWeight: '700', lineHeight: 15 },
-  profileFormBlock: { marginTop: 14 },
-  profilePhotoActions: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap' },
-  profilePhotoButton: { flex: 1, minWidth: 132, borderRadius: 12 },
-  profileInfoLine: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center' },
-  profileLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 },
-  profileValue: { fontSize: 14, fontWeight: '800' },
   settingsInfoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   settingsInfoPill: { width: '48%', borderWidth: 1, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 10 },
   settingsInfoLabel: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 4, textAlign: 'center' },
   settingsInfoValue: { fontSize: 14, fontWeight: '900', textAlign: 'center' },
   settingsActionBtn: { minHeight: 42, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
   settingsActionBtnText: { fontSize: 13, fontWeight: '900' },
-  updateCheckBoxBtn: { minHeight: 46, borderWidth: 1, borderRadius: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
-  updateCheckBoxText: { fontSize: 13, fontWeight: '900' },
-  exportGrid: { gap: 10 },
-  exportPremiumBtn: { minHeight: 76, borderRadius: 20, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', gap: 12, shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 4 },
-  exportPremiumIcon: { width: 48, height: 48, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  exportPremiumIconText: { fontSize: 20, fontWeight: '900', color: '#b08b33' },
-  exportPremiumTitle: { fontSize: 15, fontWeight: '900', marginBottom: 2 },
-  exportPremiumSub: { fontSize: 12, fontWeight: '700', lineHeight: 16 },
   modalCardExportPreview: { width: '90%', maxWidth: 560, minHeight: 460, maxHeight: '86%', paddingBottom: 0 },
   exportPreviewBodyWrap: { flexGrow: 1 },
   exportPreviewPdfWrap: { minHeight: 420, height: 420, marginBottom: 0 },

@@ -18,70 +18,19 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router } from 'expo-router'
 import { supabase } from '../src/lib/supabase'
-
-type FixoItem = {
-  id: string
-  nome: string
-  valor: number
-  pago: boolean
-}
-
-type EntradaItem = {
-  id: string
-  nome: string
-  valor: number
-  dia?: number
-}
-
-type SaidaItem = {
-  id: string
-  nome: string
-  valor: number
-  categoria: string
-  dia?: number
-}
-
-type DadosMes = {
-  salario: number
-  entradas: EntradaItem[]
-  fixo: FixoItem[]
-  saidas: SaidaItem[]
-  categoriasSaidas: string[]
-}
-
-type BancoDeDados = Record<string, DadosMes>
-
-type CardItem = {
-  id: string
-  nome: string
-  fechamento?: number | null
-  fechamentoMes?: number | null
-  vencimento?: number | null
-  vencimentoMes?: number | null
-  parcelas: {
-    id: string
-    descricao: string
-    valorParcela: number
-    totalParcelas: number
-    parcelaAtual: number
-  }[]
-}
-
-type GlobalData = {
-  firstAccessCompleted: boolean
-  salaryMode: 'fixo' | 'variavel' | null
-  defaultFixedSalary: number
-  onboardingFixedExpenses: string[]
-  pixContacts: { id: string; nome: string; chave: string; observacao: string }[]
-  notes: { id: string; titulo: string; conteudo: string }[]
-  cards: CardItem[]
-  profileName?: string
-}
-
-type AppData = {
-  bancoDeDados: BancoDeDados
-  global: GlobalData
-}
+import {
+  digitsToMoneyPlainString as digitsToMoneyString,
+  handleMaskedMoneyInput,
+  moneyStringToNumber,
+} from '../src/utils/currency'
+import {
+  formatarDiaMesInput,
+  formatarInputDiaMes,
+  getDiasNoMes,
+  meses,
+  parseDiaMesInputOptional as parseDiaMesInput,
+} from '../src/utils/dates'
+import type { AppData, BancoDeDados, CardItem } from './types'
 
 type FixedPreset = {
   id: string
@@ -104,21 +53,6 @@ type DraftCardItem = {
 }
 
 const STORAGE_KEY = 'controle-financeiro-v16'
-const meses = [
-  'Janeiro',
-  'Fevereiro',
-  'Março',
-  'Abril',
-  'Maio',
-  'Junho',
-  'Julho',
-  'Agosto',
-  'Setembro',
-  'Outubro',
-  'Novembro',
-  'Dezembro',
-]
-
 const gastosFixosEEARBase: FixedPreset[] = [
   { id: 'fixo-comissao', nome: 'Comissão de formatura', valorText: '0,00', selected: false },
   { id: 'fixo-lavadeira', nome: 'Lavadeira', valorText: '0,00', selected: false },
@@ -128,59 +62,7 @@ const gastosFixosEEARBase: FixedPreset[] = [
 
 const categoriasVariaveisBase = ['Mercado', 'Saúde', 'Transporte', 'Lazer', 'Comida', 'Extra']
 
-const digitsToMoneyString = (digits: string) => {
-  const onlyDigits = String(digits || '').replace(/\D/g, '')
-  const normalized = onlyDigits === '' ? '0' : onlyDigits
-  const number = Number(normalized) / 100
-
-  return number.toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-}
-
-const moneyStringToNumber = (text: string) => {
-  if (!text) return 0
-  const normalized = text.replace(/\./g, '').replace(',', '.')
-  const n = Number(normalized)
-  return Number.isNaN(n) ? 0 : n
-}
-
-const handleMaskedMoneyInput = (rawValue: string, setter: (value: string) => void) => {
-  const digits = rawValue.replace(/\D/g, '')
-  setter(digitsToMoneyString(digits))
-}
-
 const createId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-
-const getDiasNoMes = (ano: number, mes: number) => {
-  const anoSeguro = Number.isFinite(Number(ano)) ? Number(ano) : new Date().getFullYear()
-  const mesSeguro = Math.min(12, Math.max(1, Number(mes || 1)))
-  return new Date(anoSeguro, mesSeguro, 0).getDate()
-}
-
-const formatarInputDiaMes = (rawValue: string) => {
-  const digits = String(rawValue || '').replace(/\D/g, '').slice(0, 4)
-  if (digits.length <= 2) return digits
-  return `${digits.slice(0, 2)}/${digits.slice(2)}`
-}
-
-const parseDiaMesInput = (rawValue: string, fallbackMonth?: number, fallbackYear?: number) => {
-  const digits = String(rawValue || '').replace(/\D/g, '').slice(0, 4)
-  if (!digits) return { dia: null, mes: null }
-  const mes = Math.min(12, Math.max(1, Number(digits.slice(2, 4) || fallbackMonth || 1)))
-  const ano = Number(fallbackYear || new Date().getFullYear())
-  const diaMaximo = getDiasNoMes(ano, mes)
-  const dia = Math.min(diaMaximo, Math.max(1, Number(digits.slice(0, 2) || 1)))
-  return { dia, mes }
-}
-
-const formatarDiaMesInput = (dia?: number | null, mes?: number | null, ano?: number) => {
-  if (!dia && !mes) return ''
-  const mesSeguro = Math.min(12, Math.max(1, Number(mes || 1)))
-  const diaSeguro = Math.min(getDiasNoMes(Number(ano || new Date().getFullYear()), mesSeguro), Math.max(1, Number(dia || 1)))
-  return `${String(diaSeguro).padStart(2, '0')}/${String(mesSeguro).padStart(2, '0')}`
-}
 
 function criarBancoInicial(salario: number, fixos: { nome: string; valor: number }[], categoriasVariaveis: string[]) {
   const dataAtual = new Date()
@@ -508,7 +390,13 @@ export default function PrimeiroAcessoScreen() {
           pixContacts: [],
           notes: [],
           cards: hasCreditCards ? cardsPreview : [],
+          profileAvatar: '💼',
           profileName: name,
+          goals: [],
+          shoppingWishes: [],
+          investmentPercentage: 10,
+          investmentBaseMode: 'salary',
+          hideValues: false,
         },
       }
 
@@ -584,7 +472,7 @@ export default function PrimeiroAcessoScreen() {
                   <Text style={styles.moneyPrefix}>R$</Text>
                   <TextInput
                     value={salarioText}
-                    onChangeText={(value) => handleMaskedMoneyInput(value, setSalarioText)}
+                    onChangeText={(value) => handleMaskedMoneyInput(value, setSalarioText, { prefix: false, emptyAsBlank: false })}
                     keyboardType='number-pad'
                     placeholder='0,00'
                     placeholderTextColor='#93a094'
@@ -691,7 +579,7 @@ export default function PrimeiroAcessoScreen() {
                     <Text style={styles.moneyPrefix}>R$</Text>
                     <TextInput
                       value={newCustomFixedValue}
-                      onChangeText={(value) => handleMaskedMoneyInput(value, setNewCustomFixedValue)}
+                      onChangeText={(value) => handleMaskedMoneyInput(value, setNewCustomFixedValue, { prefix: false, emptyAsBlank: false })}
                       keyboardType='number-pad'
                       placeholder='0,00'
                       placeholderTextColor='#93a094'
