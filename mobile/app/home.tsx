@@ -53,6 +53,7 @@ import ManageCategoriesModal from '../components/modals/ManageCategoriesModal'
 import ImageCropModal from '../components/modals/ImageCropModal'
 import { supabase } from '../src/lib/supabase'
 import { FinanceProvider, useFinance } from '../src/context/FinanceContext'
+import { uploadAvatar } from '../src/utils/avatar'
 import { styles } from '../src/theme/homeStyles'
 import FixoTab from '../components/tabs/FixoTab'
 import VariavelTab from '../components/tabs/VariavelTab'
@@ -277,6 +278,7 @@ function HomeScreenContent() {
     setAppData,
     carregando,
     sincronizando,
+    usuarioId,
     nome,
     setNome,
     email,
@@ -1110,15 +1112,32 @@ function HomeScreenContent() {
     setAppData((prev) => ({ ...prev, global: { ...prev.global, profileAvatar: avatarFinal, profileName: nomeFinal } }))
   }
 
-  const salvarImagemPerfilLocal = async (uri: string, extensaoBase = 'jpg') => {
-    const extensao = extensaoBase.replace(/[^a-zA-Z0-9]/g, '') || 'jpg'
-    const destino = `${FileSystem.documentDirectory || ''}brazllet-profile-${Date.now()}.${extensao}`
-    if (!FileSystem.documentDirectory) return uri
-    await FileSystem.copyAsync({ from: uri, to: destino })
-    return destino
+  const [enviandoAvatar, setEnviandoAvatar] = useState(false)
+
+  /**
+   * Sobe a imagem para o Supabase Storage e devolve a URL publica.
+   * Antes a foto so era copiada para uma pasta local do aparelho, e o
+   * caminho salvo deixava de valer em outra instalacao.
+   */
+  const enviarImagemPerfil = async (uri: string) => {
+    if (!usuarioId) {
+      Alert.alert('Erro', 'Não foi possível identificar sua conta para salvar a foto.')
+      return null
+    }
+    try {
+      setEnviandoAvatar(true)
+      return await uploadAvatar(usuarioId, uri)
+    } catch (error) {
+      console.error('[perfil] Falha ao enviar a foto de perfil:', error)
+      Alert.alert('Erro', 'Não foi possível enviar sua foto agora. Tente novamente.')
+      return null
+    } finally {
+      setEnviandoAvatar(false)
+    }
   }
 
   const escolherImagemPerfil = async () => {
+    if (enviandoAvatar) return
     try {
       if (Platform.OS === 'web') {
         // Na web não existe "permissão de galeria" nem recorte nativo — o próprio
@@ -1153,17 +1172,18 @@ function HomeScreenContent() {
       const asset = result.assets?.[0]
       const uri = asset?.uri
       if (!uri) return
-      const extensao = (uri.split('.').pop() || 'jpg').split('?')[0]
-      const avatarUri = await salvarImagemPerfilLocal(uri, extensao)
-      setAvatarEditavel(avatarUri)
+      const avatarUri = await enviarImagemPerfil(uri)
+      if (avatarUri) setAvatarEditavel(avatarUri)
     } catch (error) {
       console.error('[perfil] Falha ao escolher imagem de perfil:', error)
       abrirBloqueioPremium('Não foi possível abrir a galeria agora. Tente novamente em alguns instantes.', 'Imagem de perfil')
     }
   }
 
-  const confirmarRecorteImagemWeb = (dataUrl: string) => {
-    setAvatarEditavel(dataUrl)
+  const confirmarRecorteImagemWeb = async (dataUrl: string) => {
+    if (enviandoAvatar) return
+    const avatarUri = await enviarImagemPerfil(dataUrl)
+    if (avatarUri) setAvatarEditavel(avatarUri)
     setModalCropAberto(false)
     setImagemParaCortar(null)
   }
@@ -1173,7 +1193,7 @@ function HomeScreenContent() {
     setImagemParaCortar(null)
   }
 
-  const avatarEhImagem = (valor?: string) => Boolean(valor && (valor.startsWith('file:') || valor.startsWith('content:') || valor.startsWith('http') || valor.startsWith('data:')))
+  const avatarEhImagem = (valor?: string) => Boolean(valor && (valor.startsWith('http') || valor.startsWith('data:')))
 
   const abrirCalendario = (target: CalendarTarget, rawValue?: string, fallbackMonth?: number) => {
     setCalendarTarget(target)

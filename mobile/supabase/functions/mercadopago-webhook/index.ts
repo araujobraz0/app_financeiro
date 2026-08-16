@@ -1,5 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 
+// Valor cobrado pelo plano mensal. Precisa bater com o amount definido
+// em create-pix-payment. Uma pequena tolerancia cobre arredondamento.
+const PRECO_PLANO = 6.9;
+const TOLERANCIA = 0.01;
+const DIAS_PLANO = 30;
+
 function addDays(date: Date, days: number) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
@@ -28,6 +34,31 @@ function extractPaymentId(payload: any, url: URL): string | null {
   return null;
 }
 
+/**
+ * Extrai o user_id do pagamento, exigindo que ele tenha vindo do nosso
+ * fluxo: o external_reference precisa comecar com "premium:".
+ *
+ * Nao confiamos apenas no metadata.user_id, porque um pagamento criado
+ * fora do app poderia trazer qualquer valor ali.
+ */
+function extrairUserId(payment: any): string | null {
+  const externalReference = typeof payment?.external_reference === "string"
+    ? payment.external_reference
+    : "";
+
+  if (!externalReference.startsWith("premium:")) return null;
+
+  const idDaReferencia = externalReference.split(":")[1] || null;
+  const idDoMetadata = payment?.metadata?.user_id || null;
+
+  // Se os dois existem, precisam concordar.
+  if (idDaReferencia && idDoMetadata && idDaReferencia !== idDoMetadata) {
+    return null;
+  }
+
+  return idDaReferencia || idDoMetadata;
+}
+
 Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
@@ -48,10 +79,7 @@ Deno.serve(async (req) => {
     if (!paymentId) {
       return new Response(
         JSON.stringify({ ok: true, ignored: "payment_id_not_found" }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
+        { status: 200, headers: { "Content-Type": "application/json" } },
       );
     }
 
@@ -74,62 +102,44 @@ Deno.serve(async (req) => {
           error: "erro_consultando_pagamento",
           details: payment,
         }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        },
+        { status: 400, headers: { "Content-Type": "application/json" } },
       );
     }
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const userId =
-      payment?.metadata?.user_id ||
-      (typeof payment?.external_reference === "string" &&
-          payment.external_reference.startsWith("premium:")
-        ? payment.external_reference.split(":")[1]
-        : null);
+    const userId = extrairUserId(payment);
+    const valorPago = Number(payment?.transaction_amount ?? 0);
+    const normalizedStatus = String(payment.status ?? "unknown");
+
+    const registroPagamento = {
+      mp_payment_id: String(payment.id),
+      external_reference: payment.external_reference ?? null,
+      amount: valorPago,
+      status: normalizedStatus,
+      qr_code: payment?.point_of_interaction?.transaction_data?.qr_code ?? null,
+      qr_code_base64:
+        payment?.point_of_interaction?.transaction_data?.qr_code_base64 ?? null,
+      raw_response: payment,
+      updated_at: new Date().toISOString(),
+    };
 
     if (!userId) {
-      await supabaseAdmin.from("pix_payments").upsert(
-        {
-          mp_payment_id: String(payment.id),
-          external_reference: payment.external_reference ?? null,
-          amount: Number(payment.transaction_amount ?? 7),
-          status: payment.status ?? "unknown",
-          qr_code: payment?.point_of_interaction?.transaction_data?.qr_code ?? null,
-          qr_code_base64:
-            payment?.point_of_interaction?.transaction_data?.qr_code_base64 ?? null,
-          raw_response: payment,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "mp_payment_id" },
-      );
+      await supabaseAdmin.from("pix_payments").upsert(registroPagamento, {
+        onConflict: "mp_payment_id",
+      });
 
       return new Response(
         JSON.stringify({ ok: true, ignored: "user_id_not_found" }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
+        { status: 200, headers: { "Content-Type": "application/json" } },
       );
     }
 
-    const normalizedStatus = String(payment.status ?? "unknown");
-
     await supabaseAdmin.from("pix_payments").upsert(
       {
+        ...registroPagamento,
         user_id: userId,
-        mp_payment_id: String(payment.id),
-        external_reference: payment.external_reference ?? null,
-        amount: Number(payment.transaction_amount ?? 7),
-        status: normalizedStatus,
-        qr_code: payment?.point_of_interaction?.transaction_data?.qr_code ?? null,
-        qr_code_base64:
-          payment?.point_of_interaction?.transaction_data?.qr_code_base64 ?? null,
         paid_at: normalizedStatus === "approved" ? new Date().toISOString() : null,
-        raw_response: payment,
-        updated_at: new Date().toISOString(),
       },
       { onConflict: "mp_payment_id" },
     );
@@ -137,10 +147,44 @@ Deno.serve(async (req) => {
     if (normalizedStatus !== "approved") {
       return new Response(
         JSON.stringify({ ok: true, status: normalizedStatus }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    // VALIDACAO DE VALOR: sem isso, um pagamento de R$ 0,01 criado fora do
+    // app liberaria 30 dias de premium. Registramos o pagamento acima, mas
+    // nao concedemos o beneficio.
+    if (valorPago + TOLERANCIA < PRECO_PLANO) {
+      console.warn(
+        `[webhook] Pagamento ${payment.id} aprovado com valor insuficiente:`,
+        valorPago,
+        "esperado:",
+        PRECO_PLANO,
+      );
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          ignored: "valor_insuficiente",
+          amount: valorPago,
+          expected: PRECO_PLANO,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    // IDEMPOTENCIA: se este pagamento ja concedeu premium antes, um reenvio
+    // do webhook (o Mercado Pago reenvia em caso de falha) nao deve somar
+    // outros 30 dias.
+    const { data: jaProcessado } = await supabaseAdmin
+      .from("pix_payments")
+      .select("entitlement_granted_at")
+      .eq("mp_payment_id", String(payment.id))
+      .maybeSingle();
+
+    if (jaProcessado?.entitlement_granted_at) {
+      return new Response(
+        JSON.stringify({ ok: true, ignored: "ja_processado" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
       );
     }
 
@@ -155,12 +199,11 @@ Deno.serve(async (req) => {
       ? new Date(existing.premium_expires_at)
       : null;
 
-    const baseDate =
-      currentExpiry && currentExpiry.getTime() > now.getTime()
-        ? currentExpiry
-        : now;
+    const baseDate = currentExpiry && currentExpiry.getTime() > now.getTime()
+      ? currentExpiry
+      : now;
 
-    const nextExpiry = addDays(baseDate, 30);
+    const nextExpiry = addDays(baseDate, DIAS_PLANO);
 
     await supabaseAdmin.from("user_entitlements").upsert(
       {
@@ -172,16 +215,18 @@ Deno.serve(async (req) => {
       { onConflict: "user_id" },
     );
 
+    await supabaseAdmin
+      .from("pix_payments")
+      .update({ entitlement_granted_at: new Date().toISOString() })
+      .eq("mp_payment_id", String(payment.id));
+
     return new Response(
       JSON.stringify({
         ok: true,
         payment_id: String(payment.id),
         premium_expires_at: nextExpiry.toISOString(),
       }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      },
+      { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (error) {
     return new Response(
@@ -189,10 +234,7 @@ Deno.serve(async (req) => {
         error: "webhook_error",
         message: error instanceof Error ? error.message : "unknown_error",
       }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
+      { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }
 });

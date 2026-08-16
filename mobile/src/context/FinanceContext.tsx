@@ -39,6 +39,7 @@ type FinanceContextValue = {
   dadosRemotosCarregados: boolean
 
   // perfil
+  usuarioId: string | null
   nome: string
   setNome: (value: string) => void
   email: string
@@ -81,6 +82,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [sincronizando, setSincronizando] = useState(false)
   const [dadosRemotosCarregados, setDadosRemotosCarregados] = useState(false)
 
+  const [usuarioId, setUsuarioId] = useState<string | null>(null)
   const [nome, setNome] = useState('Usuário')
   const [email, setEmail] = useState('')
   const [avatarPerfil, setAvatarPerfil] = useState('💼')
@@ -161,6 +163,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         }
 
         usuarioIdRef.current = session.user.id
+        setUsuarioId(session.user.id)
         setEmail(session.user.email || '')
         await carregarStatusPremium(session.user.id)
 
@@ -344,6 +347,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       carregando,
       sincronizando,
       dadosRemotosCarregados,
+      usuarioId,
       nome,
       setNome,
       email,
@@ -365,6 +369,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       carregando,
       sincronizando,
       dadosRemotosCarregados,
+      usuarioId,
       nome,
       email,
       avatarPerfil,
