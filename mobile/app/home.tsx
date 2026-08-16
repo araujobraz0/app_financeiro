@@ -3349,7 +3349,34 @@ function HomeScreenContent() {
         onSave={salvarObjetivo}
       />
 
-      <AppModal visible={modalCalendarioAberto} onClose={() => setModalCalendarioAberto(false)}>
+      <AppModal visible={modalPremiumBloqueioAberto} onClose={() => setModalPremiumBloqueioAberto(false)}>
+        <View style={[styles.modalCard, styles.modalCardPremiumLock, { backgroundColor: theme.card, borderColor: theme.border }]}> 
+          <View style={[styles.premiumLockGlow, { backgroundColor: theme.backgroundSoft, borderColor: theme.borderStrong }]}> 
+            <Text style={styles.premiumLockGlowText}>✦</Text>
+          </View>
+          <Text style={[styles.modalTitle, styles.modalTitleCentered, { color: theme.text }]}>{premiumBloqueioTitulo}</Text>
+          <Text style={[styles.premiumLockDescription, { color: theme.muted }]}>{premiumBloqueioMensagem}</Text>
+          <View style={[styles.premiumLockInfoCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
+            <Text style={[styles.premiumLockInfoTitle, { color: theme.text }]}>Acesso premium</Text>
+            <Text style={[styles.premiumLockInfoText, { color: theme.muted }]}>{premiumStatusTexto}</Text>
+          </View>
+          <View style={styles.modalActions}>
+            <Pressable onPress={() => setModalPremiumBloqueioAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+              <Text style={[styles.modalActionText, { color: theme.text }]}>Agora não</Text>
+            </Pressable>
+            <Pressable onPress={irParaTelaPremium} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
+              <Text style={[styles.modalActionText, { color: theme.white }]}>Virar Premium</Text>
+            </Pressable>
+          </View>
+        </View>
+      </AppModal>
+
+      {sincronizando && (
+        <View style={[styles.syncBadge, { backgroundColor: temaEscuro ? '#1e293b' : '#dbeafe', borderColor: temaEscuro ? '#334155' : '#bfdbfe', bottom: 115 + Math.max(insets.bottom, 10) }]}>
+          <Text style={[styles.syncBadgeText, { color: temaEscuro ? '#93c5fd' : '#2563eb' }]}>Salvando...</Text>
+        </View>
+      )}
+      <AppModal level={100} visible={modalCalendarioAberto} onClose={() => setModalCalendarioAberto(false)}>
         <View style={[styles.modalCard, styles.modalCardCalendar, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.modalTitle, { color: theme.text }]}>Selecionar data</Text>
           <View style={styles.calendarSection}>
@@ -3388,33 +3415,6 @@ function HomeScreenContent() {
         </View>
       </AppModal>
 
-      <AppModal visible={modalPremiumBloqueioAberto} onClose={() => setModalPremiumBloqueioAberto(false)}>
-        <View style={[styles.modalCard, styles.modalCardPremiumLock, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-          <View style={[styles.premiumLockGlow, { backgroundColor: theme.backgroundSoft, borderColor: theme.borderStrong }]}> 
-            <Text style={styles.premiumLockGlowText}>✦</Text>
-          </View>
-          <Text style={[styles.modalTitle, styles.modalTitleCentered, { color: theme.text }]}>{premiumBloqueioTitulo}</Text>
-          <Text style={[styles.premiumLockDescription, { color: theme.muted }]}>{premiumBloqueioMensagem}</Text>
-          <View style={[styles.premiumLockInfoCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
-            <Text style={[styles.premiumLockInfoTitle, { color: theme.text }]}>Acesso premium</Text>
-            <Text style={[styles.premiumLockInfoText, { color: theme.muted }]}>{premiumStatusTexto}</Text>
-          </View>
-          <View style={styles.modalActions}>
-            <Pressable onPress={() => setModalPremiumBloqueioAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.modalActionText, { color: theme.text }]}>Agora não</Text>
-            </Pressable>
-            <Pressable onPress={irParaTelaPremium} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
-              <Text style={[styles.modalActionText, { color: theme.white }]}>Virar Premium</Text>
-            </Pressable>
-          </View>
-        </View>
-      </AppModal>
-
-      {sincronizando && (
-        <View style={[styles.syncBadge, { backgroundColor: temaEscuro ? '#1e293b' : '#dbeafe', borderColor: temaEscuro ? '#334155' : '#bfdbfe', bottom: 115 + Math.max(insets.bottom, 10) }]}>
-          <Text style={[styles.syncBadgeText, { color: temaEscuro ? '#93c5fd' : '#2563eb' }]}>Salvando...</Text>
-        </View>
-      )}
     </SafeAreaView>
   )
 }

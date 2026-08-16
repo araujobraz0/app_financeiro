@@ -15,9 +15,15 @@ type AppModalProps = {
   visible: boolean
   onClose: () => void
   children: ReactNode
+  /**
+   * Empilhamento. Modais que abrem por cima de outros — o calendario, por
+   * exemplo, chamado de dentro de um formulario — precisam de um valor
+   * maior para nao ficarem atras de quem os abriu.
+   */
+  level?: number
 }
 
-export default function AppModal({ visible, onClose, children }: AppModalProps) {
+export default function AppModal({ visible, onClose, children, level = 0 }: AppModalProps) {
   const translateY = useRef(new Animated.Value(0)).current
   const { height: windowHeight } = useWindowDimensions()
 
@@ -70,7 +76,7 @@ export default function AppModal({ visible, onClose, children }: AppModalProps) 
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <View style={styles.modalOverlay}>
+      <View style={[styles.modalOverlay, level > 0 && { zIndex: level }]}>
         <Pressable style={styles.modalBackdropTouch} onPress={onClose} />
         <KeyboardAvoidingView
           pointerEvents='box-none'
