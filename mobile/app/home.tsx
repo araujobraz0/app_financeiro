@@ -40,8 +40,10 @@ import SelectionModal from '../components/modals/SelectionModal'
 import CategoryNameModal from '../components/modals/CategoryNameModal'
 import ConfirmDeleteModal from '../components/modals/ConfirmDeleteModal'
 import SettingsModal from '../components/modals/SettingsModal'
-import LaunchModal from '../components/modals/LaunchModal'
-import CardPurchaseModal from '../components/modals/CardPurchaseModal'
+import LaunchModal, { emptyLaunchFormValues } from '../components/modals/LaunchModal'
+import type { LaunchFormValues } from '../components/modals/LaunchModal'
+import CardPurchaseModal, { emptyCardPurchaseValues } from '../components/modals/CardPurchaseModal'
+import type { CardPurchaseFormValues } from '../components/modals/CardPurchaseModal'
 import ManageCardsModal from '../components/modals/ManageCardsModal'
 import CardEditorModal from '../components/modals/CardEditorModal'
 import ManageCategoriesModal from '../components/modals/ManageCategoriesModal'
@@ -551,9 +553,13 @@ export default function HomeScreen() {
   const [filtroCategoria, setFiltroCategoria] = useState('Todas')
   const [itemEditandoId, setItemEditandoId] = useState<string | null>(null)
   const [diaEdicao, setDiaEdicao] = useState('1')
-  const [novoNome, setNovoNome] = useState('')
-  const [novoValor, setNovoValor] = useState('R$ 0,00')
-  const [novaCategoria, setNovaCategoria] = useState(categoriasPadrao[0])
+  // Os campos do formulario de lancamento agora vivem dentro do LaunchModal.
+  // Aqui guardamos so os valores iniciais e uma chave que forca o modal a
+  // remontar (e portanto reiniciar os campos) sempre que ele e reaberto.
+  const [launchFormKey, setLaunchFormKey] = useState(0)
+  const [launchInitialValues, setLaunchInitialValues] = useState<LaunchFormValues>(() => emptyLaunchFormValues(categoriasPadrao[0]))
+  const [cardFormKey, setCardFormKey] = useState(0)
+  const [cardInitialValues, setCardInitialValues] = useState<CardPurchaseFormValues>(() => emptyCardPurchaseValues())
 
   const [noteModalType, setNoteModalType] = useState<NoteModalMode>('pix')
   const [modalAnotacaoAberto, setModalAnotacaoAberto] = useState(false)
@@ -574,10 +580,6 @@ export default function HomeScreen() {
   const [modalNovoCartaoAberto, setModalNovoCartaoAberto] = useState(false)
   const [cardModalType, setCardModalType] = useState<CardModalMode>('card')
   const [novoCartaoNome, setNovoCartaoNome] = useState('')
-  const [novaParcelaDescricao, setNovaParcelaDescricao] = useState('')
-  const [novaParcelaValor, setNovaParcelaValor] = useState('R$ 0,00')
-  const [novaParcelaAtual, setNovaParcelaAtual] = useState('1')
-  const [novaParcelaTotal, setNovaParcelaTotal] = useState('1')
   const [parcelaEditandoId, setParcelaEditandoId] = useState<string | null>(null)
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [sortFixo, setSortFixo] = useState<SortMode>('recentes')
@@ -2528,12 +2530,8 @@ export default function HomeScreen() {
       setAbaInferior('cartao')
     }
 
-    setNovoNome('')
-    setNovoValor('R$ 0,00')
-    setNovaCategoria(categoriasSaidas[0] || 'Mercado')
-    setNovaParcelaDescricao('')
-    setNovaParcelaValor('R$ 0,00')
-    setNovaParcelaTotal('1')
+    setLaunchInitialValues(emptyLaunchFormValues(categoriasSaidas[0] || 'Mercado'))
+    setLaunchFormKey((prev) => prev + 1)
     setDiaEdicao(String(new Date().getDate()))
     setParcelaEditandoId(null)
     setModalLancamentoAberto(true)
@@ -2553,8 +2551,12 @@ export default function HomeScreen() {
     setModoModalLancamento('editar')
     setItemEditandoId(item.id)
     setTipoFormularioLancamento('fixo')
-    setNovoNome(item.nome)
-    setNovoValor(formatarValorInput(item.valor))
+    setLaunchInitialValues({
+      ...emptyLaunchFormValues(categoriasSaidas[0] || 'Mercado'),
+      name: item.nome,
+      value: formatarValorInput(item.valor),
+    })
+    setLaunchFormKey((prev) => prev + 1)
     setDiaEdicao(String(item.dia || 1))
     setModalLancamentoAberto(true)
   }
@@ -2564,8 +2566,12 @@ export default function HomeScreen() {
     setItemEditandoId(item.id)
     setTipoVariavelTab('entrada')
     setTipoFormularioLancamento('entrada')
-    setNovoNome(item.nome)
-    setNovoValor(formatarValorInput(item.valor))
+    setLaunchInitialValues({
+      ...emptyLaunchFormValues(categoriasSaidas[0] || 'Mercado'),
+      name: item.nome,
+      value: formatarValorInput(item.valor),
+    })
+    setLaunchFormKey((prev) => prev + 1)
     setDiaEdicao(String(item.dia || 1))
     setModalLancamentoAberto(true)
   }
@@ -2575,9 +2581,12 @@ export default function HomeScreen() {
     setItemEditandoId(item.id)
     setTipoVariavelTab('saida')
     setTipoFormularioLancamento('saida')
-    setNovoNome(item.nome)
-    setNovoValor(formatarValorInput(item.valor))
-    setNovaCategoria(item.categoria || categoriasSaidas[0] || 'Mercado')
+    setLaunchInitialValues({
+      ...emptyLaunchFormValues(item.categoria || categoriasSaidas[0] || 'Mercado'),
+      name: item.nome,
+      value: formatarValorInput(item.valor),
+    })
+    setLaunchFormKey((prev) => prev + 1)
     setDiaEdicao(String(item.dia || 1))
     setModalLancamentoAberto(true)
   }
@@ -2586,20 +2595,14 @@ export default function HomeScreen() {
     setModalLancamentoAberto(false)
     setModoModalLancamento('novo')
     setItemEditandoId(null)
-    setNovoNome('')
-    setNovoValor('R$ 0,00')
-    setNovaCategoria(categoriasSaidas[0] || 'Mercado')
-    setNovaParcelaDescricao('')
-    setNovaParcelaValor('R$ 0,00')
-    setNovaParcelaTotal('1')
     setDiaEdicao('1')
   }
 
-  const salvarNovaParcelaDentroDoLancamento = () => {
-    if (!selectedCardId || !novaParcelaDescricao.trim()) return
+  const salvarNovaParcelaDentroDoLancamento = (values: LaunchFormValues) => {
+    if (!selectedCardId || !values.installmentDescription.trim()) return
 
-    const valorTotalCompra = moneyStringToNumber(novaParcelaValor)
-    const totalParcelas = Math.max(1, Number(novaParcelaTotal || 1))
+    const valorTotalCompra = moneyStringToNumber(values.installmentValue)
+    const totalParcelas = Math.max(1, Number(values.installmentTotal || 1))
     const valor = totalParcelas > 0 ? valorTotalCompra / totalParcelas : valorTotalCompra
     const parcelaAtual = 1
 
@@ -2617,7 +2620,7 @@ export default function HomeScreen() {
             { length: totalParcelas - parcelaAtual + 1 },
             (_, idx) => ({
               id: `installment-${Date.now()}-${idx}`,
-              descricao: novaParcelaDescricao.trim(),
+              descricao: values.installmentDescription.trim(),
               valorParcela: valor,
               parcelaAtual: parcelaAtual + idx,
               totalParcelas,
@@ -2638,18 +2641,18 @@ export default function HomeScreen() {
     fecharModalLancamento()
   }
 
-  const salvarLancamento = () => {
+  const salvarLancamento = (values: LaunchFormValues) => {
     if (tipoFormularioLancamento === 'parcela') {
-      salvarNovaParcelaDentroDoLancamento()
+      salvarNovaParcelaDentroDoLancamento(values)
       return
     }
 
-    if (!novoNome.trim()) return
-    const valorConvertido = moneyStringToNumber(novoValor)
+    if (!values.name.trim()) return
+    const valorConvertido = moneyStringToNumber(values.value)
 
     if (modoModalLancamento === 'novo') {
       const diaLancamento = Math.min(31, Math.max(1, Number(diaEdicao || new Date().getDate())))
-      const base = { id: `${tipoFormularioLancamento}-${Date.now()}`, nome: novoNome.trim(), valor: valorConvertido, dia: diaLancamento }
+      const base = { id: `${tipoFormularioLancamento}-${Date.now()}`, nome: values.name.trim(), valor: valorConvertido, dia: diaLancamento }
 
       setAppData((prev) => {
         const bancoAtualizado: BancoDeDados = { ...prev.bancoDeDados }
@@ -2676,7 +2679,7 @@ export default function HomeScreen() {
                 : bancoAtualizado[chaveAtual].entradas,
             saidas:
               tipoFormularioLancamento === 'saida'
-                ? [...bancoAtualizado[chaveAtual].saidas, { ...base, categoria: novaCategoria || categoriasSaidas[0] || 'Mercado' }]
+                ? [...bancoAtualizado[chaveAtual].saidas, { ...base, categoria: values.selectedCategory || categoriasSaidas[0] || 'Mercado' }]
                 : bancoAtualizado[chaveAtual].saidas,
           }
         }
@@ -2694,20 +2697,20 @@ export default function HomeScreen() {
               tipoFormularioLancamento === 'saida'
                 ? prev.bancoDeDados[chaveAtual].saidas.map((item) =>
                     item.id === itemEditandoId
-                      ? { ...item, nome: novoNome.trim(), valor: valorConvertido, categoria: novaCategoria, dia: Math.min(31, Math.max(1, Number(diaEdicao || item.dia || 1))) }
+                      ? { ...item, nome: values.name.trim(), valor: valorConvertido, categoria: values.selectedCategory, dia: Math.min(31, Math.max(1, Number(diaEdicao || item.dia || 1))) }
                       : item
                   )
                 : prev.bancoDeDados[chaveAtual].saidas,
             entradas:
               tipoFormularioLancamento === 'entrada'
                 ? prev.bancoDeDados[chaveAtual].entradas.map((item) =>
-                    item.id === itemEditandoId ? { ...item, nome: novoNome.trim(), valor: valorConvertido, dia: Math.min(31, Math.max(1, Number(diaEdicao || item.dia || 1))) } : item
+                    item.id === itemEditandoId ? { ...item, nome: values.name.trim(), valor: valorConvertido, dia: Math.min(31, Math.max(1, Number(diaEdicao || item.dia || 1))) } : item
                   )
                 : prev.bancoDeDados[chaveAtual].entradas,
             fixo:
               tipoFormularioLancamento === 'fixo'
                 ? prev.bancoDeDados[chaveAtual].fixo.map((item) =>
-                    item.id === itemEditandoId ? { ...item, nome: novoNome.trim(), valor: valorConvertido, dia: Math.min(31, Math.max(1, Number(diaEdicao || item.dia || 1))) } : item
+                    item.id === itemEditandoId ? { ...item, nome: values.name.trim(), valor: valorConvertido, dia: Math.min(31, Math.max(1, Number(diaEdicao || item.dia || 1))) } : item
                   )
                 : prev.bancoDeDados[chaveAtual].fixo,
           },
@@ -2989,10 +2992,8 @@ export default function HomeScreen() {
     setModoModalLancamento('novo')
     setTipoFormularioLancamento('parcela')
     setParcelaEditandoId(null)
-    setNovaParcelaDescricao('')
-    setNovaParcelaValor('R$ 0,00')
-    setNovaParcelaAtual('1')
-    setNovaParcelaTotal('1')
+    setLaunchInitialValues(emptyLaunchFormValues(categoriasSaidas[0] || 'Mercado'))
+    setLaunchFormKey((prev) => prev + 1)
     setDiaEdicao(String(new Date().getDate()))
     setModalLancamentoAberto(true)
   }
@@ -3000,10 +3001,12 @@ export default function HomeScreen() {
   const abrirEditarParcela = (item: CardInstallment) => {
     setCardModalType('installment')
     setParcelaEditandoId(item.id)
-    setNovaParcelaDescricao(item.descricao)
-    setNovaParcelaValor(formatarValorInput(Number(item.valorParcela || 0) * Number(item.totalParcelas || 1)))
-    setNovaParcelaAtual('1')
-    setNovaParcelaTotal(String(item.totalParcelas))
+    setCardInitialValues({
+      description: item.descricao,
+      totalValue: formatarValorInput(Number(item.valorParcela || 0) * Number(item.totalParcelas || 1)),
+      totalInstallments: String(item.totalParcelas),
+    })
+    setCardFormKey((prev) => prev + 1)
     setDiaEdicao(String(item.dia || 1))
     setModalCartaoAberto(true)
   }
@@ -3011,18 +3014,14 @@ export default function HomeScreen() {
   const fecharModalCartao = () => {
     setModalCartaoAberto(false)
     setNovoCartaoNome('')
-    setNovaParcelaDescricao('')
-    setNovaParcelaValor('R$ 0,00')
-    setNovaParcelaAtual('1')
-    setNovaParcelaTotal('1')
     setParcelaEditandoId(null)
     setDiaEdicao('1')
   }
 
-  const salvarCartaoOuParcela = () => {
-    if (!selectedCardId || !novaParcelaDescricao.trim()) return
-    const valorTotalCompra = moneyStringToNumber(novaParcelaValor)
-    const totalParcelas = Math.max(1, Number(novaParcelaTotal || 1))
+  const salvarCartaoOuParcela = (values: CardPurchaseFormValues) => {
+    if (!selectedCardId || !values.description.trim()) return
+    const valorTotalCompra = moneyStringToNumber(values.totalValue)
+    const totalParcelas = Math.max(1, Number(values.totalInstallments || 1))
     const valor = totalParcelas > 0 ? valorTotalCompra / totalParcelas : valorTotalCompra
     const parcelaAtual = 1
 
@@ -3040,7 +3039,7 @@ export default function HomeScreen() {
                 item.id === parcelaEditandoId
                   ? {
                       ...item,
-                      descricao: novaParcelaDescricao.trim(),
+                      descricao: values.description.trim(),
                       valorParcela: valor,
                       parcelaAtual,
                       totalParcelas,
@@ -3058,7 +3057,7 @@ export default function HomeScreen() {
             { length: totalParcelas - parcelaAtual + 1 },
             (_, idx) => ({
               id: `installment-${Date.now()}-${idx}`,
-              descricao: novaParcelaDescricao.trim(),
+              descricao: values.description.trim(),
               valorParcela: valor,
               parcelaAtual: parcelaAtual + idx,
               totalParcelas,
@@ -3988,6 +3987,7 @@ export default function HomeScreen() {
       />
 
       <LaunchModal
+        key={`launch-${launchFormKey}`}
         visible={modalLancamentoAberto}
         onClose={fecharModalLancamento}
         theme={theme}
@@ -4000,19 +4000,8 @@ export default function HomeScreen() {
         cards={cards}
         selectedCardId={selectedCardId}
         onSelectedCardIdChange={setSelectedCardId}
-        installmentDescription={novaParcelaDescricao}
-        onInstallmentDescriptionChange={setNovaParcelaDescricao}
-        installmentValue={novaParcelaValor}
-        onInstallmentValueChange={setNovaParcelaValor}
-        installmentTotal={novaParcelaTotal}
-        onInstallmentTotalChange={setNovaParcelaTotal}
-        name={novoNome}
-        onNameChange={setNovoNome}
         categories={categoriasSaidas}
-        selectedCategory={novaCategoria}
-        onSelectedCategoryChange={setNovaCategoria}
-        value={novoValor}
-        onValueChange={setNovoValor}
+        initialValues={launchInitialValues}
         day={diaEdicao}
         onDayChange={setDiaEdicao}
         onOpenDayCalendar={() => abrirCalendario('dia_edicao', diaEdicao, meses.indexOf(mesSelecionado) + 1)}
@@ -4120,6 +4109,7 @@ export default function HomeScreen() {
       </AppModal>
 
       <CardPurchaseModal
+        key={`card-${cardFormKey}`}
         visible={modalCartaoAberto}
         onClose={fecharModalCartao}
         theme={theme}
@@ -4127,12 +4117,7 @@ export default function HomeScreen() {
         cards={cards}
         selectedCardId={selectedCardId}
         onSelectedCardIdChange={setSelectedCardId}
-        description={novaParcelaDescricao}
-        onDescriptionChange={setNovaParcelaDescricao}
-        totalValue={novaParcelaValor}
-        onTotalValueChange={setNovaParcelaValor}
-        totalInstallments={novaParcelaTotal}
-        onTotalInstallmentsChange={setNovaParcelaTotal}
+        initialValues={cardInitialValues}
         day={diaEdicao}
         onDayChange={setDiaEdicao}
         onOpenDayCalendar={() => abrirCalendario('dia_edicao', diaEdicao, meses.indexOf(mesSelecionado) + 1)}

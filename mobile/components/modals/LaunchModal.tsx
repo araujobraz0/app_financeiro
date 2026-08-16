@@ -1,7 +1,31 @@
+import { useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import type { CardItem, ModoModal, QuickAddType, Tema, TipoFormularioLancamento } from '../../app/types'
 import { handleMaskedMoneyInput } from '../../src/utils/currency'
 import AppModal from '../common/AppModal'
+
+/**
+ * Valores dos campos do formulario. O modal e dono deles: o HomeScreen
+ * informa os valores iniciais e recebe o resultado de volta no onSave.
+ * Isso evita que cada tecla digitada re-renderize a tela inteira.
+ */
+export type LaunchFormValues = {
+  name: string
+  selectedCategory: string
+  value: string
+  installmentDescription: string
+  installmentValue: string
+  installmentTotal: string
+}
+
+export const emptyLaunchFormValues = (category = ''): LaunchFormValues => ({
+  name: '',
+  selectedCategory: category,
+  value: 'R$ 0,00',
+  installmentDescription: '',
+  installmentValue: 'R$ 0,00',
+  installmentTotal: '1',
+})
 
 type LaunchModalProps = {
   visible: boolean
@@ -16,24 +40,13 @@ type LaunchModalProps = {
   cards: CardItem[]
   selectedCardId: string | null
   onSelectedCardIdChange: (value: string) => void
-  installmentDescription: string
-  onInstallmentDescriptionChange: (value: string) => void
-  installmentValue: string
-  onInstallmentValueChange: (value: string) => void
-  installmentTotal: string
-  onInstallmentTotalChange: (value: string) => void
-  name: string
-  onNameChange: (value: string) => void
   categories: string[]
-  selectedCategory: string
-  onSelectedCategoryChange: (value: string) => void
-  value: string
-  onValueChange: (value: string) => void
+  initialValues: LaunchFormValues
   day: string
   onDayChange: (value: string) => void
   onOpenDayCalendar: () => void
   onTypeChange: (type: QuickAddType) => void
-  onSave: () => void
+  onSave: (values: LaunchFormValues) => void
 }
 
 export default function LaunchModal({
@@ -49,25 +62,25 @@ export default function LaunchModal({
   cards,
   selectedCardId,
   onSelectedCardIdChange,
-  installmentDescription,
-  onInstallmentDescriptionChange,
-  installmentValue,
-  onInstallmentValueChange,
-  installmentTotal,
-  onInstallmentTotalChange,
-  name,
-  onNameChange,
   categories,
-  selectedCategory,
-  onSelectedCategoryChange,
-  value,
-  onValueChange,
+  initialValues,
   day,
   onDayChange,
   onOpenDayCalendar,
   onTypeChange,
   onSave,
 }: LaunchModalProps) {
+  const [name, setName] = useState(initialValues.name)
+  const [selectedCategory, setSelectedCategory] = useState(initialValues.selectedCategory)
+  const [value, setValue] = useState(initialValues.value)
+  const [installmentDescription, setInstallmentDescription] = useState(initialValues.installmentDescription)
+  const [installmentValue, setInstallmentValue] = useState(initialValues.installmentValue)
+  const [installmentTotal, setInstallmentTotal] = useState(initialValues.installmentTotal)
+
+  const handleSave = () => {
+    onSave({ name, selectedCategory, value, installmentDescription, installmentValue, installmentTotal })
+  }
+
   const usesScrollableBody = formType === 'parcela' || isOutputForm || isInputForm
 
   const cardStyle = [
@@ -153,7 +166,7 @@ export default function LaunchModal({
         <Text style={[styles.modalLabel, { color: theme.muted }]}>Nome</Text>
         <TextInput
           value={name}
-          onChangeText={onNameChange}
+          onChangeText={setName}
           placeholder='Digite o nome'
           placeholderTextColor={theme.muted}
           style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
@@ -167,7 +180,7 @@ export default function LaunchModal({
             {categories.map((category) => (
               <Pressable
                 key={category}
-                onPress={() => onSelectedCategoryChange(category)}
+                onPress={() => setSelectedCategory(category)}
                 style={[
                   styles.filterPill,
                   {
@@ -189,7 +202,7 @@ export default function LaunchModal({
         <Text style={[styles.modalLabel, { color: theme.muted }]}>Valor</Text>
         <TextInput
           value={value}
-          onChangeText={(rawValue) => handleMaskedMoneyInput(rawValue, onValueChange)}
+          onChangeText={(rawValue) => handleMaskedMoneyInput(rawValue, setValue)}
           placeholder='R$ 0,00'
           placeholderTextColor={theme.muted}
           keyboardType='number-pad'
@@ -229,7 +242,7 @@ export default function LaunchModal({
         <Text style={[styles.modalLabel, { color: theme.muted }]}>Descrição</Text>
         <TextInput
           value={installmentDescription}
-          onChangeText={onInstallmentDescriptionChange}
+          onChangeText={setInstallmentDescription}
           placeholder='Ex.: tênis, curso...'
           placeholderTextColor={theme.muted}
           style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
@@ -240,7 +253,7 @@ export default function LaunchModal({
         <Text style={[styles.modalLabel, { color: theme.muted }]}>Valor total da compra</Text>
         <TextInput
           value={installmentValue}
-          onChangeText={(rawValue) => handleMaskedMoneyInput(rawValue, onInstallmentValueChange)}
+          onChangeText={(rawValue) => handleMaskedMoneyInput(rawValue, setInstallmentValue)}
           placeholder='R$ 0,00'
           placeholderTextColor={theme.muted}
           keyboardType='number-pad'
@@ -253,7 +266,7 @@ export default function LaunchModal({
         <Text style={[styles.modalLabel, styles.dualFieldLabel, { color: theme.muted }]}>Total de parcelas</Text>
         <TextInput
           value={installmentTotal}
-          onChangeText={onInstallmentTotalChange}
+          onChangeText={setInstallmentTotal}
           keyboardType='number-pad'
           inputMode='numeric'
           placeholder='Exemplo: 1'
@@ -279,7 +292,7 @@ export default function LaunchModal({
       >
         <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
       </Pressable>
-      <Pressable onPress={onSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary, borderColor: theme.primary }]}> 
+      <Pressable onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary, borderColor: theme.primary }]}> 
         <Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text>
       </Pressable>
     </View>

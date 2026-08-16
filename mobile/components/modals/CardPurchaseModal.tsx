@@ -1,7 +1,25 @@
+import { useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import type { CardItem, Tema } from '../../app/types'
 import { handleMaskedMoneyInput } from '../../src/utils/currency'
 import AppModal from '../common/AppModal'
+
+/**
+ * Campos da compra parcelada. O modal e dono deles: recebe os valores
+ * iniciais e devolve o resultado no onSave, para que digitar aqui nao
+ * re-renderize a tela inteira.
+ */
+export type CardPurchaseFormValues = {
+  description: string
+  totalValue: string
+  totalInstallments: string
+}
+
+export const emptyCardPurchaseValues = (): CardPurchaseFormValues => ({
+  description: '',
+  totalValue: 'R$ 0,00',
+  totalInstallments: '1',
+})
 
 type CardPurchaseModalProps = {
   visible: boolean
@@ -11,16 +29,11 @@ type CardPurchaseModalProps = {
   cards: CardItem[]
   selectedCardId: string | null
   onSelectedCardIdChange: (value: string) => void
-  description: string
-  onDescriptionChange: (value: string) => void
-  totalValue: string
-  onTotalValueChange: (value: string) => void
-  totalInstallments: string
-  onTotalInstallmentsChange: (value: string) => void
+  initialValues: CardPurchaseFormValues
   day: string
   onDayChange: (value: string) => void
   onOpenDayCalendar: () => void
-  onSave: () => void
+  onSave: (values: CardPurchaseFormValues) => void
 }
 
 export default function CardPurchaseModal({
@@ -31,17 +44,20 @@ export default function CardPurchaseModal({
   cards,
   selectedCardId,
   onSelectedCardIdChange,
-  description,
-  onDescriptionChange,
-  totalValue,
-  onTotalValueChange,
-  totalInstallments,
-  onTotalInstallmentsChange,
+  initialValues,
   day,
   onDayChange,
   onOpenDayCalendar,
   onSave,
 }: CardPurchaseModalProps) {
+  const [description, setDescription] = useState(initialValues.description)
+  const [totalValue, setTotalValue] = useState(initialValues.totalValue)
+  const [totalInstallments, setTotalInstallments] = useState(initialValues.totalInstallments)
+
+  const handleSave = () => {
+    onSave({ description, totalValue, totalInstallments })
+  }
+
   return (
     <AppModal visible={visible} onClose={onClose}>
       <View style={[styles.modalCard, styles.modalCardCartaoCompra, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -76,7 +92,7 @@ export default function CardPurchaseModal({
           <Text style={[styles.modalLabel, { color: theme.muted }]}>Descrição</Text>
           <TextInput
             value={description}
-            onChangeText={onDescriptionChange}
+            onChangeText={setDescription}
             placeholder='Ex.: tênis, curso...'
             placeholderTextColor={theme.muted}
             style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
@@ -87,7 +103,7 @@ export default function CardPurchaseModal({
           <Text style={[styles.modalLabel, { color: theme.muted }]}>Valor total da compra</Text>
           <TextInput
             value={totalValue}
-            onChangeText={(rawValue) => handleMaskedMoneyInput(rawValue, onTotalValueChange)}
+            onChangeText={(rawValue) => handleMaskedMoneyInput(rawValue, setTotalValue)}
             keyboardType='number-pad'
             inputMode='numeric'
             placeholder='R$ 0,00'
@@ -100,7 +116,7 @@ export default function CardPurchaseModal({
           <Text style={[styles.modalLabel, styles.dualFieldLabel, { color: theme.muted }]}>Total de parcelas</Text>
           <TextInput
             value={totalInstallments}
-            onChangeText={onTotalInstallmentsChange}
+            onChangeText={setTotalInstallments}
             keyboardType='number-pad'
             inputMode='numeric'
             placeholder='Exemplo: 1'
@@ -138,7 +154,7 @@ export default function CardPurchaseModal({
           <Pressable onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
             <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
           </Pressable>
-          <Pressable onPress={onSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
+          <Pressable onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
             <Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text>
           </Pressable>
         </View>
