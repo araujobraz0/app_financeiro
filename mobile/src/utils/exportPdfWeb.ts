@@ -72,7 +72,6 @@ export async function gerarArquivoPdfWeb(html: string): Promise<string> {
           windowWidth: LARGURA_A4_PX,
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'] },
       })
       .from(container)
       .outputPdf('blob')
