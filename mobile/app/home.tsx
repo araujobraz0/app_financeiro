@@ -16,11 +16,9 @@ import {
   Text,
   TextInput,
   View,
-  useColorScheme,
   useWindowDimensions,
   type DimensionValue,
 } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import Constants from 'expo-constants'
 import * as Clipboard from 'expo-clipboard'
 import * as DocumentPicker from 'expo-document-picker'
@@ -55,7 +53,8 @@ import CardEditorModal from '../components/modals/CardEditorModal'
 import ManageCategoriesModal from '../components/modals/ManageCategoriesModal'
 import ImageCropModal from '../components/modals/ImageCropModal'
 import { supabase } from '../src/lib/supabase'
-import { darkTheme, lightTheme, THEME_KEY, THEME_MODE_KEY } from '../src/theme/themes'
+import { FinanceProvider, useFinance } from '../src/context/FinanceContext'
+import { categoriasPadrao, normalizarAppData } from '../src/data/appData'
 import {
   digitsToMoneyString,
   formatarMoeda,
@@ -94,25 +93,6 @@ import type {
 
 const BRAZLLET_PLATFORM = 'android'
 
-const STORAGE_KEY = 'controle-financeiro-v16'
-const BACKUP_LAST_KEY = 'controle-financeiro-ultimo-backup-mobile'
-const categoriasPadrao = ['Mercado', 'Saúde', 'Extra', 'Lazer', 'Uber', 'Comida']
-const onboardingFixosBase = [
-  { nome: 'Comissão de formatura', valor: 130 },
-  { nome: 'Lavadeira', valor: 120 },
-  { nome: 'Empresa de fotos', valor: 0 },
-  { nome: 'CT', valor: 15 },
-]
-const fixosLegadoPadrao = [
-  { nome: 'Comissão de formatura', valor: 130 },
-  { nome: 'Lavadeira', valor: 120 },
-  { nome: 'Aeroland', valor: 49.85 },
-  { nome: 'Plano de Celular', valor: 35 },
-  { nome: 'Chat GPT', valor: 19 },
-  { nome: 'Saeear', valor: 15 },
-  { nome: 'CTMG', valor: 15 },
-  { nome: 'YouTube Music', valor: 9 },
-]
 const coresPizza = ['#38bdf8', '#2563eb', '#16a34a', '#dc2626', '#9333ea', '#ea580c', '#14b8a6', '#ca8a04']
 
 function polarToCartesian(cx: number, cy: number, r: number, angleInDegrees: number) {
@@ -259,218 +239,6 @@ function calcularVariacaoPercentual(atual: number, comparado: number) {
   return ((atual - comparado) / Math.abs(comparado)) * 100
 }
 
-function globalDefaults(): GlobalData {
-  return {
-    firstAccessCompleted: false,
-    salaryMode: null,
-    defaultFixedSalary: 0,
-    onboardingFixedExpenses: [],
-    pixContacts: [],
-    notes: [],
-    cards: [],
-    profileAvatar: '💼',
-    profileName: '',
-    goals: [],
-    shoppingWishes: [],
-    investmentPercentage: 10,
-    investmentBaseMode: 'salary',
-    hideValues: false,
-  }
-}
-
-function buildMonthDefaults(chave: string, global: GlobalData): DadosMes {
-  const fixosBase = global.onboardingFixedExpenses.length
-    ? global.onboardingFixedExpenses.map((nome, index) => {
-        const found = onboardingFixosBase.find((item) => item.nome === nome)
-        return {
-          id: `fixo-${chave}-${index}`,
-          nome,
-          valor: found?.valor ?? 0,
-          pago: false,
-          recorrenteId: `onboarding-${nome}`,
-          criadoEmCompetencia: chave,
-          dia: 5,
-        }
-      })
-    : fixosLegadoPadrao.map((item, index) => ({
-        id: `fixo-${chave}-${index}`,
-        nome: item.nome,
-        valor: item.valor,
-        pago: false,
-        recorrenteId: `legado-${item.nome}`,
-        criadoEmCompetencia: chave,
-        dia: 5,
-      }))
-
-  return {
-    salario: global.salaryMode === 'fixo' ? global.defaultFixedSalary : 0,
-    entradas: [],
-    fixo: fixosBase,
-    saidas: [],
-    categoriasSaidas: [...categoriasPadrao],
-  }
-}
-
-function criarAppDataInicial(): AppData {
-  const anos = listaAnosAtual()
-  const global = globalDefaults()
-  const bancoDeDados: BancoDeDados = {}
-
-  anos.forEach((ano) => {
-    meses.forEach((mes) => {
-      const chave = `${ano}-${mes}`
-      bancoDeDados[chave] = buildMonthDefaults(chave, global)
-    })
-  })
-
-  return { bancoDeDados, global }
-}
-
-function normalizarAppData(dataOriginal: unknown): AppData {
-  const anos = listaAnosAtual()
-  const root = dataOriginal && typeof dataOriginal === 'object' ? (dataOriginal as Record<string, any>) : {}
-  const isNewShape = 'bancoDeDados' in root || 'global' in root
-  const globalBase: GlobalData = {
-    ...globalDefaults(),
-    ...(isNewShape && root.global && typeof root.global === 'object' ? root.global : {}),
-  }
-  const bancoFonte: Record<string, any> = isNewShape && root.bancoDeDados ? root.bancoDeDados : root
-
-  const bancoDeDados: BancoDeDados = {}
-
-  anos.forEach((ano) => {
-    meses.forEach((mes) => {
-      const chave = `${ano}-${mes}`
-      const bloco = bancoFonte[chave] || {}
-      const fallback = buildMonthDefaults(chave, globalBase)
-
-      const categoriasNormalizadas: string[] = Array.from(
-        new Set(
-          (Array.isArray(bloco.categoriasSaidas) ? bloco.categoriasSaidas : categoriasPadrao)
-            .filter((cat: unknown) => cat && normalizarCategoriaNome(cat))
-            .map((cat: unknown) => normalizarCategoriaNome(cat))
-            .filter((cat: string) => !categoriaEhImportado(cat))
-            .concat(categoriasPadrao)
-        )
-      )
-
-      bancoDeDados[chave] = {
-        salario:
-          typeof bloco.salario === 'number'
-            ? bloco.salario
-            : globalBase.salaryMode === 'fixo'
-            ? globalBase.defaultFixedSalary
-            : fallback.salario,
-        entradas: (Array.isArray(bloco.entradas) ? bloco.entradas : []).map((item: any, index: number) => ({
-          id: item.id || `entrada-${chave}-${index}`,
-          nome: item.nome || '',
-          valor: Number(item.valor || 0),
-          dia: Number(item.dia || 1),
-        })),
-        fixo: (Array.isArray(bloco.fixo) && bloco.fixo.length ? bloco.fixo : fallback.fixo).map(
-          (item: any, index: number) => ({
-            id: item.id || `fixo-${chave}-${index}`,
-            nome: item.nome || '',
-            valor: Number(item.valor || 0),
-            pago: Boolean(item.pago),
-            dia: Number(item.dia || 5),
-          })
-        ),
-        saidas: (Array.isArray(bloco.saidas) ? bloco.saidas : []).map((item: any, index: number) => ({
-          id: item.id || `saida-${chave}-${index}`,
-          nome: item.nome || '',
-          valor: Number(item.valor || 0),
-          categoria:
-            item.categoria && normalizarCategoriaNome(item.categoria)
-              ? categoriaEhImportado(item.categoria)
-                ? 'Extra'
-                : normalizarCategoriaNome(item.categoria)
-              : 'Mercado',
-          dia: Number(item.dia || 1),
-        })),
-        categoriasSaidas: categoriasNormalizadas,
-      }
-    })
-  })
-
-  return {
-    bancoDeDados,
-    global: {
-      ...globalBase,
-      profileName: String(globalBase.profileName || ''),
-      onboardingFixedExpenses: Array.isArray(globalBase.onboardingFixedExpenses)
-        ? globalBase.onboardingFixedExpenses.filter(Boolean)
-        : [],
-      pixContacts: Array.isArray(globalBase.pixContacts)
-        ? globalBase.pixContacts.map((item: any, index: number) => ({
-            id: item.id || `pix-${index}`,
-            nome: item.nome || '',
-            chave: item.chave || '',
-            observacao: item.observacao || '',
-            links: sanitizarListaLinks(Array.isArray(item.links) ? item.links : extrairLinksTexto(item.observacao || '')),
-          }))
-        : [],
-      notes: Array.isArray(globalBase.notes)
-        ? globalBase.notes.map((item: any, index: number) => ({
-            id: item.id || `note-${index}`,
-            titulo: item.titulo || '',
-            conteudo: item.conteudo || '',
-            links: sanitizarListaLinks(Array.isArray(item.links) ? item.links : extrairLinksTexto(item.conteudo || '')),
-          }))
-        : [],
-      cards: Array.isArray(globalBase.cards)
-        ? globalBase.cards.map((card: any, cIndex: number) => ({
-            id: card.id || `card-${cIndex}`,
-            nome: card.nome || 'Cartão',
-            limite: Number(card.limite || 0),
-            fechamento: Number(card.fechamento || 0),
-            fechamentoMes: Number(card.fechamentoMes || 0),
-            vencimento: Number(card.vencimento || 0),
-            vencimentoMes: Number(card.vencimentoMes || 0),
-            parcelas: Array.isArray(card.parcelas)
-              ? card.parcelas.map((item: any, index: number) => ({
-                  id: item.id || `installment-${cIndex}-${index}`,
-                  descricao: item.descricao || '',
-                  valorParcela: Number(item.valorParcela || 0),
-                  totalParcelas: Number(item.totalParcelas || 1),
-                  parcelaAtual: Number(item.parcelaAtual || 1),
-                  competencia: item.competencia || `${new Date().getFullYear()}-${meses[new Date().getMonth()]}`,
-                  dia: Number(item.dia || 1),
-                  groupId: item.groupId || undefined,
-                }))
-              : [],
-          }))
-        : [],
-      profileAvatar: typeof globalBase.profileAvatar === 'string' && globalBase.profileAvatar.trim() ? globalBase.profileAvatar : '💼',
-      goals: Array.isArray(globalBase.goals)
-        ? globalBase.goals.map((goal: any, index: number) => ({
-            id: goal.id || `goal-${index}`,
-            titulo: String(goal.titulo || 'Objetivo'),
-            alvo: Number(goal.alvo || 0),
-            atual: Number(goal.atual || 0),
-          }))
-        : [],
-      shoppingWishes: Array.isArray(globalBase.shoppingWishes)
-        ? globalBase.shoppingWishes.map((item: any, index: number) => ({
-            id: item.id || `wish-${index}`,
-            nome: String(item.nome || 'Item'),
-            precoAtual: Number(item.precoAtual || 0),
-            loja: String(item.loja || ''),
-            dataVista: String(item.dataVista || ''),
-            observacao: String(item.observacao || ''),
-            comprado: Boolean(item.comprado),
-            criadaEmCompetencia: String(item.criadaEmCompetencia || ''),
-            compradoEmCompetencia: String(item.compradoEmCompetencia || ''),
-          }))
-        : [],
-      investmentPercentage: Math.min(50, Math.max(0, Number(globalBase.investmentPercentage ?? 10))),
-      investmentBaseMode: globalBase.investmentBaseMode === 'salary_plus_entries' ? 'salary_plus_entries' : 'salary',
-      hideValues: Boolean(globalBase.hideValues),
-    },
-  }
-}
-
-
 function getItemTimestamp(item: { id?: string }) {
   const match = String(item?.id || '').match(/(\d{10,})/)
   return match ? Number(match[1]) : 0
@@ -512,33 +280,43 @@ function EyeToggleIcon({ closed, color }: { closed: boolean; color: string }) {
   )
 }
 
-export default function HomeScreen() {
+function HomeScreenContent() {
   const insets = useSafeAreaInsets()
-  const colorScheme = useColorScheme()
   const dataAtual = new Date()
   const { height: screenHeight } = useWindowDimensions()
   const anoAtual = dataAtual.getFullYear()
   const mesAtualIndex = dataAtual.getMonth()
-  const [carregando, setCarregando] = useState(true)
-  const [sincronizando, setSincronizando] = useState(false)
-  const [nome, setNome] = useState('Usuário')
-  const [email, setEmail] = useState('')
-  const [premiumAtivo, setPremiumAtivo] = useState(false)
-  const [premiumExpiresAt, setPremiumExpiresAt] = useState<string | null>(null)
-  const [premiumLoading, setPremiumLoading] = useState(true)
+  // Dados, perfil, premium e tema agora vem do FinanceProvider.
+  const {
+    appData,
+    setAppData,
+    carregando,
+    sincronizando,
+    nome,
+    setNome,
+    email,
+    avatarPerfil,
+    setAvatarPerfil,
+    premiumExpiresAt,
+    premiumLoading,
+    premiumValido,
+    recarregarStatusPremium,
+    theme,
+    temaEscuro,
+    themeMode,
+    alternarTema,
+    alternarModoTemaSistema,
+  } = useFinance()
   const [modalPremiumBloqueioAberto, setModalPremiumBloqueioAberto] = useState(false)
   const [premiumBloqueioTitulo, setPremiumBloqueioTitulo] = useState('Modo somente leitura')
   const [premiumBloqueioMensagem, setPremiumBloqueioMensagem] = useState('Você pode visualizar sua organização financeira, mas adicionar, editar, importar, exportar ou excluir informações exige o Brazllet Premium.')
-  const [avatarPerfil, setAvatarPerfil] = useState('💼')
   const [nomeEditavel, setNomeEditavel] = useState('')
   const [avatarEditavel, setAvatarEditavel] = useState('💼')
   const [modalCropAberto, setModalCropAberto] = useState(false)
   const [imagemParaCortar, setImagemParaCortar] = useState<string | null>(null)
   const [anoSelecionado, setAnoSelecionado] = useState(anoAtual)
   const [mesSelecionado, setMesSelecionado] = useState(meses[mesAtualIndex])
-  const [appData, setAppData] = useState<AppData>(criarAppDataInicial())
   const listaAnos = useMemo(() => listaAnosComDados(appData.bancoDeDados), [appData.bancoDeDados])
-  const [temaEscuro, setTemaEscuro] = useState(false)
   const [anoModalAberto, setAnoModalAberto] = useState(false)
   const [mesModalAberto, setMesModalAberto] = useState(false)
   const [salarioEmEdicao, setSalarioEmEdicao] = useState(false)
@@ -600,12 +378,10 @@ export default function HomeScreen() {
   const [cartaoEditandoId, setCartaoEditandoId] = useState<string | null>(null)
   const [modalFiltroAberto, setModalFiltroAberto] = useState(false)
   const [alvoFiltro, setAlvoFiltro] = useState<SortTarget>('fixo')
-  const [themeMode, setThemeMode] = useState<SettingsThemeMode>('manual')
   const [modalAnoComparacaoAberto, setModalAnoComparacaoAberto] = useState(false)
   const [modalMesComparacaoAberto, setModalMesComparacaoAberto] = useState(false)
   const [anoComparacao, setAnoComparacao] = useState(mesAtualIndex === 0 ? anoAtual - 1 : anoAtual)
   const [mesComparacao, setMesComparacao] = useState(meses[mesAtualIndex === 0 ? 11 : mesAtualIndex - 1])
-  const [dadosRemotosCarregados, setDadosRemotosCarregados] = useState(false)
   const [confirmacaoExclusao, setConfirmacaoExclusao] = useState<{ type: DeleteTarget; id: string; label: string } | null>(null)
   const [processandoArquivo, setProcessandoArquivo] = useState<'csv' | 'excel' | 'pdf' | 'importar' | null>(null)
   const [modalPreviewExportacaoAberto, setModalPreviewExportacaoAberto] = useState(false)
@@ -646,7 +422,6 @@ export default function HomeScreen() {
   const [calendarDia, setCalendarDia] = useState(1)
   const [calendarMes, setCalendarMes] = useState(mesAtualIndex + 1)
 
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mainScrollRef = useRef<ScrollView | null>(null)
   const itemLayoutsRef = useRef<Record<string, { y: number; height: number }>>({})
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -655,8 +430,6 @@ export default function HomeScreen() {
   const salaryInputRef = useRef<TextInput | null>(null)
   const mainScrollYRef = useRef(0)
   const appStateRef = useRef(AppState.currentState)
-  const temaStorageCarregadoRef = useRef(false)
-  const theme = temaEscuro ? darkTheme : lightTheme
   const chaveAtual = `${anoSelecionado}-${mesSelecionado}`
   const diasDisponiveisNoCalendario = useMemo(
     () => getDiasNoMes(Number(anoSelecionado), Number(calendarMes || 1)),
@@ -804,10 +577,6 @@ export default function HomeScreen() {
     }, 1650)
   }
 
-  const premiumValido = useMemo(() => {
-    if (!premiumAtivo || !premiumExpiresAt) return false
-    return new Date(premiumExpiresAt).getTime() > Date.now()
-  }, [premiumAtivo, premiumExpiresAt])
 
   const premiumStatusTexto = useMemo(() => {
     if (premiumLoading) return 'Verificando seu acesso premium...'
@@ -896,28 +665,6 @@ export default function HomeScreen() {
     confirmacaoExclusao,
   ])
 
-  const carregarStatusPremium = async (userId: string) => {
-    try {
-      setPremiumLoading(true)
-      const { data } = await supabase
-        .from('user_entitlements')
-        .select('premium_active, premium_expires_at')
-        .eq('user_id', userId)
-        .maybeSingle<PremiumEntitlement>()
-
-      const ativo = !!data?.premium_active && !!data?.premium_expires_at && new Date(data.premium_expires_at).getTime() > Date.now()
-      setPremiumAtivo(ativo)
-      setPremiumExpiresAt(data?.premium_expires_at ?? null)
-    } catch (error) {
-      console.error('[premium] Falha ao verificar status premium:', error)
-      setPremiumAtivo(false)
-      setPremiumExpiresAt(null)
-    } finally {
-      setPremiumLoading(false)
-    }
-  }
-
-
   useEffect(() => {
     if (premiumLoading || premiumValido) return
 
@@ -943,98 +690,8 @@ export default function HomeScreen() {
     return () => subscription.remove()
   }, [premiumLoading, premiumValido])
 
-  useEffect(() => {
-    const carregarTudo = async () => {
-      setCarregando(true)
 
-      try {
-        const temaSalvo = await AsyncStorage.getItem(THEME_KEY)
-        const modoTemaSalvo = await AsyncStorage.getItem(THEME_MODE_KEY)
 
-        if (modoTemaSalvo === 'system') {
-          setThemeMode('system')
-          setTemaEscuro(colorScheme === 'dark')
-        } else {
-          setThemeMode('manual')
-          if (temaSalvo) setTemaEscuro(temaSalvo === 'dark')
-        }
-
-        temaStorageCarregadoRef.current = true
-
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-
-        if (!session?.user) {
-          router.replace('/login')
-          return
-        }
-
-        setEmail(session.user.email || '')
-        await carregarStatusPremium(session.user.id)
-        const nomeBaseSessao = String(
-          session.user.user_metadata?.nome ||
-            session.user.user_metadata?.name ||
-            session.user.email?.split('@')[0] ||
-            'Usuário'
-        )
-        setNome(nomeBaseSessao)
-        setNomeEditavel(nomeBaseSessao)
-
-        const { data, error } = await supabase
-          .from('financial_data')
-          .select('data')
-          .eq('user_id', session.user.id)
-          .maybeSingle()
-
-        if (error) throw error
-
-        if (data?.data) {
-          const normalizado = normalizarAppData(data.data)
-          setAppData(normalizado)
-          if (normalizado.global.profileName) {
-            setNome(normalizado.global.profileName)
-            setNomeEditavel(normalizado.global.profileName)
-          }
-          setAvatarPerfil(normalizado.global.profileAvatar || '💼')
-          setAvatarEditavel(normalizado.global.profileAvatar || '💼')
-          setDadosRemotosCarregados(true)
-        } else {
-          router.replace('/premium')
-          return
-        }
-      } catch (error) {
-        console.error('[dados] Falha ao carregar dados do usuário, redirecionando para login:', error)
-        router.replace('/login')
-      } finally {
-        setCarregando(false)
-      }
-    }
-
-    carregarTudo()
-  }, [colorScheme])
-
-  useEffect(() => {
-    if (!temaStorageCarregadoRef.current) return
-
-    if (themeMode === 'system') {
-      setTemaEscuro(colorScheme === 'dark')
-    }
-
-    AsyncStorage.setItem(THEME_MODE_KEY, themeMode)
-  }, [themeMode, colorScheme])
-
-  useEffect(() => {
-    if (!temaStorageCarregadoRef.current) return
-
-    if (themeMode === 'manual') {
-      AsyncStorage.setItem(THEME_KEY, temaEscuro ? 'dark' : 'light')
-    }
-  }, [temaEscuro, themeMode])
-
-  useEffect(() => {
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(appData))
-  }, [appData])
 
   useEffect(() => {
     const salarioAtual = bancoDeDados[chaveAtual]?.salario || 0
@@ -1061,74 +718,6 @@ export default function HomeScreen() {
     }
   }, [globalData.firstAccessCompleted, carregando, temDadosExistentes])
 
-  useEffect(() => {
-    const criarBackupSeNecessario = async (userId: string, dadosAtuais: AppData) => {
-      try {
-        const ultimoBackupIso = await AsyncStorage.getItem(BACKUP_LAST_KEY)
-        const ultimoBackupData = ultimoBackupIso ? new Date(ultimoBackupIso) : null
-        const agora = new Date()
-        const passou24h = !ultimoBackupData || agora.getTime() - ultimoBackupData.getTime() > 1000 * 60 * 60 * 24
-
-        if (!passou24h) return
-
-        const { error: erroBackup } = await supabase.from('financial_data_backups').insert({
-          user_id: userId,
-          data: dadosAtuais,
-        })
-
-        if (erroBackup) {
-          console.warn('[backup] Não foi possível criar snapshot automático:', erroBackup)
-          return
-        }
-
-        await AsyncStorage.setItem(BACKUP_LAST_KEY, agora.toISOString())
-
-        const limite = new Date(agora.getTime() - 1000 * 60 * 60 * 24 * 60).toISOString()
-        await supabase.from('financial_data_backups').delete().eq('user_id', userId).lt('created_at', limite)
-      } catch (error) {
-        console.warn('[backup] Falha ao processar backup automático:', error)
-      }
-    }
-
-    const sincronizarBanco = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!session?.user) return
-
-      try {
-        setSincronizando(true)
-        const { error } = await supabase.from('financial_data').upsert({
-          user_id: session.user.id,
-          data: appData,
-          updated_at: new Date().toISOString(),
-        })
-
-        if (error) {
-          console.error('[sincronização] Falha ao salvar dados na nuvem:', error)
-          return
-        }
-
-        await criarBackupSeNecessario(session.user.id, appData)
-      } catch (error) {
-        console.error('[sincronização] Falha ao sincronizar dados:', error)
-      } finally {
-        setSincronizando(false)
-      }
-    }
-
-    if (!dadosRemotosCarregados || carregando) return
-
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-    saveTimeoutRef.current = setTimeout(() => {
-      sincronizarBanco()
-    }, 700)
-
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-    }
-  }, [appData, carregando, dadosRemotosCarregados])
 
   useEffect(() => {
     if (modalConfiguracoesAberto) {
@@ -2014,31 +1603,6 @@ export default function HomeScreen() {
   const handleSair = async () => {
     await supabase.auth.signOut()
     router.replace('/login')
-  }
-
-  const alternarTema = () => {
-    setThemeMode('manual')
-    AsyncStorage.setItem(THEME_MODE_KEY, 'manual')
-    setTemaEscuro((prev) => {
-      const proximoTema = !prev
-      AsyncStorage.setItem(THEME_KEY, proximoTema ? 'dark' : 'light')
-      return proximoTema
-    })
-  }
-
-  const alternarModoTemaSistema = () => {
-    setThemeMode((prev) => {
-      const proximoModo: SettingsThemeMode = prev === 'system' ? 'manual' : 'system'
-      AsyncStorage.setItem(THEME_MODE_KEY, proximoModo)
-
-      if (proximoModo === 'system') {
-        setTemaEscuro(colorScheme === 'dark')
-      } else {
-        AsyncStorage.setItem(THEME_KEY, temaEscuro ? 'dark' : 'light')
-      }
-
-      return proximoModo
-    })
   }
 
 
@@ -4822,3 +4386,15 @@ compareMetaText: {
     lineHeight: 18,
   },
 })
+
+/**
+ * A tela e embrulhada pelo FinanceProvider. Como o Provider e dono do estado
+ * e fica acima, re-renders da tela nao invalidam o contexto.
+ */
+export default function HomeScreen() {
+  return (
+    <FinanceProvider>
+      <HomeScreenContent />
+    </FinanceProvider>
+  )
+}
