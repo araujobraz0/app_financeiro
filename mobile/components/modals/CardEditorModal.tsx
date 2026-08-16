@@ -1,24 +1,39 @@
+import { useState } from 'react'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import type { Tema } from '../../app/types'
 import { handleMaskedMoneyInput } from '../../src/utils/currency'
 import AppModal from '../common/AppModal'
+
+/**
+ * Campos de texto do cartao. O modal e dono deles.
+ *
+ * As datas de fechamento e vencimento continuam vindo por prop: quem as
+ * define e o modal de calendario, que vive na tela. Mesmo padrao usado no
+ * ShoppingWishModal e no LaunchModal.
+ */
+export type CardEditorFormValues = {
+  name: string
+  limit: string
+}
+
+export const emptyCardEditorValues = (): CardEditorFormValues => ({
+  name: '',
+  limit: 'R$ 0,00',
+})
 
 type CardEditorModalProps = {
   visible: boolean
   onClose: () => void
   theme: Tema
   editing: boolean
-  name: string
-  onNameChange: (value: string) => void
-  limit: string
-  onLimitChange: (value: string) => void
+  initialValues: CardEditorFormValues
   closing: string
   onClosingChange: (value: string) => void
   due: string
   onDueChange: (value: string) => void
   onOpenClosingCalendar: () => void
   onOpenDueCalendar: () => void
-  onSave: () => void
+  onSave: (values: CardEditorFormValues) => void
 }
 
 const formatarInputDiaMes = (rawValue: string) => {
@@ -32,10 +47,7 @@ export default function CardEditorModal({
   onClose,
   theme,
   editing,
-  name,
-  onNameChange,
-  limit,
-  onLimitChange,
+  initialValues,
   closing,
   onClosingChange,
   due,
@@ -44,6 +56,13 @@ export default function CardEditorModal({
   onOpenDueCalendar,
   onSave,
 }: CardEditorModalProps) {
+  const [name, setName] = useState(initialValues.name)
+  const [limit, setLimit] = useState(initialValues.limit)
+
+  const handleSave = () => {
+    onSave({ name, limit })
+  }
+
   return (
     <AppModal visible={visible} onClose={onClose}>
       <View style={[styles.modalCard, styles.modalCardNewCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -53,7 +72,7 @@ export default function CardEditorModal({
           <Text style={[styles.modalLabel, { color: theme.muted }]}>Nome do cartão</Text>
           <TextInput
             value={name}
-            onChangeText={onNameChange}
+            onChangeText={setName}
             placeholder='Ex.: Nubank, Inter...'
             placeholderTextColor={theme.muted}
             style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
@@ -64,7 +83,7 @@ export default function CardEditorModal({
           <Text style={[styles.modalLabel, { color: theme.muted }]}>Limite</Text>
           <TextInput
             value={limit}
-            onChangeText={(rawValue) => handleMaskedMoneyInput(rawValue, onLimitChange)}
+            onChangeText={(rawValue) => handleMaskedMoneyInput(rawValue, setLimit)}
             placeholder='R$ 0,00'
             placeholderTextColor={theme.muted}
             keyboardType='number-pad'
@@ -114,7 +133,7 @@ export default function CardEditorModal({
           <Pressable onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
             <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
           </Pressable>
-          <Pressable onPress={onSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
+          <Pressable onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
             <Text style={[styles.modalActionText, { color: theme.white }]}>{editing ? 'Salvar' : 'Adicionar'}</Text>
           </Pressable>
         </View>

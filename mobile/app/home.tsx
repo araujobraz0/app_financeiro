@@ -20,11 +20,7 @@ import {
 } from 'react-native'
 import Constants from 'expo-constants'
 import * as Clipboard from 'expo-clipboard'
-import * as DocumentPicker from 'expo-document-picker'
-import * as FileSystem from 'expo-file-system/legacy'
 import * as ImagePicker from 'expo-image-picker'
-import * as Print from 'expo-print'
-import * as Sharing from 'expo-sharing'
 import * as Updates from 'expo-updates'
 import * as XLSX from 'xlsx'
 import { router } from 'expo-router'
@@ -48,16 +44,33 @@ import type { LaunchFormValues } from '../components/modals/LaunchModal'
 import CardPurchaseModal, { emptyCardPurchaseValues } from '../components/modals/CardPurchaseModal'
 import type { CardPurchaseFormValues } from '../components/modals/CardPurchaseModal'
 import ManageCardsModal from '../components/modals/ManageCardsModal'
-import CardEditorModal from '../components/modals/CardEditorModal'
+import CardEditorModal, { emptyCardEditorValues } from '../components/modals/CardEditorModal'
+import type { CardEditorFormValues } from '../components/modals/CardEditorModal'
 import ManageCategoriesModal from '../components/modals/ManageCategoriesModal'
 import ImageCropModal from '../components/modals/ImageCropModal'
 import { supabase } from '../src/lib/supabase'
 import { FinanceProvider, useFinance } from '../src/context/FinanceContext'
 import { uploadAvatar } from '../src/utils/avatar'
+import {
+  baixarCsv,
+  baixarUrl,
+  baixarXlsx,
+  escolherArquivo,
+  lerArquivoComoArrayBuffer,
+  lerArquivoComoTexto,
+} from '../src/utils/download'
+import { gerarArquivoPdfWeb } from '../src/utils/exportPdfWeb'
 import { styles } from '../src/theme/homeStyles'
 import FixoTab from '../components/tabs/FixoTab'
 import VariavelTab from '../components/tabs/VariavelTab'
 import CartaoTab from '../components/tabs/CartaoTab'
+import ResumoCards from '../components/home/ResumoCards'
+import GraficoCategoriasCard from '../components/home/GraficoCategoriasCard'
+import InvestimentosCard from '../components/home/InvestimentosCard'
+import ComparacaoCard from '../components/home/ComparacaoCard'
+import ComprasDesejoCard from '../components/home/ComprasDesejoCard'
+import ObjetivosCard from '../components/home/ObjetivosCard'
+import NotasPixCard from '../components/home/NotasPixCard'
 import {
   categoriaEhImportado,
   categoriasPadrao,
@@ -106,38 +119,6 @@ const BRAZLLET_PLATFORM = 'android'
 
 const coresPizza = ['#38bdf8', '#2563eb', '#16a34a', '#dc2626', '#9333ea', '#ea580c', '#14b8a6', '#ca8a04']
 
-function polarToCartesian(cx: number, cy: number, r: number, angleInDegrees: number) {
-  const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0
-  return {
-    x: cx + r * Math.cos(angleInRadians),
-    y: cy + r * Math.sin(angleInRadians),
-  }
-}
-
-function createDonutSlicePath(
-  cx: number,
-  cy: number,
-  outerRadius: number,
-  innerRadius: number,
-  startAngle: number,
-  endAngle: number
-) {
-  const startOuter = polarToCartesian(cx, cy, outerRadius, endAngle)
-  const endOuter = polarToCartesian(cx, cy, outerRadius, startAngle)
-  const startInner = polarToCartesian(cx, cy, innerRadius, endAngle)
-  const endInner = polarToCartesian(cx, cy, innerRadius, startAngle)
-
-  const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1'
-
-  return [
-    `M ${startOuter.x} ${startOuter.y}`,
-    `A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 0 ${endOuter.x} ${endOuter.y}`,
-    `L ${endInner.x} ${endInner.y}`,
-    `A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 1 ${startInner.x} ${startInner.y}`,
-    'Z',
-  ].join(' ')
-}
-
 const compararVersoesApp = (versaoAtual: string, versaoNova: string) => {
   const atual = String(versaoAtual || '0').split('.').map((parte) => Number(parte.replace(/\D/g, '') || 0))
   const nova = String(versaoNova || '0').split('.').map((parte) => Number(parte.replace(/\D/g, '') || 0))
@@ -157,7 +138,6 @@ const obterVersaoInstalada = () => {
   const config = Constants.expoConfig || (Constants as any).manifest2?.extra?.expoClient || (Constants as any).manifest
   return String(config?.version || '1.0.0')
 }
-
 
 function calcularCompetenciaInicialPorFechamento(
   chaveBase: string,
@@ -215,14 +195,6 @@ function listaAnosComDados(banco: BancoDeDados) {
     .map(([chave]) => Number(chave.split('-')[0]))
     .filter((ano) => Number.isFinite(ano))
   return Array.from(new Set([...base, ...anosComDados])).sort((a, b) => a - b)
-}
-
-function calcularVariacaoPercentual(atual: number, comparado: number) {
-  if (comparado === 0) {
-    if (atual === 0) return 0
-    return 100
-  }
-  return ((atual - comparado) / Math.abs(comparado)) * 100
 }
 
 function getItemTimestamp(item: { id?: string }) {
@@ -358,8 +330,10 @@ function HomeScreenContent() {
   const [sortCartao, setSortCartao] = useState<SortMode>('recentes')
   const [modalConfiguracoesAberto, setModalConfiguracoesAberto] = useState(false)
   const [modalGerenciarCartoesAberto, setModalGerenciarCartoesAberto] = useState(false)
-  const [gerenciarCartaoNome, setGerenciarCartaoNome] = useState('')
-  const [gerenciarCartaoLimite, setGerenciarCartaoLimite] = useState('R$ 0,00')
+  // Nome e limite vivem dentro do CardEditorModal; as datas ficam aqui
+  // porque sao definidas pelo modal de calendario.
+  const [cardEditorFormKey, setCardEditorFormKey] = useState(0)
+  const [cardEditorInitialValues, setCardEditorInitialValues] = useState<CardEditorFormValues>(() => emptyCardEditorValues())
   const [gerenciarCartaoFechamento, setGerenciarCartaoFechamento] = useState('')
   const [gerenciarCartaoVencimento, setGerenciarCartaoVencimento] = useState('')
   const [cartaoEditandoId, setCartaoEditandoId] = useState<string | null>(null)
@@ -1042,8 +1016,8 @@ function HomeScreenContent() {
 
   const abrirModalNovoCartao = () => {
     setCartaoEditandoId(null)
-    setGerenciarCartaoNome('')
-    setGerenciarCartaoLimite('R$ 0,00')
+    setCardEditorInitialValues(emptyCardEditorValues())
+    setCardEditorFormKey((prev) => prev + 1)
     setGerenciarCartaoFechamento('')
     setGerenciarCartaoVencimento('')
     setModalNovoCartaoAberto(true)
@@ -1051,8 +1025,8 @@ function HomeScreenContent() {
 
   const iniciarEdicaoCartao = (card: CardItem) => {
     setCartaoEditandoId(card.id)
-    setGerenciarCartaoNome(card.nome)
-    setGerenciarCartaoLimite(formatarValorInput(card.limite || 0))
+    setCardEditorInitialValues({ name: card.nome, limit: formatarValorInput(card.limite || 0) })
+    setCardEditorFormKey((prev) => prev + 1)
     setGerenciarCartaoFechamento(formatarDiaMesInput(card.fechamento, card.fechamentoMes || (meses.indexOf(mesSelecionado) + 1), anoSelecionado))
     setGerenciarCartaoVencimento(formatarDiaMesInput(card.vencimento, card.vencimentoMes || ((meses.indexOf(mesSelecionado) + 1) % 12) + 1, anoSelecionado))
     setModalNovoCartaoAberto(true)
@@ -1060,17 +1034,15 @@ function HomeScreenContent() {
 
   const fecharModalNovoCartao = () => {
     setModalNovoCartaoAberto(false)
-    setGerenciarCartaoNome('')
-    setGerenciarCartaoLimite('R$ 0,00')
     setGerenciarCartaoFechamento('')
     setGerenciarCartaoVencimento('')
     setCartaoEditandoId(null)
   }
 
-  const salvarCartaoGerenciado = () => {
-    if (!gerenciarCartaoNome.trim()) return
+  const salvarCartaoGerenciado = (values: CardEditorFormValues) => {
+    if (!values.name.trim()) return
 
-    const limite = moneyStringToNumber(gerenciarCartaoLimite)
+    const limite = moneyStringToNumber(values.limit)
     const fechamentoData = parseDiaMesInput(gerenciarCartaoFechamento, meses.indexOf(mesSelecionado) + 1, anoSelecionado)
     const vencimentoData = parseDiaMesInput(gerenciarCartaoVencimento, ((meses.indexOf(mesSelecionado) + 1) % 12) + 1, anoSelecionado)
     const fechamento = fechamentoData.dia
@@ -1084,7 +1056,7 @@ function HomeScreenContent() {
         global: {
           ...prev.global,
           cards: prev.global.cards.map((card) =>
-            card.id === cartaoEditandoId ? { ...card, nome: gerenciarCartaoNome.trim(), limite, fechamento, fechamentoMes, vencimento, vencimentoMes } : card
+            card.id === cartaoEditandoId ? { ...card, nome: values.name.trim(), limite, fechamento, fechamentoMes, vencimento, vencimentoMes } : card
           ),
         },
       }))
@@ -1094,7 +1066,7 @@ function HomeScreenContent() {
         ...prev,
         global: {
           ...prev.global,
-          cards: [...prev.global.cards, { id: novoId, nome: gerenciarCartaoNome.trim(), limite, fechamento, fechamentoMes, vencimento, vencimentoMes, parcelas: [] }],
+          cards: [...prev.global.cards, { id: novoId, nome: values.name.trim(), limite, fechamento, fechamentoMes, vencimento, vencimentoMes, parcelas: [] }],
         },
       }))
       setSelectedCardId(novoId)
@@ -1675,13 +1647,7 @@ function HomeScreenContent() {
     try {
       setProcessandoArquivo('csv')
       const csv = buildExportRows(dadosExportacao, ';')
-      const fileUri = `${FileSystem.cacheDirectory}${exportFileBaseName}.csv`
-      await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: 'utf8' })
-      await Sharing.shareAsync(fileUri, {
-        mimeType: 'text/csv',
-        dialogTitle: 'Exportar CSV',
-        UTI: 'public.comma-separated-values-text',
-      })
+      baixarCsv(csv, `${exportFileBaseName}.csv`)
     } catch (error) {
       console.error('[exportar] Falha ao exportar CSV:', error)
       Alert.alert('Erro', 'Não foi possível exportar o arquivo CSV.')
@@ -1694,14 +1660,8 @@ function HomeScreenContent() {
     try {
       setProcessandoArquivo('excel')
       const wb = buildExportWorkbook(dadosExportacao)
-      const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' })
-      const fileUri = `${FileSystem.cacheDirectory}${exportFileBaseName}.xlsx`
-      await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: 'base64' })
-      await Sharing.shareAsync(fileUri, {
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        dialogTitle: 'Exportar Excel (.xlsx)',
-        UTI: 'org.openxmlformats.spreadsheetml.sheet',
-      })
+      const dados = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer
+      baixarXlsx(dados, `${exportFileBaseName}.xlsx`)
     } catch (error) {
       console.error('[exportar] Falha ao exportar Excel:', error)
       Alert.alert('Erro', 'Não foi possível exportar o arquivo Excel (.xlsx).')
@@ -1711,26 +1671,9 @@ function HomeScreenContent() {
   }
 
 
-    const gerarArquivoPdf = async () => {
+  const gerarArquivoPdf = async () => {
     const html = buildPdfHtml(dadosExportacao)
-
-    if (Platform.OS === 'web') {
-      const { gerarArquivoPdfWeb } = await import('../src/utils/exportPdfWeb')
-      return gerarArquivoPdfWeb(html)
-    }
-
-    const { uri } = await Print.printToFileAsync({ html })
-    const finalUri = `${FileSystem.cacheDirectory}${exportFileBaseName}.pdf`
-
-    try {
-      const info = await FileSystem.getInfoAsync(finalUri)
-      if (info.exists) await FileSystem.deleteAsync(finalUri, { idempotent: true })
-    } catch (error) {
-      console.warn('[pdf] Não foi possível limpar arquivo temporário anterior:', error)
-    }
-
-    await FileSystem.copyAsync({ from: uri, to: finalUri })
-    return finalUri
+    return gerarArquivoPdfWeb(html)
   }
 
 
@@ -1738,21 +1681,7 @@ function HomeScreenContent() {
     try {
       setProcessandoArquivo('pdf')
       const finalUri = await gerarArquivoPdf()
-
-      if (Platform.OS === 'web') {
-        const a = document.createElement('a')
-        a.href = finalUri
-        a.download = `${exportFileBaseName}.pdf`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-      } else {
-        await Sharing.shareAsync(finalUri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'Exportar PDF',
-          UTI: 'com.adobe.pdf',
-        })
-      }
+      baixarUrl(finalUri, `${exportFileBaseName}.pdf`)
     } catch (error) {
       console.error('[pdf] Falha ao exportar PDF:', error)
       Alert.alert('Erro', 'Não foi possível exportar o PDF.')
@@ -1949,36 +1878,34 @@ function HomeScreenContent() {
 
     try {
       setProcessandoArquivo('importar')
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/csv', 'application/x-ofx', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/pdf', 'application/octet-stream'],
-        copyToCacheDirectory: true,
-        multiple: false,
-      })
-      if (result.canceled || !result.assets?.length) return
-      const asset = result.assets[0]
-      const lowerName = String(asset.name || '').toLowerCase()
+      const arquivo = await escolherArquivo('.csv,.ofx,.xls,.xlsx,.txt,text/csv,application/vnd.ms-excel')
+      if (!arquivo) return
+
+      const lowerName = String(arquivo.name || '').toLowerCase()
       if (lowerName.endsWith('.pdf')) {
         Alert.alert('Importação PDF', 'A importação automática de PDF ainda não está disponível nesta versão.')
         return
       }
+
       let importedEntradas: EntradaItem[] = []
       let importedSaidas: SaidaItem[] = []
+
       if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
-        const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' })
-        const wb = XLSX.read(base64, { type: 'base64' })
+        const buffer = await lerArquivoComoArrayBuffer(arquivo)
+        const wb = XLSX.read(buffer, { type: 'array' })
         const firstSheet = wb.SheetNames[0]
         const rows = XLSX.utils.sheet_to_json<Record<string, any>>(wb.Sheets[firstSheet], { defval: '' })
         const csvLike = rows.length ? [Object.keys(rows[0]).join(';'), ...rows.map((row) => Object.keys(rows[0]).map((k) => String(row[k] ?? '')).join(';'))].join('\n') : ''
         ;({ importedEntradas, importedSaidas } = parseImportedBankText(csvLike, 'importacao.csv'))
       } else {
-        const textContent = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'utf8' })
-        ;({ importedEntradas, importedSaidas } = parseImportedBankText(textContent, asset.name || 'importacao.csv'))
+        const textContent = await lerArquivoComoTexto(arquivo)
+        ;({ importedEntradas, importedSaidas } = parseImportedBankText(textContent, arquivo.name || 'importacao.csv'))
       }
       if (!importedEntradas.length && !importedSaidas.length) {
         Alert.alert('Importação', 'Nenhum lançamento reconhecido no arquivo.')
         return
       }
-      setArquivoImportacaoNome(asset.name || 'arquivo importado')
+      setArquivoImportacaoNome(arquivo.name || 'arquivo importado')
       setPreviewImportacao({ entradas: importedEntradas, saidas: importedSaidas })
       setModalPreviewImportacaoAberto(true)
     } catch (error) {
@@ -2701,13 +2628,6 @@ function HomeScreenContent() {
     )
   }
 
-  const totalCategorias = dadosPizza.reduce((acc, item) => acc + item.valor, 0)
-  const centerX = 68
-  const centerY = 68
-  const outerRadius = 58
-  const innerRadius = 34
-  let currentAngle = 0
-
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
       <StatusBar style={temaEscuro ? 'light' : 'dark'} />
@@ -2830,365 +2750,102 @@ function HomeScreenContent() {
 
         {abaInferior === 'home' && (
           <>
-            <View style={[styles.salaryCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-              <Text style={[styles.cardLabelCentered, { color: theme.muted }]}>Salário</Text>
-              <View style={styles.salaryRowCentered}>
-                {salarioEmEdicao ? (
-                  <TextInput
-                    ref={salaryInputRef}
-                    value={salarioTexto}
-                    onChangeText={(value) => handleMaskedMoneyInput(value, setSalarioTexto)}
-                    onBlur={salvarSalarioEdicao}
-                    onSubmitEditing={salvarSalarioEdicao}
-                    keyboardType='number-pad'
-                    inputMode='numeric'
-                    style={[styles.salaryInput, { color: theme.green }]}
-                    placeholder='R$ 0,00'
-                    placeholderTextColor={theme.muted}
-                    returnKeyType='done'
-                  />
-                ) : (
-                  <>
-                    <Text style={[styles.salaryValueCentered, { color: theme.green }]}>{formatarValorVisivel(salario)}</Text>
-                    <Pressable style={styles.salaryEditButton} onPress={iniciarEdicaoSalario}>
-                      <Text style={[styles.salaryEditText, { color: theme.text }]}>✎</Text>
-                    </Pressable>
-                  </>
-                )}
-              </View>
-            </View>
+            <ResumoCards
+              theme={theme}
+              salario={salario}
+              saldoAtual={saldoAtual}
+              totalEntradas={totalEntradas}
+              totalSaidas={totalSaidas}
+              salarioEmEdicao={salarioEmEdicao}
+              salarioTexto={salarioTexto}
+              onSalarioTextoChange={setSalarioTexto}
+              onIniciarEdicaoSalario={iniciarEdicaoSalario}
+              onSalvarSalario={salvarSalarioEdicao}
+              salaryInputRef={salaryInputRef}
+              formatarValorVisivel={formatarValorVisivel}
+            />
 
-            <View style={[styles.balanceCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-              <Text style={[styles.cardLabelCentered, { color: theme.muted }]}>Saldo atual</Text>
-              <Text style={[styles.balanceValueCentered, { color: saldoAtual >= 0 ? theme.green : theme.red }]}>
-                {formatarValorVisivel(saldoAtual)}
-              </Text>
-            </View>
+            <GraficoCategoriasCard
+              theme={theme}
+              dadosPizza={dadosPizza}
+              formatarValorVisivel={formatarValorVisivel}
+            />
 
-            <View style={styles.summaryRow}>
-              <View style={[styles.summaryCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                <Text style={[styles.smallLabel, { color: theme.muted }]}>Entradas</Text>
-                <Text style={[styles.smallValue, { color: theme.green }]} numberOfLines={1}>{formatarValorVisivel(totalEntradas)}</Text>
-              </View>
-              <View style={[styles.summaryCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                <Text style={[styles.smallLabel, { color: theme.muted }]}>Saídas</Text>
-                <Text style={[styles.smallValue, { color: theme.red }]} numberOfLines={1}>{formatarValorVisivel(totalSaidas)}</Text>
-              </View>
-            </View>
-
-            <View style={[styles.chartCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-              <Text style={[styles.chartTitle, { color: theme.text }]}>Saídas por categoria</Text>
-              {dadosPizza.length === 0 ? (
-                <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft }]}>
-                  <Text style={[styles.emptyChartText, { color: theme.muted }]}>Nenhuma saída categorizada ainda.</Text>
-                </View>
-              ) : (
-                <View style={styles.chartContentRow}>
-                  <View style={styles.pieWrapSide}>
-                    <Svg width={136} height={136} viewBox='0 0 136 136'>
-                      <G rotation='0' origin='68, 68'>
-                        {dadosPizza.length === 1 ? (
-                          <Circle cx={centerX} cy={centerY} r={(outerRadius + innerRadius) / 2} stroke={dadosPizza[0].cor} strokeWidth={outerRadius - innerRadius} fill='none' />
-                        ) : (
-                          dadosPizza.map((item) => {
-                            const sweepAngle = totalCategorias > 0 ? (item.valor / totalCategorias) * 360 : 0
-                            const startAngle = currentAngle
-                            const endAngle = currentAngle + sweepAngle
-                            currentAngle = endAngle
-                            const path = createDonutSlicePath(centerX, centerY, outerRadius, innerRadius, startAngle, endAngle)
-                            return <Path key={item.categoria} d={path} fill={item.cor} />
-                          })
-                        )}
-                        <Circle cx={centerX} cy={centerY} r={innerRadius - 2} fill={theme.card} />
-                      </G>
-                    </Svg>
-                    <View style={styles.pieCenterLabel}>
-                      <Text style={[styles.pieCenterSmall, { color: theme.muted }]}>Total</Text>
-                      <Text style={[styles.pieCenterValue, { color: theme.text }]}>{formatarValorVisivel(totalCategorias)}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.legendSideList}>
-                    {dadosPizza.map((item) => (
-                      <View key={item.categoria} style={[styles.legendSideItem, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                        <View style={styles.legendSideTop}>
-                          <View style={[styles.legendDot, { backgroundColor: item.cor }]} />
-                          <Text style={[styles.legendCategory, { color: theme.text }]} numberOfLines={1}>{item.categoria}</Text>
-                        </View>
-                        <Text style={[styles.legendPercentInline, { color: theme.muted }]}>{item.percentual.toFixed(1).replace('.', ',')}%</Text>
-                        <Text style={[styles.legendValueInline, { color: theme.text }]} numberOfLines={1}>{formatarValorVisivel(item.valor)}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
-            </View>
-
-            <View style={[styles.investmentCard, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: theme.shadow }]}> 
-              <View style={styles.investmentHeaderRow}>
-                <View style={{ flex: 1 }}>
-                                    <Text style={[styles.investmentTitle, { color: theme.text }]}>Investimentos do mês</Text>
-                  <Text style={[styles.investmentSub, { color: theme.muted }]}>Defina um percentual para separar automaticamente.</Text>
-                </View>
-                <View style={[styles.investmentBadge, { backgroundColor: theme.backgroundSoft, borderColor: theme.border }]}> 
-                  <Text style={[styles.investmentBadgeText, { color: theme.text }]}>{formatarPercentualVisivel(percentualInvestimentoExibicao)}</Text>
-                </View>
-              </View>
-
-              <View style={styles.investmentBaseRow}>
-                <Pressable
-                  onPress={() => atualizarPreferenciasInvestimento({ investmentBaseMode: 'salary' })}
-                  style={[
-                    styles.investmentBaseChip,
-                    { backgroundColor: baseInvestimentoModo === 'salary' ? theme.primary : theme.cardSoft, borderColor: baseInvestimentoModo === 'salary' ? theme.primary : theme.border },
-                  ]}
-                >
-                  <Text style={[styles.investmentBaseChipText, { color: baseInvestimentoModo === 'salary' ? theme.white : theme.text }]}>Salário</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => atualizarPreferenciasInvestimento({ investmentBaseMode: 'salary_plus_entries' })}
-                  style={[
-                    styles.investmentBaseChip,
-                    { backgroundColor: baseInvestimentoModo === 'salary_plus_entries' ? theme.primary : theme.cardSoft, borderColor: baseInvestimentoModo === 'salary_plus_entries' ? theme.primary : theme.border },
-                  ]}
-                >
-                  <Text style={[styles.investmentBaseChipText, { color: baseInvestimentoModo === 'salary_plus_entries' ? theme.white : theme.text }]}>Salário + entradas</Text>
-                </Pressable>
-              </View>
-
-              <View style={[styles.investmentHighlightCard, { backgroundColor: theme.cardSoft, borderColor: theme.borderStrong }]}> 
-                <View style={styles.investmentHighlightTopRow}>
-                  <View>
-                    <Text style={[styles.investmentHighlightLabel, { color: theme.muted }]}>Aporte sugerido</Text>
-                    <Text style={[styles.investmentHighlightValue, { color: theme.text }]}>{formatarValorVisivel(valorInvestimentoSugerido)}</Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={[styles.investmentMiniLabel, { color: theme.muted }]}>Base usada</Text>
-                    <Text style={[styles.investmentMiniValue, { color: theme.text }]}>{formatarValorVisivel(baseInvestimentoValor)}</Text>
-                  </View>
-                </View>
-                <Text style={[styles.investmentHelperText, { color: theme.muted }]}>Padrão Brazllet para construir constância sem perder flexibilidade.</Text>
-              </View>
-
-              <View style={styles.investmentSliderBlock}>
-                <View style={styles.investmentSliderHeader}>
-                  <Text style={[styles.investmentSliderLabel, { color: theme.text }]}>Percentual desejado</Text>
-                </View>
-
-                <View style={styles.investmentSliderScale}>
-                  {[5, 10, 15, 20].map((step) => (
-                    <Pressable
-                      key={step}
-                      onPress={() => {
-                        setInvestmentManualInput(String(step))
-                        atualizarPercentualInvestimento(step)
-                      }}
-                      style={[styles.investmentScalePill, { backgroundColor: percentualInvestimentoExibicao === step ? theme.primary : theme.cardSoft, borderColor: percentualInvestimentoExibicao === step ? theme.primary : theme.border }]}
-                    >
-                      <Text style={[styles.investmentScalePillText, { color: percentualInvestimentoExibicao === step ? theme.white : theme.text }]}>{step}%</Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                <View
-                  style={[styles.modalField, styles.investmentManualField]}
-                  onLayout={(event) => {
-                    investmentManualFieldYRef.current = event.nativeEvent.layout.y + 26
-                  }}
-                >
-                  <Text style={[styles.modalLabel, { color: theme.muted }]}>Percentual manual</Text>
-                  <View style={styles.investmentManualField}>
-                    <View style={styles.investmentManualInputRow}>
-                      <TextInput
-                        value={investmentManualInput}
-                        onChangeText={(value) => {
-                          const sanitized = String(value || '').replace(/[^\d,\.]/g, '').replace('.', ',')
-                          const partes = sanitized.split(',')
-                          const valorFinal = partes.length > 2 ? `${partes[0]},${partes.slice(1).join('')}` : sanitized
-                          setInvestmentManualInput(valorFinal)
-                          const normalizado = Number(valorFinal.replace(',', '.'))
-                          if (!Number.isNaN(normalizado)) {
-                            atualizarPercentualInvestimento(normalizado)
-                          }
-                        }}
-                        onFocus={scrollToInvestmentManualField}
-                        keyboardType={Platform.OS === 'ios' ? 'decimal-pad' : 'numeric'}
-                        placeholder='12,5'
-                        placeholderTextColor={theme.muted}
-                        style={[styles.modalInput, styles.investmentManualInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
-                      />
-                      <Text style={[styles.investmentManualSuffix, { color: theme.text }]}>%</Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </View>
+            <InvestimentosCard
+              theme={theme}
+              percentualExibicao={percentualInvestimentoExibicao}
+              baseModo={baseInvestimentoModo}
+              baseValor={baseInvestimentoValor}
+              valorSugerido={valorInvestimentoSugerido}
+              manualInput={investmentManualInput}
+              onManualInputChange={setInvestmentManualInput}
+              onPercentualChange={atualizarPercentualInvestimento}
+              onPreferenciasChange={atualizarPreferenciasInvestimento}
+              onManualFieldLayout={(y) => {
+                investmentManualFieldYRef.current = y
+              }}
+              onManualFieldFocus={scrollToInvestmentManualField}
+              formatarValorVisivel={formatarValorVisivel}
+              formatarPercentualVisivel={formatarPercentualVisivel}
+            />
 
             <View style={styles.sectionSpacerLarge} />
 
-            <View style={[styles.chartCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-              <Text style={[styles.chartTitle, { color: theme.text }]}>Comparação</Text>
-              <View style={styles.selectorGroup}>
-                <Pressable style={[styles.dropdownButton, { backgroundColor: theme.cardSoft, borderColor: theme.border }]} onPress={() => setModalAnoComparacaoAberto(true)}>
-                  <Text style={[styles.dropdownLabel, { color: theme.muted }]}>Ano</Text>
-                  <View style={styles.dropdownValueRow}>
-                    <Text style={[styles.dropdownValue, { color: theme.text }]}>{anoComparacao}</Text>
-                    <Text style={[styles.dropdownIcon, { color: theme.muted }]}>⌄</Text>
-                  </View>
-                </Pressable>
-                <Pressable style={[styles.dropdownButton, { backgroundColor: theme.cardSoft, borderColor: theme.border }]} onPress={() => setModalMesComparacaoAberto(true)}>
-                  <Text style={[styles.dropdownLabel, { color: theme.muted }]}>Mês</Text>
-                  <View style={styles.dropdownValueRow}>
-                    <Text style={[styles.dropdownValue, { color: theme.text }]}>{mesComparacao}</Text>
-                    <Text style={[styles.dropdownIcon, { color: theme.muted }]}>⌄</Text>
-                  </View>
-                </Pressable>
-              </View>
-              <View style={[styles.comparisonGrid, { marginTop: 4 }]}>
-                {comparativosResumo.map((item) => {
-                  const variacao = calcularVariacaoPercentual(item.atual, item.comparado)
-                  const melhorou = item.melhorQuandoMaior ? item.atual >= item.comparado : item.atual <= item.comparado
-                  const corVariacao = variacao === 0 ? theme.muted : melhorou ? theme.green : theme.red
-                  const prefixo = variacao > 0 ? '+' : ''
-                  return (
-                    <View key={item.label} style={[styles.summaryCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                      <Text style={[styles.smallLabel, { color: theme.muted }]}>{item.label}</Text>
-                      <Text style={[styles.smallValue, { color: theme.text }]}>{formatarValorVisivel(item.atual)}</Text>
-                      <Text style={[styles.compareMetaText, { color: theme.muted }]}>Comparado: {formatarValorVisivel(item.comparado)}</Text>
-                      <Text style={[styles.compareMetaText, { color: corVariacao }]}>{prefixo}{variacao.toFixed(1).replace('.', ',')}%</Text>
-                    </View>
-                  )
-                })}
-                <View style={[styles.summaryCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                  <Text style={[styles.smallLabel, { color: theme.muted }]}>Total somado</Text>
-                  <Text style={[styles.smallValue, { color: totalAcumuladoComparacao >= 0 ? theme.green : theme.red }]}>{formatarValorVisivel(totalAcumuladoComparacao)}</Text>
-                  <Text style={[styles.compareMetaText, { color: theme.muted }]}>Saldo atual + mês comparado</Text>
-                </View>
-              </View>
-            </View>
+            <ComparacaoCard
+              theme={theme}
+              anoComparacao={anoComparacao}
+              mesComparacao={mesComparacao}
+              onAbrirSeletorAno={() => setModalAnoComparacaoAberto(true)}
+              onAbrirSeletorMes={() => setModalMesComparacaoAberto(true)}
+              comparativos={comparativosResumo}
+              totalAcumulado={totalAcumuladoComparacao}
+              formatarValorVisivel={formatarValorVisivel}
+            />
 
             <View style={styles.sectionSpacerLarge} />
 
-            <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-              <View style={styles.manageHeaderRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.manageTitle, { color: theme.text }]}>Coisas para comprar</Text>
-                  <Text style={[styles.manageSub, { color: theme.muted }]}>Itens que você quer acompanhar antes de decidir comprar.</Text>
-                </View>
-                <Pressable onPress={() => abrirNovaCompraDesejo()} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.smallActionBtnText, { color: theme.white }]}>+ Item</Text></Pressable>
-              </View>
-              {comprasDesejoVisiveis.length === 0 ? (
-                <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft }]}><Text style={[styles.emptyChartText, { color: theme.muted }]}>Nenhum item salvo.</Text></View>
-              ) : (
-                comprasDesejoVisiveis.map((item) => (
-                  <View key={item.id} onLayout={(event) => registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)} style={[styles.fullRowCard, highlightedItemId === item.id && styles.searchHighlightCard, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}>
-                    {renderHighlightOverlay(item.id)}
-                    <View style={styles.fullRowTop}>
-                      <View style={styles.fullRowTitleWrap}>
-                        <Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.nome}</Text>
-                        <Text style={[styles.rowItemMeta, { color: theme.muted }]}>Preço encontrado: {formatarValorVisivel(item.precoAtual)}</Text>
-                        <Text style={[styles.rowItemMeta, { color: theme.muted }]}>{item.loja || 'Loja não informada'} · {item.dataVista || 'Data não informada'}</Text>
-                        {!!item.observacao && <Text style={[styles.rowItemMeta, { color: theme.muted }]}>{item.observacao}</Text>}
-                      </View>
-                      <View style={styles.inlineActions}>
-                        <Pressable onPress={() => alternarCompraDesejoComprado(item.id, !item.comprado)} style={[styles.statusBtn, { backgroundColor: item.comprado ? theme.green : theme.card, borderWidth: 1, borderColor: item.comprado ? theme.green : theme.border }]}>
-                          <Text style={[styles.statusBtnText, { color: item.comprado ? theme.white : theme.text }]}>{item.comprado ? 'Comprado' : 'Não comprado'}</Text>
-                        </Pressable>
-                        <Pressable onPress={() => abrirNovaCompraDesejo(item)} style={styles.iconBtn}><Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text></Pressable>
-                        <Pressable onPress={() => abrirConfirmacaoExclusao('compra_desejo', item.id, item.nome)} style={styles.iconBtn}><Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text></Pressable>
-                      </View>
-                    </View>
-                  </View>
-                ))
-              )}
-            </View>
+            <ComprasDesejoCard
+              theme={theme}
+              itens={comprasDesejoVisiveis}
+              highlightedItemId={highlightedItemId}
+              formatarValorVisivel={formatarValorVisivel}
+              registrarLayoutItem={registrarLayoutItem}
+              renderHighlightOverlay={renderHighlightOverlay}
+              onNovo={() => abrirNovaCompraDesejo()}
+              onEditar={abrirNovaCompraDesejo}
+              onAlternarComprado={alternarCompraDesejoComprado}
+              onExcluir={(id, nome) => abrirConfirmacaoExclusao('compra_desejo', id, nome)}
+            />
 
             <View style={styles.sectionSpacerLarge} />
 
-            <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-              <View style={styles.manageHeaderRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.manageTitle, { color: theme.text }]}>Objetivos</Text>
-                  <Text style={[styles.manageSub, { color: theme.muted }]}>Acompanhe metas e progresso.</Text>
-                </View>
-                <Pressable onPress={() => abrirNovoObjetivo()} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.smallActionBtnText, { color: theme.white }]}>+ Objetivo</Text></Pressable>
-              </View>
-              {objetivos.length === 0 ? (
-                <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft }]}><Text style={[styles.emptyChartText, { color: theme.muted }]}>Nenhum objetivo criado.</Text></View>
-              ) : (
-                objetivos.map((goal) => {
-                  const progresso = goal.alvo > 0 ? Math.min((goal.atual / goal.alvo) * 100, 100) : 0
-                  return (
-                    <View key={goal.id} style={[styles.fullRowCard, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}>
-                      <View style={styles.fullRowTop}>
-                        <View style={styles.fullRowTitleWrap}>
-                          <Text style={[styles.rowItemTitle, { color: theme.text }]}>{goal.titulo}</Text>
-                          <Text style={[styles.rowItemMeta, { color: theme.muted }]}>Atual {formatarValorVisivel(goal.atual)} de {formatarValorVisivel(goal.alvo)}</Text>
-                        </View>
-                        <View style={styles.inlineActions}>
-                          <Pressable onPress={() => abrirNovoObjetivo(goal)} style={styles.iconBtn}><Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text></Pressable>
-                          <Pressable onPress={() => abrirConfirmacaoExclusao('objetivo', goal.id, goal.titulo)} style={styles.iconBtn}><Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text></Pressable>
-                        </View>
-                      </View>
-                      <View style={[styles.compareBarTrack, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 10 }]}>
-                        <View style={[styles.compareBarFill, { width: `${Math.max(4, progresso)}%` as const, backgroundColor: theme.blue }]} />
-                      </View>
-                    </View>
-                  )
-                })
-              )}
-            </View>
+            <ObjetivosCard
+              theme={theme}
+              objetivos={objetivos}
+              formatarValorVisivel={formatarValorVisivel}
+              onNovo={() => abrirNovoObjetivo()}
+              onEditar={abrirNovoObjetivo}
+              onExcluir={(id, titulo) => abrirConfirmacaoExclusao('objetivo', id, titulo)}
+            />
 
-            <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-              <View style={styles.manageHeaderRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.manageTitle, { color: theme.text }]}>Anotações e Pix</Text>
-                  <Text style={[styles.manageSub, { color: theme.muted }]}>Guarde chaves Pix e lembretes importantes aqui.</Text>
-                </View>
-                <View style={styles.categoryToolbar}>
-                  <Pressable onPress={() => abrirNovaNota('pix')} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.smallActionBtnText, { color: theme.white }]}>+ Pix</Text></Pressable>
-                  <Pressable onPress={() => abrirNovaNota('nota')} style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.smallActionBtnText, { color: theme.text }]}>+ Nota</Text></Pressable>
-                  <Pressable onPress={() => abrirFiltro('notas')} style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.smallActionBtnIcon, { color: theme.text }]}>☷</Text></Pressable>
-                </View>
-              </View>
-
-              <Text style={[styles.sectionBlockTitle, { color: theme.text }]}>Pix salvos</Text>
-              {pixOrdenados.length === 0 ? (
-                <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft }]}><Text style={[styles.emptyChartText, { color: theme.muted }]}>Nenhum Pix salvo.</Text></View>
-              ) : (
-                pixOrdenados.map((item) => (
-                  <View key={item.id} onLayout={(event) => registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)} style={[styles.fullRowCard, highlightedItemId === item.id && styles.searchHighlightCard, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}>
-                    {renderHighlightOverlay(item.id)}
-                    <View style={styles.fullRowTop}>
-                      <View style={styles.fullRowTitleWrap}>
-                        <Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.nome}</Text>
-                        {renderTextoSecundario(item.chave, item.chave, theme.muted)}
-                        {!!item.observacao && renderTextoSecundario(item.observacao, item.observacao, theme.muted)}
-                        {renderListaLinks(item.links)}
-                      </View>
-                      <View style={styles.inlineActions}>
-                        <Pressable onPress={() => copiarPix(item.id, item.chave)} style={styles.iconBtn}>
-                          <Text style={[styles.iconBtnText, { color: copiedPixId === item.id ? theme.green : theme.text }]}>
-                            {copiedPixId === item.id ? '✓' : '⎘'}
-                          </Text>
-                        </Pressable>
-                        <Pressable onPress={() => abrirEditarPix(item)} style={styles.iconBtn}><Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text></Pressable>
-                        <Pressable onPress={() => abrirConfirmacaoExclusao('pix', item.id, item.nome)} style={styles.iconBtn}><Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text></Pressable>
-                      </View>
-                    </View>
-                  </View>
-                ))
-              )}
-              <Text style={[styles.sectionBlockTitle, { color: theme.text, marginTop: 18 }]}>Outras anotações</Text>
-              {notasOrdenadas.length === 0 ? (
-                <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft }]}><Text style={[styles.emptyChartText, { color: theme.muted }]}>Nenhuma anotação salva.</Text></View>
-              ) : (
-                notasOrdenadas.map((item) => (
-                  <View key={item.id} onLayout={(event) => registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)} style={[styles.fullRowCard, highlightedItemId === item.id && styles.searchHighlightCard, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}>
-                    {renderHighlightOverlay(item.id)}<View style={styles.fullRowTop}><View style={styles.fullRowTitleWrap}><Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.titulo}</Text>{renderTextoSecundario(item.conteudo, 'Sem conteúdo', theme.muted)}{renderListaLinks(item.links)}</View><View style={styles.inlineActions}><Pressable onPress={() => abrirEditarNota(item)} style={styles.iconBtn}><Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text></Pressable><Pressable onPress={() => abrirConfirmacaoExclusao('nota', item.id, item.titulo)} style={styles.iconBtn}><Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text></Pressable></View></View></View>
-                ))
-              )}
-            </View>
+            <NotasPixCard
+              theme={theme}
+              pixOrdenados={pixOrdenados}
+              notasOrdenadas={notasOrdenadas}
+              copiedPixId={copiedPixId}
+              highlightedItemId={highlightedItemId}
+              registrarLayoutItem={registrarLayoutItem}
+              renderHighlightOverlay={renderHighlightOverlay}
+              renderTextoSecundario={renderTextoSecundario}
+              renderListaLinks={renderListaLinks}
+              onNovaNota={abrirNovaNota}
+              onAbrirFiltro={() => abrirFiltro('notas')}
+              onCopiarPix={copiarPix}
+              onEditarPix={abrirEditarPix}
+              onExcluirPix={(id, nome) => abrirConfirmacaoExclusao('pix', id, nome)}
+              onEditarNota={abrirEditarNota}
+              onExcluirNota={(id, titulo) => abrirConfirmacaoExclusao('nota', id, titulo)}
+            />
           </>
         )}
 
@@ -3476,14 +3133,12 @@ function HomeScreenContent() {
       />
 
       <CardEditorModal
+        key={`card-editor-${cardEditorFormKey}`}
         visible={modalNovoCartaoAberto}
         onClose={fecharModalNovoCartao}
         theme={theme}
         editing={!!cartaoEditandoId}
-        name={gerenciarCartaoNome}
-        onNameChange={setGerenciarCartaoNome}
-        limit={gerenciarCartaoLimite}
-        onLimitChange={setGerenciarCartaoLimite}
+        initialValues={cardEditorInitialValues}
         closing={gerenciarCartaoFechamento}
         onClosingChange={setGerenciarCartaoFechamento}
         due={gerenciarCartaoVencimento}

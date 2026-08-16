@@ -1,15 +1,8 @@
-import { Platform } from 'react-native'
-import * as FileSystem from 'expo-file-system/legacy'
 import { supabase } from '../lib/supabase'
 
 const BUCKET = 'avatars'
 
-/**
- * Converte uma string base64 em bytes.
- * O cliente do Supabase aceita Uint8Array direto no upload, o que evita
- * depender de Blob a partir de file:// (que se comporta de forma
- * inconsistente no React Native).
- */
+/** Converte base64 em bytes. */
 function base64ParaBytes(base64: string): Uint8Array {
   const binario = atob(base64)
   const bytes = new Uint8Array(binario.length)
@@ -19,48 +12,32 @@ function base64ParaBytes(base64: string): Uint8Array {
   return bytes
 }
 
-function tipoPorExtensao(uri: string): string {
-  const ext = (uri.split('?')[0].split('.').pop() || '').toLowerCase()
-  if (ext === 'png') return 'image/png'
-  if (ext === 'webp') return 'image/webp'
-  return 'image/jpeg'
-}
-
 /**
  * Sobe a foto de perfil e devolve a URL publica.
  *
- * Antes o app guardava apenas o caminho local (file:///.../files/foo.jpg).
- * Esse caminho so existe naquela instalacao, entao a foto sumia ao
- * reinstalar o app, trocar de aparelho ou abrir na web. Agora o arquivo
- * vai para o Storage e o que fica salvo e uma URL que funciona em
+ * Antes o app guardava apenas o caminho local do arquivo, que so existia
+ * naquela instalacao — a foto sumia ao reinstalar ou trocar de dispositivo.
+ * Agora o arquivo vai para o Storage e fica salva uma URL que funciona em
  * qualquer lugar.
  *
  * @param userId  Id do usuario autenticado (define a pasta no bucket)
- * @param uri     file:// no nativo, ou data:image/... na web
+ * @param uri     data:image/... vindo do recorte, ou uma URL de blob
  */
 export async function uploadAvatar(userId: string, uri: string): Promise<string> {
   if (!userId) throw new Error('Usuário não identificado para enviar a foto.')
 
   const ehDataUrl = uri.startsWith('data:')
+
   const contentType = ehDataUrl
     ? uri.slice(5, uri.indexOf(';')) || 'image/jpeg'
-    : tipoPorExtensao(uri)
+    : 'image/jpeg'
 
-  let corpo: Uint8Array | Blob
+  const corpo: Uint8Array | Blob = ehDataUrl
+    ? base64ParaBytes(uri.split(',')[1] || '')
+    : await (await fetch(uri)).blob()
 
-  if (ehDataUrl) {
-    // Web: o recorte devolve um data URL, ja em base64.
-    corpo = base64ParaBytes(uri.split(',')[1] || '')
-  } else if (Platform.OS === 'web') {
-    const resposta = await fetch(uri)
-    corpo = await resposta.blob()
-  } else {
-    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' })
-    corpo = base64ParaBytes(base64)
-  }
-
-  // Caminho fixo por usuario: a policy do bucket exige que a primeira pasta
-  // seja o id do usuario, e o upsert evita acumular arquivos antigos.
+  // A policy do bucket exige que a primeira pasta seja o id do usuario.
+  // O upsert evita acumular arquivos antigos.
   const caminho = `${userId}/avatar`
 
   const { error } = await supabase.storage.from(BUCKET).upload(caminho, corpo, {
@@ -72,14 +49,12 @@ export async function uploadAvatar(userId: string, uri: string): Promise<string>
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(caminho)
 
-  // O caminho e sempre o mesmo, entao sem este parametro o app continuaria
-  // mostrando a imagem antiga que ficou em cache.
+  // O caminho e sempre o mesmo, entao sem este parametro o navegador
+  // continuaria mostrando a imagem antiga em cache.
   return `${data.publicUrl}?v=${Date.now()}`
 }
 
-/**
- * Remove a foto de perfil do Storage.
- */
+/** Remove a foto de perfil do Storage. */
 export async function removerAvatar(userId: string): Promise<void> {
   if (!userId) return
   await supabase.storage.from(BUCKET).remove([`${userId}/avatar`])
