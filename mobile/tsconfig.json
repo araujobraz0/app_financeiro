@@ -3,6 +3,7 @@
   "compilerOptions": {
     "moduleSuffixes": [".ios", ".android", ".native", ".web", ""],
     "strict": true,
+    "skipLibCheck": true,
     "paths": {
       "@/*": [
         "./*"
@@ -12,5 +13,13 @@
   "include": [
     "**/*.ts",
     "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "supabase/functions",
+    "android",
+    "ios",
+    "dist",
+    ".expo"
   ]
 }

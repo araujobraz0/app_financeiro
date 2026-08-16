@@ -34,13 +34,28 @@ type SettingsModalProps = {
   onImportData: () => void
   checkingUpdates: boolean
   onCheckUpdates: () => void
+  backups: { id: string; created_at: string }[]
+  loadingBackups: boolean
+  restoringBackupId: string | null
+  onRestoreBackup: (backupId: string, dataFormatada: string) => void
 }
 
 const avatarIsImage = (value?: string) =>
   Boolean(
     value &&
-      (value.startsWith('file:') || value.startsWith('content:') || value.startsWith('http'))
+      (value.startsWith('file:') || value.startsWith('content:') || value.startsWith('http') || value.startsWith('data:'))
   )
+
+const formatarDataBackup = (isoDate: string) => {
+  try {
+    const data = new Date(isoDate)
+    const dataFormatada = data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const horaFormatada = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    return `${dataFormatada} às ${horaFormatada}`
+  } catch {
+    return isoDate
+  }
+}
 
 export default function SettingsModal({
   visible,
@@ -71,6 +86,10 @@ export default function SettingsModal({
   onImportData,
   checkingUpdates,
   onCheckUpdates,
+  backups,
+  loadingBackups,
+  restoringBackupId,
+  onRestoreBackup,
 }: SettingsModalProps) {
   const avatar = editableAvatar || currentAvatar
 
@@ -292,6 +311,40 @@ export default function SettingsModal({
               </Text>
             </Pressable>
           </View>
+
+          <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
+            <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Backups automáticos</Text>
+            <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 12 }]}> 
+              Uma cópia dos seus dados é salva automaticamente na nuvem uma vez por dia. Você pode voltar para uma versão anterior se precisar.
+            </Text>
+
+            {loadingBackups ? (
+              <Text style={[styles.rowItemMeta, { color: theme.muted }]}>Carregando backups...</Text>
+            ) : backups.length === 0 ? (
+              <Text style={[styles.rowItemMeta, { color: theme.muted }]}>Nenhum backup automático ainda. O primeiro é criado no próximo dia de uso.</Text>
+            ) : (
+              <View style={styles.settingsStack}>
+                {backups.map((backup) => {
+                  const dataFormatada = formatarDataBackup(backup.created_at)
+                  const restaurando = restoringBackupId === backup.id
+                  return (
+                    <View key={backup.id} style={[styles.backupRow, { borderColor: theme.border, backgroundColor: theme.card }]}> 
+                      <Text style={[styles.rowItemMeta, { color: theme.text, flex: 1 }]}>{dataFormatada}</Text>
+                      <Pressable
+                        onPress={() => onRestoreBackup(backup.id, dataFormatada)}
+                        disabled={restaurando}
+                        style={[styles.backupRestoreBtn, { backgroundColor: theme.primary, opacity: restaurando ? 0.6 : 1 }]}
+                      >
+                        <Text style={[styles.backupRestoreBtnText, { color: theme.white }]}> 
+                          {restaurando ? 'Restaurando...' : 'Restaurar'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  )
+                })}
+              </View>
+            )}
+          </View>
         </ScrollView>
 
         <View style={styles.modalActions}>
@@ -401,6 +454,24 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   settingsStack: { gap: 10 },
+  backupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  backupRestoreBtn: {
+    minHeight: 34,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backupRestoreBtnText: { fontSize: 12, fontWeight: '900' },
   profileSettingsCard: { padding: 16 },
   profileBadgeImage: { width: '100%', height: '100%', borderRadius: 999 },
   profileBadgeLarge: {

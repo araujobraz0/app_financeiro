@@ -115,7 +115,9 @@ export default function ResetPasswordScreen() {
         if (initialUrl) {
           try {
             await prepararSessaoRecuperacao(initialUrl)
-          } catch {}
+          } catch (error) {
+            console.warn('[recuperação de senha] Falha ao aplicar link de recuperação:', error)
+          }
         }
 
         const {

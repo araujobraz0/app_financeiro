@@ -45,6 +45,7 @@ import CardPurchaseModal from '../components/modals/CardPurchaseModal'
 import ManageCardsModal from '../components/modals/ManageCardsModal'
 import CardEditorModal from '../components/modals/CardEditorModal'
 import ManageCategoriesModal from '../components/modals/ManageCategoriesModal'
+import ImageCropModal from '../components/modals/ImageCropModal'
 import { supabase } from '../src/lib/supabase'
 import { darkTheme, lightTheme, THEME_KEY, THEME_MODE_KEY } from '../src/theme/themes'
 import {
@@ -68,6 +69,13 @@ import {
   competenciaMaiorOuIgual,
   listaAnosAtual,
 } from '../src/utils/competency'
+import {
+  buildExportRows,
+  buildExportWorkbook,
+  buildPdfHtml,
+  montarNomeArquivoExportacao,
+} from '../src/utils/export'
+import type { ExportData } from '../src/utils/export'
 import type {
   EntradaItem, SaidaItem, FixoItem, NoteItem, PixItem, CardInstallment, CardItem,
   GoalItem, ShoppingWishItem, DadosMes, BancoDeDados, InvestmentBaseMode, GlobalData,
@@ -79,6 +87,7 @@ import type {
 const BRAZLLET_PLATFORM = 'android'
 
 const STORAGE_KEY = 'controle-financeiro-v16'
+const BACKUP_LAST_KEY = 'controle-financeiro-ultimo-backup-mobile'
 const categoriasPadrao = ['Mercado', 'Saúde', 'Extra', 'Lazer', 'Uber', 'Comida']
 const onboardingFixosBase = [
   { nome: 'Comissão de formatura', valor: 130 },
@@ -515,6 +524,8 @@ export default function HomeScreen() {
   const [avatarPerfil, setAvatarPerfil] = useState('💼')
   const [nomeEditavel, setNomeEditavel] = useState('')
   const [avatarEditavel, setAvatarEditavel] = useState('💼')
+  const [modalCropAberto, setModalCropAberto] = useState(false)
+  const [imagemParaCortar, setImagemParaCortar] = useState<string | null>(null)
   const [anoSelecionado, setAnoSelecionado] = useState(anoAtual)
   const [mesSelecionado, setMesSelecionado] = useState(meses[mesAtualIndex])
   const [appData, setAppData] = useState<AppData>(criarAppDataInicial())
@@ -615,6 +626,9 @@ export default function HomeScreen() {
   const [previewImportacao, setPreviewImportacao] = useState<{ entradas: EntradaItem[]; saidas: SaidaItem[] }>({ entradas: [], saidas: [] })
   const [modalCalendarioAberto, setModalCalendarioAberto] = useState(false)
   const [checandoAtualizacoes, setChecandoAtualizacoes] = useState(false)
+  const [backupsDisponiveis, setBackupsDisponiveis] = useState<{ id: string; created_at: string }[]>([])
+  const [carregandoBackups, setCarregandoBackups] = useState(false)
+  const [restaurandoBackupId, setRestaurandoBackupId] = useState<string | null>(null)
   const [avisoAtualizacao, setAvisoAtualizacao] = useState<{
     titulo: string
     mensagem: string
@@ -689,7 +703,8 @@ export default function HomeScreen() {
       } else {
         Keyboard.dismiss()
       }
-    } catch {
+    } catch (error) {
+      console.warn('[teclado] Falha ao tentar fechar o teclado pelo campo focado:', error)
       Keyboard.dismiss()
     }
   }
@@ -903,7 +918,8 @@ export default function HomeScreen() {
       const ativo = !!data?.premium_active && !!data?.premium_expires_at && new Date(data.premium_expires_at).getTime() > Date.now()
       setPremiumAtivo(ativo)
       setPremiumExpiresAt(data?.premium_expires_at ?? null)
-    } catch {
+    } catch (error) {
+      console.error('[premium] Falha ao verificar status premium:', error)
       setPremiumAtivo(false)
       setPremiumExpiresAt(null)
     } finally {
@@ -997,7 +1013,8 @@ export default function HomeScreen() {
           router.replace('/premium')
           return
         }
-      } catch {
+      } catch (error) {
+        console.error('[dados] Falha ao carregar dados do usuário, redirecionando para login:', error)
         router.replace('/login')
       } finally {
         setCarregando(false)
@@ -1055,6 +1072,34 @@ export default function HomeScreen() {
   }, [globalData.firstAccessCompleted, carregando, temDadosExistentes])
 
   useEffect(() => {
+    const criarBackupSeNecessario = async (userId: string, dadosAtuais: AppData) => {
+      try {
+        const ultimoBackupIso = await AsyncStorage.getItem(BACKUP_LAST_KEY)
+        const ultimoBackupData = ultimoBackupIso ? new Date(ultimoBackupIso) : null
+        const agora = new Date()
+        const passou24h = !ultimoBackupData || agora.getTime() - ultimoBackupData.getTime() > 1000 * 60 * 60 * 24
+
+        if (!passou24h) return
+
+        const { error: erroBackup } = await supabase.from('financial_data_backups').insert({
+          user_id: userId,
+          data: dadosAtuais,
+        })
+
+        if (erroBackup) {
+          console.warn('[backup] Não foi possível criar snapshot automático:', erroBackup)
+          return
+        }
+
+        await AsyncStorage.setItem(BACKUP_LAST_KEY, agora.toISOString())
+
+        const limite = new Date(agora.getTime() - 1000 * 60 * 60 * 24 * 60).toISOString()
+        await supabase.from('financial_data_backups').delete().eq('user_id', userId).lt('created_at', limite)
+      } catch (error) {
+        console.warn('[backup] Falha ao processar backup automático:', error)
+      }
+    }
+
     const sincronizarBanco = async () => {
       const {
         data: { session },
@@ -1064,11 +1109,20 @@ export default function HomeScreen() {
 
       try {
         setSincronizando(true)
-        await supabase.from('financial_data').upsert({
+        const { error } = await supabase.from('financial_data').upsert({
           user_id: session.user.id,
           data: appData,
           updated_at: new Date().toISOString(),
         })
+
+        if (error) {
+          console.error('[sincronização] Falha ao salvar dados na nuvem:', error)
+          return
+        }
+
+        await criarBackupSeNecessario(session.user.id, appData)
+      } catch (error) {
+        console.error('[sincronização] Falha ao sincronizar dados:', error)
       } finally {
         setSincronizando(false)
       }
@@ -1085,6 +1139,12 @@ export default function HomeScreen() {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
     }
   }, [appData, carregando, dadosRemotosCarregados])
+
+  useEffect(() => {
+    if (modalConfiguracoesAberto) {
+      carregarBackupsAutomaticos()
+    }
+  }, [modalConfiguracoesAberto])
 
   useEffect(() => {
     const subscription = Keyboard.addListener('keyboardDidHide', () => {
@@ -1496,6 +1556,22 @@ export default function HomeScreen() {
 
   const escolherImagemPerfil = async () => {
     try {
+      if (Platform.OS === 'web') {
+        // Na web não existe "permissão de galeria" nem recorte nativo — o próprio
+        // seletor de arquivo do navegador já cuida disso. O recorte é feito
+        // depois, na tela de ajuste (ImageCropModal).
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 1,
+        })
+        if (result.canceled) return
+        const uri = result.assets?.[0]?.uri
+        if (!uri) return
+        setImagemParaCortar(uri)
+        setModalCropAberto(true)
+        return
+      }
+
       const permissao = await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (!permissao.granted) {
         abrirBloqueioPremium('Permita o acesso à galeria para escolher sua foto de perfil.', 'Imagem de perfil')
@@ -1516,12 +1592,24 @@ export default function HomeScreen() {
       const extensao = (uri.split('.').pop() || 'jpg').split('?')[0]
       const avatarUri = await salvarImagemPerfilLocal(uri, extensao)
       setAvatarEditavel(avatarUri)
-    } catch {
+    } catch (error) {
+      console.error('[perfil] Falha ao escolher imagem de perfil:', error)
       abrirBloqueioPremium('Não foi possível abrir a galeria agora. Tente novamente em alguns instantes.', 'Imagem de perfil')
     }
   }
 
-  const avatarEhImagem = (valor?: string) => Boolean(valor && (valor.startsWith('file:') || valor.startsWith('content:') || valor.startsWith('http')))
+  const confirmarRecorteImagemWeb = (dataUrl: string) => {
+    setAvatarEditavel(dataUrl)
+    setModalCropAberto(false)
+    setImagemParaCortar(null)
+  }
+
+  const cancelarRecorteImagemWeb = () => {
+    setModalCropAberto(false)
+    setImagemParaCortar(null)
+  }
+
+  const avatarEhImagem = (valor?: string) => Boolean(valor && (valor.startsWith('file:') || valor.startsWith('content:') || valor.startsWith('http') || valor.startsWith('data:')))
 
   const abrirCalendario = (target: CalendarTarget, rawValue?: string, fallbackMonth?: number) => {
     setCalendarTarget(target)
@@ -1574,11 +1662,77 @@ export default function HomeScreen() {
         return
       }
       await Linking.openURL(linkPendenteConfirmacao)
-    } catch {
+    } catch (error) {
+      console.error('[link] Falha ao abrir link externo:', error)
       Alert.alert('Erro', 'Não foi possível abrir o link agora.')
     } finally {
       setLinkPendenteConfirmacao(null)
     }
+  }
+
+  const carregarBackupsAutomaticos = async () => {
+    try {
+      setCarregandoBackups(true)
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.user) return
+
+      const { data, error } = await supabase
+        .from('financial_data_backups')
+        .select('id, created_at')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+        .limit(15)
+
+      if (error) {
+        console.error('[backup] Falha ao carregar lista de backups:', error)
+        return
+      }
+
+      setBackupsDisponiveis(data || [])
+    } catch (error) {
+      console.error('[backup] Falha ao carregar backups:', error)
+    } finally {
+      setCarregandoBackups(false)
+    }
+  }
+
+  const restaurarBackupAutomatico = async (backupId: string) => {
+    try {
+      setRestaurandoBackupId(backupId)
+      const { data, error } = await supabase
+        .from('financial_data_backups')
+        .select('data')
+        .eq('id', backupId)
+        .maybeSingle()
+
+      if (error || !data?.data) {
+        console.error('[backup] Falha ao buscar conteúdo do backup:', error)
+        Alert.alert('Erro', 'Não foi possível carregar esse backup agora.')
+        return
+      }
+
+      const normalizado = normalizarAppData(data.data)
+      setAppData(normalizado)
+      Alert.alert('Backup restaurado', 'Seus dados foram restaurados para o momento selecionado.')
+    } catch (error) {
+      console.error('[backup] Falha ao restaurar backup:', error)
+      Alert.alert('Erro', 'Não foi possível restaurar esse backup agora.')
+    } finally {
+      setRestaurandoBackupId(null)
+    }
+  }
+
+  const confirmarRestaurarBackup = (backupId: string, dataFormatada: string) => {
+    Alert.alert(
+      'Restaurar backup',
+      `Isso vai substituir seus dados atuais pelos dados salvos em ${dataFormatada}. Essa ação não pode ser desfeita. Deseja continuar?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Restaurar', style: 'destructive', onPress: () => restaurarBackupAutomatico(backupId) },
+      ]
+    )
   }
 
   const checarAtualizacoesManual = async () => {
@@ -1602,8 +1756,9 @@ export default function HomeScreen() {
             return
           }
         }
-      } catch {
+      } catch (error) {
         // Em development build, Expo Go ou ambiente sem canal compatível, seguimos checando o APK novo pelo Supabase.
+        console.warn('[atualização] Checagem OTA indisponível neste ambiente:', error)
       }
 
       const versaoInstalada = obterVersaoInstalada()
@@ -1639,7 +1794,8 @@ export default function HomeScreen() {
         titulo: 'Brazllet atualizado',
         mensagem: 'Você já está usando a versão mais recente disponível para este aparelho.',
       })
-    } catch {
+    } catch (error) {
+      console.error('[atualização] Falha ao checar atualizações:', error)
       setAvisoAtualizacao({
         titulo: 'Atualizações',
         mensagem: 'Não foi possível checar atualizações agora. Tente novamente em instantes.',
@@ -1960,142 +2116,25 @@ export default function HomeScreen() {
     [totaisCategorias, totalSaidas]
   )
 
-  const normalizarNomeMesArquivo = (mes: string) =>
-    String(mes || '')
-      .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
+  // Pacote unico entregue aos geradores de CSV, Excel e PDF (src/utils/export).
+  const dadosExportacao: ExportData = useMemo(
+    () => ({
+      resumo: resumoExportacaoMes,
+      entradas,
+      fixos,
+      saidas,
+      categorias: categoriasExportacaoMes,
+      parcelas: parcelasExportacaoMes,
+    }),
+    [resumoExportacaoMes, entradas, fixos, saidas, categoriasExportacaoMes, parcelasExportacaoMes]
+  )
 
-  const exportFileBaseName = `BRAZLLET_${normalizarNomeMesArquivo(mesSelecionado)}_${anoSelecionado}`
-
-  const buildExportRows = (separator = ';') => {
-    const lines: string[] = []
-    const row = (values: Array<string | number>) =>
-      values
-        .map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`)
-        .join(separator)
-
-    lines.push(row(['BRAZLLET | RELATÓRIO FINANCEIRO']))
-    lines.push(row(['COMPETÊNCIA', resumoExportacaoMes.competencia]))
-    lines.push(row(['ESTILO', 'Brazllet Premium']))
-    lines.push('')
-
-    lines.push(row(['RESUMO']))
-    lines.push(row(['Campo', 'Valor']))
-    ;[
-      ['Salário', formatarMoeda(resumoExportacaoMes.salario)],
-      ['Entradas', formatarMoeda(resumoExportacaoMes.entradas)],
-      ['Fixos pagos', formatarMoeda(resumoExportacaoMes.fixosPagos)],
-      ['Fixos não pagos', formatarMoeda(resumoExportacaoMes.fixosNaoPagos)],
-      ['Saídas', formatarMoeda(resumoExportacaoMes.saidas)],
-      ['Cartões', formatarMoeda(resumoExportacaoMes.cartoes)],
-      ['Saldo atual', formatarMoeda(resumoExportacaoMes.saldoAtual)],
-    ].forEach((item) => lines.push(row(item)))
-    lines.push('')
-
-    lines.push(row(['ENTRADAS']))
-    lines.push(row(['Nome', 'Valor']))
-    if (entradas.length) entradas.forEach((item) => lines.push(row([item.nome, formatarMoeda(item.valor)])))
-    else lines.push(row(['Sem entradas', '-']))
-    lines.push('')
-
-    lines.push(row(['FIXOS']))
-    lines.push(row(['Nome', 'Valor', 'Status']))
-    if (fixos.length) fixos.forEach((item) => lines.push(row([item.nome, formatarMoeda(item.valor), item.pago ? 'Pago' : 'Não pago'])))
-    else lines.push(row(['Sem fixos', '-', '-']))
-    lines.push('')
-
-    lines.push(row(['SAÍDAS']))
-    lines.push(row(['Nome', 'Categoria', 'Valor']))
-    if (saidas.length) saidas.forEach((item) => lines.push(row([item.nome, item.categoria, formatarMoeda(item.valor)])))
-    else lines.push(row(['Sem saídas', '-', '-']))
-    lines.push('')
-
-    lines.push(row(['RANKING DE CATEGORIAS']))
-    lines.push(row(['Categoria', 'Valor', 'Percentual']))
-    if (categoriasExportacaoMes.length) categoriasExportacaoMes.forEach((item) => lines.push(row([item.categoria, formatarMoeda(item.valor), `${item.percentual.toFixed(1).replace('.', ',')}%`])))
-    else lines.push(row(['Sem categorias', '-', '-']))
-    lines.push('')
-
-    lines.push(row(['CARTÕES']))
-    lines.push(row(['Cartão', 'Descrição', 'Parcela', 'Valor']))
-    if (parcelasExportacaoMes.length) parcelasExportacaoMes.forEach((item) => lines.push(row([item.cartao, item.descricao, `${item.parcelaAtual}/${item.totalParcelas}`, formatarMoeda(item.valorParcela)])))
-    else lines.push(row(['Sem parcelas no mês', '-', '-', '-']))
-
-    return lines.join('')
-  }
-
-  const buildExportWorkbook = () => {
-    const wb = XLSX.utils.book_new()
-
-    const resumoSheet = XLSX.utils.aoa_to_sheet([
-      ['BRAZLLET'],
-      ['Relatório financeiro premium'],
-      ['Competência', resumoExportacaoMes.competencia],
-      ['Estilo', 'Brazllet'],
-      [],
-      ['Resumo do mês'],
-      ['Campo', 'Valor'],
-      ['Salário', resumoExportacaoMes.salario],
-      ['Entradas', resumoExportacaoMes.entradas],
-      ['Fixos pagos', resumoExportacaoMes.fixosPagos],
-      ['Fixos não pagos', resumoExportacaoMes.fixosNaoPagos],
-      ['Saídas', resumoExportacaoMes.saidas],
-      ['Cartões', resumoExportacaoMes.cartoes],
-      ['Saldo atual', resumoExportacaoMes.saldoAtual],
-    ])
-    resumoSheet['!cols'] = [{ wch: 26 }, { wch: 20 }]
-    resumoSheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } }]
-    XLSX.utils.book_append_sheet(wb, resumoSheet, 'Resumo')
-
-    const entradasSheet = XLSX.utils.json_to_sheet(
-      entradas.length
-        ? entradas.map((item) => ({ Nome: item.nome, Valor: item.valor }))
-        : [{ Nome: 'Sem entradas', Valor: '' }]
-    )
-    entradasSheet['!cols'] = [{ wch: 34 }, { wch: 16 }]
-    XLSX.utils.book_append_sheet(wb, entradasSheet, 'Entradas')
-
-    const fixosSheet = XLSX.utils.json_to_sheet(
-      fixos.length
-        ? fixos.map((item) => ({ Nome: item.nome, Valor: item.valor, Status: item.pago ? 'Pago' : 'Não pago' }))
-        : [{ Nome: 'Sem fixos', Valor: '', Status: '' }]
-    )
-    fixosSheet['!cols'] = [{ wch: 34 }, { wch: 16 }, { wch: 16 }]
-    XLSX.utils.book_append_sheet(wb, fixosSheet, 'Fixos')
-
-    const saidasSheet = XLSX.utils.json_to_sheet(
-      saidas.length
-        ? saidas.map((item) => ({ Nome: item.nome, Categoria: item.categoria, Valor: item.valor }))
-        : [{ Nome: 'Sem saídas', Categoria: '', Valor: '' }]
-    )
-    saidasSheet['!cols'] = [{ wch: 34 }, { wch: 18 }, { wch: 16 }]
-    XLSX.utils.book_append_sheet(wb, saidasSheet, 'Saídas')
-
-    const categoriasSheet = XLSX.utils.json_to_sheet(
-      categoriasExportacaoMes.length
-        ? categoriasExportacaoMes.map((item) => ({ Categoria: item.categoria, Valor: item.valor, Percentual: `${item.percentual.toFixed(1).replace('.', ',')}%` }))
-        : [{ Categoria: 'Sem categorias', Valor: '', Percentual: '' }]
-    )
-    categoriasSheet['!cols'] = [{ wch: 22 }, { wch: 16 }, { wch: 16 }]
-    XLSX.utils.book_append_sheet(wb, categoriasSheet, 'Categorias')
-
-    const cartoesSheet = XLSX.utils.json_to_sheet(
-      parcelasExportacaoMes.length
-        ? parcelasExportacaoMes.map((item) => ({ Cartão: item.cartao, Descrição: item.descricao, Parcela: `${item.parcelaAtual}/${item.totalParcelas}`, Valor: item.valorParcela }))
-        : [{ Cartão: 'Sem parcelas no mês', Descrição: '', Parcela: '', Valor: '' }]
-    )
-    cartoesSheet['!cols'] = [{ wch: 20 }, { wch: 34 }, { wch: 14 }, { wch: 16 }]
-    XLSX.utils.book_append_sheet(wb, cartoesSheet, 'Cartões')
-
-    return wb
-  }
+  const exportFileBaseName = montarNomeArquivoExportacao(mesSelecionado, anoSelecionado)
 
   const exportarCsv = async () => {
     try {
       setProcessandoArquivo('csv')
-      const csv = buildExportRows(';')
+      const csv = buildExportRows(dadosExportacao, ';')
       const fileUri = `${FileSystem.cacheDirectory}${exportFileBaseName}.csv`
       await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: 'utf8' })
       await Sharing.shareAsync(fileUri, {
@@ -2103,7 +2142,8 @@ export default function HomeScreen() {
         dialogTitle: 'Exportar CSV',
         UTI: 'public.comma-separated-values-text',
       })
-    } catch {
+    } catch (error) {
+      console.error('[exportar] Falha ao exportar CSV:', error)
       Alert.alert('Erro', 'Não foi possível exportar o arquivo CSV.')
     } finally {
       setProcessandoArquivo(null)
@@ -2113,7 +2153,7 @@ export default function HomeScreen() {
   const exportarExcel = async () => {
     try {
       setProcessandoArquivo('excel')
-      const wb = buildExportWorkbook()
+      const wb = buildExportWorkbook(dadosExportacao)
       const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' })
       const fileUri = `${FileSystem.cacheDirectory}${exportFileBaseName}.xlsx`
       await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: 'base64' })
@@ -2122,278 +2162,17 @@ export default function HomeScreen() {
         dialogTitle: 'Exportar Excel (.xlsx)',
         UTI: 'org.openxmlformats.spreadsheetml.sheet',
       })
-    } catch {
+    } catch (error) {
+      console.error('[exportar] Falha ao exportar Excel:', error)
       Alert.alert('Erro', 'Não foi possível exportar o arquivo Excel (.xlsx).')
     } finally {
       setProcessandoArquivo(null)
     }
   }
 
-  const escapeHtml = (value: string) =>
-    String(value || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
-
-  const renderPdfRows = (rows: string[][], emptyCols: number) => {
-    if (!rows.length) {
-      return `<tr><td colspan="${emptyCols}" class="empty">Sem dados no mês selecionado.</td></tr>`
-    }
-    return rows
-      .map(
-        (cols) =>
-          `<tr>${cols.map((col) => `<td>${escapeHtml(col)}</td>`).join('')}</tr>`
-      )
-      .join('')
-  }
-
-  const buildPdfHtml = () => {
-    return `
-        <html>
-          <head>
-            <meta charset="utf-8" />
-            <style>
-              * { box-sizing: border-box; }
-              @page { margin: 26mm 16mm 24mm; }
-              body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-                padding: 0;
-                color: #17361f;
-                background: #f8fafc;
-              }
-              .page {
-                background: #f7f3e8;
-                border: 1px solid #d8c9a9;
-                border-radius: 24px;
-                overflow: hidden;
-              }
-              .hero {
-                padding: 28px 30px 22px;
-                background: linear-gradient(135deg, #113120 0%, #1f5a34 62%, #b7923b 100%);
-                color: #ffffff;
-              }
-              .eyebrow {
-                display: inline-block;
-                padding: 6px 12px;
-                border-radius: 999px;
-                background: rgba(255,255,255,0.12);
-                font-size: 11px;
-                font-weight: 700;
-                letter-spacing: 0.08em;
-                text-transform: uppercase;
-              }
-              h1 {
-                font-size: 28px;
-                line-height: 1.15;
-                margin: 14px 0 8px;
-              }
-              .hero-sub {
-                color: #cbd5e1;
-                font-size: 13px;
-                margin: 0;
-              }
-              .section-wrap {
-                padding: 22px 24px 26px;
-              }
-              .summary-grid {
-                width: 100%;
-                border-collapse: separate;
-                border-spacing: 12px 12px;
-                margin: 0 -12px 6px;
-              }
-              .summary-card {
-                width: 50%;
-                background: #fffdf8;
-                border: 1px solid #dfd0b2;
-                border-radius: 18px;
-                padding: 14px 16px;
-                vertical-align: top;
-              }
-              .summary-label {
-                font-size: 11px;
-                color: #6f7c67;
-                text-transform: uppercase;
-                letter-spacing: 0.08em;
-                font-weight: 700;
-                margin-bottom: 8px;
-              }
-              .summary-value {
-                font-size: 22px;
-                font-weight: 800;
-                color: #17361f;
-              }
-              .summary-value.positive { color: #2c7a4a; }
-              .summary-value.negative { color: #c24f4f; }
-              .section-title {
-                font-size: 16px;
-                font-weight: 800;
-                color: #17361f;
-                margin: 22px 0 10px;
-              }
-              .section-sub {
-                font-size: 12px;
-                color: #6f7c67;
-                margin: -2px 0 10px;
-              }
-              table.section {
-                width: 100%;
-                border-collapse: separate;
-                border-spacing: 0;
-                margin-top: 8px;
-                border: 1px solid #e2e8f0;
-                border-radius: 16px;
-                overflow: hidden;
-              }
-              table.section th,
-              table.section td {
-                padding: 10px 12px;
-                text-align: left;
-                vertical-align: top;
-                font-size: 12px;
-              }
-              table.section thead th {
-                background: #f3ead6;
-                color: #17361f;
-                text-transform: uppercase;
-                letter-spacing: 0.06em;
-                font-size: 10px;
-                font-weight: 800;
-                border-bottom: 1px solid #ddcfb1;
-              }
-              table.section tbody tr:nth-child(even) td {
-                background: #fffaf0;
-              }
-              table.section tbody tr:not(:last-child) td {
-                border-bottom: 1px solid #eee1c7;
-              }
-              .empty {
-                text-align: center;
-                color: #6f7c67;
-                padding: 16px 12px;
-              }
-              .badge-row {
-                margin-top: 14px;
-              }
-              .badge {
-                display: inline-block;
-                padding: 6px 12px;
-                border-radius: 999px;
-                background: rgba(246, 232, 176, 0.18);
-                color: #f6e8b0;
-                font-size: 11px;
-                font-weight: 700;
-                margin-right: 8px;
-              }
-              .footer-note {
-                margin-top: 18px;
-                font-size: 11px;
-                color: #6f7c67;
-                text-align: center;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="page">
-              <div class="hero">
-                <span class="eyebrow">Brazllet · relatório financeiro</span>
-                <h1>Brazllet financeiro</h1>
-                <p class="hero-sub">Competência exportada: ${escapeHtml(resumoExportacaoMes.competencia)}</p>
-                <div class="badge-row">
-                  <span class="badge">Entradas, fixos, saídas e cartões</span>
-                  <span class="badge">Identidade Brazllet</span>
-                </div>
-              </div>
-
-              <div class="section-wrap">
-                <table class="summary-grid">
-                  <tr>
-                    <td class="summary-card">
-                      <div class="summary-label">Salário</div>
-                      <div class="summary-value">${escapeHtml(formatarMoeda(resumoExportacaoMes.salario))}</div>
-                    </td>
-                    <td class="summary-card">
-                      <div class="summary-label">Saldo atual</div>
-                      <div class="summary-value ${resumoExportacaoMes.saldoAtual >= 0 ? 'positive' : 'negative'}">${escapeHtml(formatarMoeda(resumoExportacaoMes.saldoAtual))}</div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="summary-card">
-                      <div class="summary-label">Entradas</div>
-                      <div class="summary-value positive">${escapeHtml(formatarMoeda(resumoExportacaoMes.entradas))}</div>
-                    </td>
-                    <td class="summary-card">
-                      <div class="summary-label">Saídas</div>
-                      <div class="summary-value negative">${escapeHtml(formatarMoeda(resumoExportacaoMes.saidas))}</div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="summary-card">
-                      <div class="summary-label">Fixos pagos</div>
-                      <div class="summary-value">${escapeHtml(formatarMoeda(resumoExportacaoMes.fixosPagos))}</div>
-                    </td>
-                    <td class="summary-card">
-                      <div class="summary-label">Fixos não pagos</div>
-                      <div class="summary-value">${escapeHtml(formatarMoeda(resumoExportacaoMes.fixosNaoPagos))}</div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td class="summary-card">
-                      <div class="summary-label">Cartões no mês</div>
-                      <div class="summary-value">${escapeHtml(formatarMoeda(resumoExportacaoMes.cartoes))}</div>
-                    </td>
-                    <td class="summary-card">
-                      <div class="summary-label">Categorias com gasto</div>
-                      <div class="summary-value">${escapeHtml(String(categoriasExportacaoMes.length))}</div>
-                    </td>
-                  </tr>
-                </table>
-
-                <div class="section-title">Entradas</div>
-                <div class="section-sub">Lançamentos positivos registrados na competência selecionada.</div>
-                <table class="section">
-                  <thead><tr><th>Nome</th><th>Valor</th></tr></thead>
-                  <tbody>${renderPdfRows(entradas.map((item) => [item.nome, formatarMoeda(item.valor)]), 2)}</tbody>
-                </table>
-
-                <div class="section-title">Gastos fixos</div>
-                <div class="section-sub">Itens recorrentes do mês, com status de pagamento.</div>
-                <table class="section">
-                  <thead><tr><th>Nome</th><th>Valor</th><th>Status</th></tr></thead>
-                  <tbody>${renderPdfRows(fixos.map((item) => [item.nome, formatarMoeda(item.valor), item.pago ? 'Pago' : 'Não pago']), 3)}</tbody>
-                </table>
-
-                <div class="section-title">Saídas variáveis</div>
-                <div class="section-sub">Despesas organizadas com categoria e valor.</div>
-                <table class="section">
-                  <thead><tr><th>Nome</th><th>Categoria</th><th>Valor</th></tr></thead>
-                  <tbody>${renderPdfRows(saidas.map((item) => [item.nome, item.categoria, formatarMoeda(item.valor)]), 3)}</tbody>
-                </table>
-
-                <div class="section-title">Ranking de categorias</div>
-                <div class="section-sub">Categorias com maior impacto financeiro no mês.</div>
-                <table class="section">
-                  <thead><tr><th>Categoria</th><th>Valor</th><th>Percentual</th></tr></thead>
-                  <tbody>${renderPdfRows(categoriasExportacaoMes.map((item) => [item.categoria, formatarMoeda(item.valor), `${item.percentual.toFixed(1).replace('.', ',')}%`]), 3)}</tbody>
-                </table>
-
-                <div class="section-title">Cartões e parcelas</div>
-                <div class="section-sub">Compras parceladas que compõem a competência exportada.</div>
-                <table class="section">
-                  <thead><tr><th>Cartão</th><th>Descrição</th><th>Parcela</th><th>Valor</th></tr></thead>
-                  <tbody>${renderPdfRows(parcelasExportacaoMes.map((item) => [item.cartao, item.descricao, `${item.parcelaAtual}/${item.totalParcelas}`, formatarMoeda(item.valorParcela)]), 4)}</tbody>
-                </table>
-
-                <div class="footer-note">Arquivo gerado automaticamente com base na competência selecionada no app.</div>
-              </div>
-            </div>
-          </body>
-        </html>`
-  }
 
     const gerarArquivoPdf = async () => {
-    const html = buildPdfHtml()
+    const html = buildPdfHtml(dadosExportacao)
 
     if (Platform.OS === 'web') {
       const { gerarArquivoPdfWeb } = await import('../src/utils/exportPdfWeb')
@@ -2406,7 +2185,9 @@ export default function HomeScreen() {
     try {
       const info = await FileSystem.getInfoAsync(finalUri)
       if (info.exists) await FileSystem.deleteAsync(finalUri, { idempotent: true })
-    } catch {}
+    } catch (error) {
+      console.warn('[pdf] Não foi possível limpar arquivo temporário anterior:', error)
+    }
 
     await FileSystem.copyAsync({ from: uri, to: finalUri })
     return finalUri
@@ -2432,7 +2213,8 @@ export default function HomeScreen() {
           UTI: 'com.adobe.pdf',
         })
       }
-    } catch {
+    } catch (error) {
+      console.error('[pdf] Falha ao exportar PDF:', error)
       Alert.alert('Erro', 'Não foi possível exportar o PDF.')
     } finally {
       setProcessandoArquivo(null)
@@ -2455,7 +2237,8 @@ export default function HomeScreen() {
         if (ativo) {
           setPreviewPdfUri(uri)
         }
-      } catch {
+      } catch (error) {
+        console.error('[pdf] Falha ao gerar prévia do PDF:', error)
         if (ativo) {
           setPreviewPdfUri('')
         }
@@ -2658,8 +2441,9 @@ export default function HomeScreen() {
       setArquivoImportacaoNome(asset.name || 'arquivo importado')
       setPreviewImportacao({ entradas: importedEntradas, saidas: importedSaidas })
       setModalPreviewImportacaoAberto(true)
-    } catch {
-      Alert.alert('Erro', 'Não foi possível importar o arquivo.')
+    } catch (error) {
+      console.error('[importar] Falha ao importar arquivo:', error)
+      Alert.alert('Erro', 'Não foi possível importar o arquivo. Confira se o formato é CSV, OFX ou XLSX.')
     } finally {
       setProcessandoArquivo(null)
     }
@@ -2760,7 +2544,9 @@ export default function HomeScreen() {
       await Clipboard.setStringAsync(chave)
       setCopiedPixId(id)
       setTimeout(() => setCopiedPixId((prev) => (prev === id ? null : prev)), 1500)
-    } catch {}
+    } catch (error) {
+      console.warn('[pix] Falha ao copiar chave PIX:', error)
+    }
   }
 
   const abrirEditarFixo = (item: FixoItem) => {
@@ -4496,6 +4282,18 @@ export default function HomeScreen() {
         onImportData={importarDadosBanco}
         checkingUpdates={checandoAtualizacoes}
         onCheckUpdates={checarAtualizacoesManual}
+        backups={backupsDisponiveis}
+        loadingBackups={carregandoBackups}
+        restoringBackupId={restaurandoBackupId}
+        onRestoreBackup={confirmarRestaurarBackup}
+      />
+
+      <ImageCropModal
+        visible={modalCropAberto}
+        imageUri={imagemParaCortar}
+        theme={theme}
+        onCancel={cancelarRecorteImagemWeb}
+        onConfirm={confirmarRecorteImagemWeb}
       />
 
       <AppModal visible={modalPreviewExportacaoAberto} onClose={() => setModalPreviewExportacaoAberto(false)}>
@@ -4545,7 +4343,7 @@ export default function HomeScreen() {
                   <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border, marginTop: 0 }]}> 
                     <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Prévia do CSV</Text>
                     <View style={[styles.fullRowCard, { borderColor: theme.border, backgroundColor: theme.card, marginTop: 0 }]}> 
-                      <Text style={[styles.rowItemMeta, { color: theme.text, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }]} selectable>{buildExportRows(';').slice(0, 1400)}</Text>
+                      <Text style={[styles.rowItemMeta, { color: theme.text, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }]} selectable>{buildExportRows(dadosExportacao, ';').slice(0, 1400)}</Text>
                     </View>
                   </View>
                 )}

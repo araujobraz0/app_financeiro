@@ -158,7 +158,8 @@ export default function PrimeiroAcessoScreen() {
           router.replace('/home')
           return
         }
-      } catch {
+      } catch (error) {
+        console.error('[primeiro acesso] Falha ao validar primeiro acesso:', error)
         setErro('Não foi possível validar seu primeiro acesso agora.')
       } finally {
         setScreenLoading(false)
@@ -411,7 +412,8 @@ export default function PrimeiroAcessoScreen() {
       if (erroSalvar) throw erroSalvar
 
       router.replace('/home')
-    } catch {
+    } catch (error) {
+      console.error('[primeiro acesso] Falha ao concluir primeiro acesso:', error)
       setErro('Não foi possível concluir o primeiro acesso.')
     } finally {
       setLoading(false)

@@ -216,7 +216,8 @@ export default function PremiumScreen() {
       setPremiumAtivo(ativo)
       setPremiumExpiresAt(entitlementData?.premium_expires_at ?? null)
       setOnboardingPending(!financialData)
-    } catch {
+    } catch (error) {
+      console.error('[premium] Falha ao carregar status premium:', error)
       setPremiumAtivo(false)
       setPremiumExpiresAt(null)
       setOnboardingPending(false)
@@ -335,7 +336,8 @@ export default function PremiumScreen() {
     try {
       await Clipboard.setStringAsync(pixData.qr_code)
       mostrarPopup('Código copiado', 'O código Pix foi copiado com sucesso.')
-    } catch {
+    } catch (error) {
+      console.error('[pix] Falha ao copiar código Pix:', error)
       mostrarPopup('Erro', 'Não foi possível copiar o código Pix.')
     }
   }, [pixData, mostrarPopup])

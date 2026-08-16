@@ -67,7 +67,8 @@ export default function AuthCallbackScreen() {
           try {
             sessaoAplicada = await aplicarSessaoViaUrl(rawUrl)
             if (sessaoAplicada) break
-          } catch {
+          } catch (error) {
+            console.warn('[login] Falha ao aplicar sessão via URL de callback:', error)
             sessaoAplicada = false
           }
         }
@@ -105,7 +106,9 @@ export default function AuthCallbackScreen() {
         await aplicarSessaoViaUrl(url)
         if (!ativo) return
         router.replace('/home')
-      } catch {}
+      } catch (error) {
+        console.warn('[login] Falha ao aplicar sessão recebida via deep link:', error)
+      }
     })
 
     return () => {
