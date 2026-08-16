@@ -379,6 +379,11 @@ function HomeScreenContent() {
     apkUrl?: string
     botaoPrincipal?: string
   } | null>(null)
+  // O react-native-web cria uma div por Modal no fim do body, e quem foi
+  // montado por ultimo fica por cima. Os modais de formulario remontam ao
+  // abrir (por causa do key que reinicia os campos), entao o calendario
+  // precisa remontar tambem — senao abre atras de quem o chamou.
+  const [calendarioFormKey, setCalendarioFormKey] = useState(0)
   const [calendarTarget, setCalendarTarget] = useState<CalendarTarget>('dia_edicao')
   const [calendarDia, setCalendarDia] = useState(1)
   const [calendarMes, setCalendarMes] = useState(mesAtualIndex + 1)
@@ -1168,6 +1173,7 @@ function HomeScreenContent() {
   const avatarEhImagem = (valor?: string) => Boolean(valor && (valor.startsWith('http') || valor.startsWith('data:')))
 
   const abrirCalendario = (target: CalendarTarget, rawValue?: string, fallbackMonth?: number) => {
+    setCalendarioFormKey((prev) => prev + 1)
     setCalendarTarget(target)
 
     const hoje = new Date()
@@ -3376,7 +3382,12 @@ function HomeScreenContent() {
           <Text style={[styles.syncBadgeText, { color: temaEscuro ? '#93c5fd' : '#2563eb' }]}>Salvando...</Text>
         </View>
       )}
-      <AppModal level={100} visible={modalCalendarioAberto} onClose={() => setModalCalendarioAberto(false)}>
+      <AppModal
+        key={`calendario-${calendarioFormKey}`}
+        level={100}
+        visible={modalCalendarioAberto}
+        onClose={() => setModalCalendarioAberto(false)}
+      >
         <View style={[styles.modalCard, styles.modalCardCalendar, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={[styles.modalTitle, { color: theme.text }]}>Selecionar data</Text>
           <View style={styles.calendarSection}>
