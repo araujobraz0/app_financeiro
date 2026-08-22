@@ -123,7 +123,8 @@ const styles = StyleSheet.create({
 
   grade: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   celula: {
-    width: '31.5%',
+    flexGrow: 1,
+    flexBasis: '28%',
     minHeight: 52,
     borderRadius: 14,
     borderWidth: 1,

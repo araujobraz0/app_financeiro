@@ -28,6 +28,8 @@ import AppModal from '../components/common/AppModal'
 import * as Haptics from 'expo-haptics'
 import BottomTabItem from '../components/home/BottomTabItem'
 import Calendario from '../components/common/Calendario'
+import SeletorCompetencia from '../components/common/SeletorCompetencia'
+import PreviaPlanilha from '../components/modals/PreviaPlanilha'
 import { gerarPdfUri } from '../src/utils/export/pdfDoc'
 import { parseCsv, parseOfx, parseTabela } from '../src/utils/importar/parse'
 import type { TransacaoImportada } from '../src/utils/importar/parse'
@@ -97,7 +99,7 @@ import {
   meses,
   parseDiaMesInput,
 } from '../src/utils/dates'
-import { addMonthsToCompetencia, competenciaMaiorOuIgual, listaAnosAtual, resolverMesComRecorrentes } from '../src/utils/competency'
+import { addMonthsToCompetencia, competenciaMaiorOuIgual, resolverMesComRecorrentes } from '../src/utils/competency'
 import {
   buildExportRows,
   buildExportWorkbook,
@@ -156,23 +158,6 @@ function getCardBillingDates(
     fechamentoMesAtual,
     vencimentoMesAtual,
   }
-}
-
-function listaAnosComDados(banco: BancoDeDados) {
-  const base = listaAnosAtual()
-  const anosComDados = Object.entries(banco || {})
-    .filter(([, dados]) => {
-      if (!dados) return false
-      return (
-        Number(dados.salario || 0) > 0 ||
-        Boolean(dados.entradas?.length) ||
-        Boolean(dados.saidas?.length) ||
-        Boolean(dados.fixo?.some((item) => item?.nome && String(item.nome).trim()))
-      )
-    })
-    .map(([chave]) => Number(chave.split('-')[0]))
-    .filter((ano) => Number.isFinite(ano))
-  return Array.from(new Set([...base, ...anosComDados])).sort((a, b) => a - b)
 }
 
 function getItemTimestamp(item: { id?: string }) {
@@ -245,9 +230,7 @@ function HomeScreenContent() {
   }
 
   const ehMesCorrente = anoSelecionado === anoAtual && mesSelecionado === meses[mesAtualIndex]
-  const listaAnos = useMemo(() => listaAnosComDados(appData.bancoDeDados), [appData.bancoDeDados])
-  const [anoModalAberto, setAnoModalAberto] = useState(false)
-  const [mesModalAberto, setMesModalAberto] = useState(false)
+  const [seletorPeriodoAberto, setSeletorPeriodoAberto] = useState(false)
   const [salarioEmEdicao, setSalarioEmEdicao] = useState(false)
   const [salarioTexto, setSalarioTexto] = useState('R$ 0,00')
 
@@ -671,6 +654,22 @@ function HomeScreenContent() {
   }, [bancoDeDados, chaveAtual])
 
   const salario = Number(dadosAtual.salario || 0)
+
+  /** Competencias com algum lancamento, para marcar no seletor de periodo. */
+  const competenciasComLancamentos = useMemo(
+    () =>
+      Object.keys(bancoDeDados).filter((chave) => {
+        const mes = bancoDeDados[chave]
+        return Boolean(
+          mes &&
+            (mes.salario > 0 ||
+              (mes.entradas || []).length > 0 ||
+              (mes.saidas || []).length > 0 ||
+              (mes.fixo || []).length > 0)
+        )
+      }),
+    [bancoDeDados]
+  )
   const entradas = dadosAtual.entradas || []
   const fixos = dadosAtual.fixo || []
   const saidas = dadosAtual.saidas || []
@@ -1864,6 +1863,44 @@ function HomeScreenContent() {
 
         return { ...prev, bancoDeDados: bancoAtualizado }
       })
+    } else if (tipoFormularioLancamento === 'fixo') {
+      /**
+       * Editar um gasto fixo vale deste mes em diante.
+       *
+       * Um gasto recorrente que muda de valor — aluguel reajustado, plano que
+       * subiu — mudou para o futuro, nao para tras: os meses ja fechados
+       * devem continuar com o valor que foi realmente pago. Por isso a
+       * alteracao segue o `recorrenteId` a partir da competencia atual e nao
+       * encosta nas anteriores.
+       *
+       * O `pago` de cada mes e preservado: alterar o valor nao desmarca uma
+       * conta que ja foi quitada.
+       */
+      setAppData((prev) => {
+        const atual = prev.bancoDeDados[chaveAtual]?.fixo?.find((item) => item.id === itemEditandoId)
+        const recorrenteId = atual?.recorrenteId
+        const bancoAtualizado: BancoDeDados = { ...prev.bancoDeDados }
+
+        const campos = {
+          nome: values.name.trim(),
+          valor: valorConvertido,
+          dia: Math.min(31, Math.max(1, Number(diaEdicao || atual?.dia || 1))),
+        }
+
+        Object.keys(bancoAtualizado).forEach((chave) => {
+          if (!competenciaMaiorOuIgual(chave, chaveAtual)) return
+          const mes = bancoAtualizado[chave]
+          bancoAtualizado[chave] = {
+            ...mes,
+            fixo: (mes.fixo || []).map((item) => {
+              const alvo = recorrenteId ? item.recorrenteId === recorrenteId : item.id === itemEditandoId
+              return alvo ? { ...item, ...campos } : item
+            }),
+          }
+        })
+
+        return { ...prev, bancoDeDados: bancoAtualizado }
+      })
     } else {
       setAppData((prev) => ({
         ...prev,
@@ -1885,12 +1922,7 @@ function HomeScreenContent() {
                     item.id === itemEditandoId ? { ...item, nome: values.name.trim(), valor: valorConvertido, dia: Math.min(31, Math.max(1, Number(diaEdicao || item.dia || 1))) } : item
                   )
                 : prev.bancoDeDados[chaveAtual].entradas,
-            fixo:
-              tipoFormularioLancamento === 'fixo'
-                ? prev.bancoDeDados[chaveAtual].fixo.map((item) =>
-                    item.id === itemEditandoId ? { ...item, nome: values.name.trim(), valor: valorConvertido, dia: Math.min(31, Math.max(1, Number(diaEdicao || item.dia || 1))) } : item
-                  )
-                : prev.bancoDeDados[chaveAtual].fixo,
+            fixo: prev.bancoDeDados[chaveAtual].fixo,
           },
         },
       }))
@@ -2350,7 +2382,7 @@ function HomeScreenContent() {
   const isParcelaFormulario = String(tipoFormularioLancamento) === 'parcela'
   const isEntradaFormulario = String(tipoFormularioLancamento) === 'entrada'
   const isSaidaFormulario = String(tipoFormularioLancamento) === 'saida'
-  const algumModalAberto = anoModalAberto || mesModalAberto || modalLancamentoAberto || modalAcaoRapidaAberto || modalCategoriasAberto || modalCategoriaNomeAberto || modalAnotacaoAberto || modalCartaoAberto || modalFiltroAberto || modalGerenciarCartoesAberto || modalNovoCartaoAberto || modalConfiguracoesAberto || modalCompraDesejoAberto || modalPreviewImportacaoAberto || modalPreviewExportacaoAberto || !!confirmacaoExclusao
+  const algumModalAberto = seletorPeriodoAberto || modalLancamentoAberto || modalAcaoRapidaAberto || modalCategoriasAberto || modalCategoriaNomeAberto || modalAnotacaoAberto || modalCartaoAberto || modalFiltroAberto || modalGerenciarCartoesAberto || modalNovoCartaoAberto || modalConfiguracoesAberto || modalCompraDesejoAberto || modalPreviewImportacaoAberto || modalPreviewExportacaoAberto || !!confirmacaoExclusao
 
   const tituloModalLancamento =
     modoModalLancamento === 'novo'
@@ -2384,6 +2416,8 @@ function HomeScreenContent() {
         avatarUri={avatarEhImagem(avatarPerfil) ? avatarPerfil : null}
         iniciais={iniciais}
         premiumAtivo={premiumValido}
+        competencia={`${mesSelecionado.slice(0, 3)} ${anoSelecionado}`}
+        onAbrirPeriodo={() => setSeletorPeriodoAberto(true)}
         valoresOcultos={ocultarValores}
         temaEscuro={temaEscuro}
         onAbrirPerfil={() => setModalConfiguracoesAberto(true)}
@@ -2426,8 +2460,8 @@ function HomeScreenContent() {
           theme={theme}
           mes={mesSelecionado}
           ano={anoSelecionado}
-          onAbrirMes={() => setMesModalAberto(true)}
-          onAbrirAno={() => setAnoModalAberto(true)}
+          onAbrirMes={() => setSeletorPeriodoAberto(true)}
+          onAbrirAno={() => setSeletorPeriodoAberto(true)}
           onAnterior={() => irParaMesVizinho(-1)}
           onProximo={() => irParaMesVizinho(1)}
           onHoje={voltarParaMesAtual}
@@ -2623,34 +2657,6 @@ function HomeScreenContent() {
         </View>
       </AppModal>
 
-      <SelectionModal
-        visible={anoModalAberto}
-        onClose={() => setAnoModalAberto(false)}
-        title='Selecionar ano'
-        options={listaAnos.map((ano) => ({ value: ano, label: String(ano) }))}
-        selectedValue={anoSelecionado}
-        onSelect={(value) => {
-          setAnoSelecionado(Number(value))
-          setAnoModalAberto(false)
-        }}
-        theme={theme}
-      />
-
-      <SelectionModal
-        visible={mesModalAberto}
-        onClose={() => setMesModalAberto(false)}
-        title='Selecionar mês'
-        options={meses.map((mes) => ({ value: mes, label: mes }))}
-        selectedValue={mesSelecionado}
-        onSelect={(value) => {
-          setMesSelecionado(String(value))
-          setMesModalAberto(false)
-        }}
-        theme={theme}
-        scrollable
-        hint='Deslize para ver mais ↓'
-      />
-
       <LaunchModal
         key={`launch-${launchFormKey}`}
         visible={modalLancamentoAberto}
@@ -2805,6 +2811,21 @@ function HomeScreenContent() {
         </View>
       </AppModal>
 
+      <SeletorCompetencia
+        theme={theme}
+        visible={seletorPeriodoAberto}
+        onClose={() => setSeletorPeriodoAberto(false)}
+        mes={mesSelecionado}
+        ano={anoSelecionado}
+        onSelecionar={(mes, ano) => {
+          setMesSelecionado(mes)
+          setAnoSelecionado(ano)
+        }}
+        competenciasComDados={competenciasComLancamentos}
+        mesAtual={meses[mesAtualIndex]}
+        anoAtual={anoAtual}
+      />
+
       <ConfirmDeleteModal
         visible={!!confirmacaoExclusao}
         label={confirmacaoExclusao?.label}
@@ -2894,15 +2915,7 @@ function HomeScreenContent() {
                     )}
                   </View>
                 ) : previewExportacaoTipo === 'excel' ? (
-                  <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border, marginTop: 0 }]}> 
-                    <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Prévia da planilha</Text>
-                    {['Resumo', 'Entradas', 'Fixos', 'Saídas', 'Categorias', 'Cartões'].map((sheet) => (
-                      <View key={sheet} style={[styles.fullRowCard, { borderColor: theme.border, backgroundColor: theme.card }]}> 
-                        <Text style={[styles.rowItemTitle, { color: theme.text }]}>{sheet}</Text>
-                        <Text style={[styles.rowItemMeta, { color: theme.muted }]}>{sheet === 'Resumo' ? 'Indicadores do mês e saldo.' : `Aba ${sheet} pronta para exportação.`}</Text>
-                      </View>
-                    ))}
-                  </View>
+                  <PreviaPlanilha theme={theme} dados={dadosExportacao} />
                 ) : (
                   <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border, marginTop: 0 }]}> 
                     <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Prévia do CSV</Text>

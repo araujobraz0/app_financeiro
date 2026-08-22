@@ -318,19 +318,23 @@ const local = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    alignSelf: 'flex-start',
-    maxWidth: '100%',
+    // `alignSelf: flex-start` deixava o chip crescer com o texto e passar da
+    // borda do card. Ocupando a largura toda, o texto tem onde truncar.
+    width: '100%',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
     marginTop: 7,
+    overflow: 'hidden',
   },
-  linkTexto: { fontSize: 10, fontWeight: '700', flexShrink: 1 },
+  linkTexto: { fontSize: 10, fontWeight: '700', flex: 1, minWidth: 0 },
   linkContato: {
+    // Topo do quadrado, centralizado entre o lapis e o x — antes ficava no
+    // rodape e cobria a chave.
     position: 'absolute',
-    bottom: 5,
-    right: 5,
+    top: 5,
+    alignSelf: 'center',
     width: 20,
     height: 20,
     borderRadius: 999,

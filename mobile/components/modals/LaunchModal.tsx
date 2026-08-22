@@ -84,46 +84,19 @@ export default function LaunchModal({
   const [installmentDescription, setInstallmentDescription] = useState(initialValues.installmentDescription)
   const [installmentValue, setInstallmentValue] = useState(initialValues.installmentValue)
   const [installmentTotal, setInstallmentTotal] = useState(initialValues.installmentTotal)
+  const [naoSei, setNaoSei] = useState(initialValues.name.trim() === 'N/S')
 
   const ehParcela = formType === 'parcela'
 
+  const nomeFinal = naoSei ? 'N/S' : name
+
   const podeSalvar = ehParcela
     ? installmentDescription.trim().length > 0 && !!selectedCardId
-    : name.trim().length > 0
+    : nomeFinal.trim().length > 0
 
   const handleSave = () => {
-    onSave({ name, selectedCategory, value, installmentDescription, installmentValue, installmentTotal })
+    onSave({ name: nomeFinal, selectedCategory, value, installmentDescription, installmentValue, installmentTotal })
   }
-
-  /** Faixa horizontal de opcoes (categorias, cartoes). */
-  const faixa = (
-    itens: { chave: string; label: string }[],
-    selecionado: string | null,
-    onSelecionar: (chave: string) => void
-  ) => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.faixa}>
-      {itens.map((item) => {
-        const ativo = selecionado === item.chave
-        return (
-          <PressableScale
-            key={item.chave}
-            onPress={() => onSelecionar(item.chave)}
-            style={[
-              styles.pilula,
-              {
-                backgroundColor: ativo ? theme.primary : theme.cardSoft,
-                borderColor: ativo ? theme.primary : theme.border,
-              },
-            ]}
-          >
-            <Text style={[styles.pilulaTexto, { color: ativo ? theme.textInverse : theme.text }]}>
-              {item.label}
-            </Text>
-          </PressableScale>
-        )
-      })}
-    </ScrollView>
-  )
 
   const campoDia = (rotulo: string) => (
     <Campo
@@ -259,20 +232,72 @@ export default function LaunchModal({
           <Campo
             theme={theme}
             rotulo="Nome"
-            value={name}
+            value={naoSei ? 'N/S' : name}
             onChangeText={setName}
             placeholder="Digite o nome"
+            editable={!naoSei}
             autoFocus={mode === 'novo'}
           />
+
+          {/* Para lancar rapido quando o nome nao vem agora: o gasto entra na
+              conta do mes com "N/S" e pode ser renomeado depois. */}
+          <PressableScale
+            onPress={() => setNaoSei((v) => !v)}
+            scaleTo={0.98}
+            style={styles.naoSeiLinha}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: naoSei }}
+          >
+            <View
+              style={[
+                styles.caixa,
+                {
+                  backgroundColor: naoSei ? theme.primary : theme.cardSoft,
+                  borderColor: naoSei ? theme.primary : theme.borderStrong,
+                },
+              ]}
+            >
+              {naoSei ? <Icon name="confirmar" size={13} color={theme.textInverse} /> : null}
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.naoSeiTitulo, { color: theme.text }]}>Não sei o nome</Text>
+              <Text style={[styles.naoSeiDica, { color: theme.muted }]}>
+                Salva como "N/S" e você renomeia depois
+              </Text>
+            </View>
+          </PressableScale>
 
           {formType === 'saida' ? (
             <>
               <Text style={[styles.rotuloFaixa, { color: theme.muted }]}>Categoria</Text>
-              {faixa(
-                categories.map((c) => ({ chave: c, label: c })),
-                selectedCategory,
-                setSelectedCategory
-              )}
+              {/* Mesma grade da aba Variaveis: numa faixa horizontal as
+                  ultimas categorias ficam escondidas fora da tela. */}
+              <View style={styles.gradeCategorias}>
+                {categories.map((categoria) => {
+                  const ativo = selectedCategory === categoria
+                  return (
+                    <PressableScale
+                      key={categoria}
+                      onPress={() => setSelectedCategory(categoria)}
+                      scaleTo={0.95}
+                      style={[
+                        styles.chipCategoria,
+                        {
+                          backgroundColor: ativo ? theme.primary : theme.cardSoft,
+                          borderColor: ativo ? theme.primary : theme.border,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.chipCategoriaTexto, { color: ativo ? theme.textInverse : theme.muted }]}
+                        numberOfLines={1}
+                      >
+                        {categoria}
+                      </Text>
+                    </PressableScale>
+                  )
+                })}
+              </View>
             </>
           ) : null}
 
@@ -324,6 +349,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pilulaTexto: { fontSize: 12, fontWeight: '700' },
+  gradeCategorias: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 16 },
+  chipCategoria: {
+    minHeight: 34,
+    paddingHorizontal: 13,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipCategoriaTexto: { fontSize: 12, fontWeight: '700', letterSpacing: -0.1 },
+
+  naoSeiLinha: { flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: -6, marginBottom: 16 },
+  caixa: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  naoSeiTitulo: { fontSize: 13, fontWeight: '700' },
+  naoSeiDica: { fontSize: 11, fontWeight: '500', marginTop: 1 },
+
   aviso: {
     flexDirection: 'row',
     alignItems: 'center',

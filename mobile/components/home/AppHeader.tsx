@@ -17,6 +17,9 @@ type Props = {
   avatarUri: string | null
   iniciais: string
   premiumAtivo: boolean
+  /** Competencia em exibicao, mostrada ao lado do perfil. */
+  competencia: string
+  onAbrirPeriodo: () => void
   valoresOcultos: boolean
   temaEscuro: boolean
   onAbrirPerfil: () => void
@@ -32,6 +35,8 @@ function AppHeader({
   avatarUri,
   iniciais,
   premiumAtivo,
+  competencia,
+  onAbrirPeriodo,
   valoresOcultos,
   temaEscuro,
   onAbrirPerfil,
@@ -88,10 +93,23 @@ function AppHeader({
         </View>
       </PressableScale>
 
+      {/* A competencia fica no cabecalho fixo: assim continua visivel por mais
+          que a tela role, sem precisar voltar ao topo para lembrar o mes. */}
+      <PressableScale
+        onPress={onAbrirPeriodo}
+        scaleTo={0.95}
+        style={[styles.competencia, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}
+        accessibilityLabel="Trocar mês"
+      >
+        <Text style={[styles.competenciaTexto, { color: theme.accent }]} numberOfLines={1}>
+          {competencia}
+        </Text>
+        <Icon name="seta_baixo" size={12} color={theme.accent} />
+      </PressableScale>
+
       <View style={styles.acoes}>
         {botao(onAlternarValores, valoresOcultos ? 'olho_fechado' : 'olho', valoresOcultos, 'Mostrar ou ocultar valores')}
         {botao(onAlternarTema, temaEscuro ? 'sol' : 'lua', false, 'Alternar tema')}
-        {botao(onAbrirPerfil, 'configuracoes', false, 'Configurações')}
         {botao(onSair, 'sair', false, 'Sair')}
       </View>
     </View>
@@ -133,6 +151,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   textos: { flex: 1, minWidth: 0 },
+  competencia: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    minHeight: 30,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexShrink: 0,
+  },
+  competenciaTexto: { fontSize: 11, fontWeight: '800', letterSpacing: -0.1 },
   nome: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
   email: { fontSize: 11, fontWeight: '500', marginTop: 1 },
   acoes: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
