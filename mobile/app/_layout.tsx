@@ -194,7 +194,13 @@ export default function RootLayout() {
 
     const currentRoute = segments[segments.length - 1]
 
-    if (!isLoggedIn && currentRoute !== 'login') {
+    // 'callback' e 'reset-password' sao as rotas que ESTABELECEM a sessao: ao
+    // chegar nelas o usuario ainda nao esta logado por definicao. Trata-las
+    // como area restrita expulsava o retorno do OAuth na web antes de o codigo
+    // ser trocado pela sessao.
+    const rotasPublicas = ['login', 'callback', 'reset-password']
+
+    if (!isLoggedIn && !rotasPublicas.includes(String(currentRoute))) {
       router.replace('/login')
       return
     }

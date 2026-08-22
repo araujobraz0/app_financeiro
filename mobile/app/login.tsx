@@ -17,7 +17,7 @@ import {
 import { router } from 'expo-router'
 import { supabase } from '../src/lib/supabase'
 import * as WebBrowser from 'expo-web-browser'
-import { makeRedirectUri } from 'expo-auth-session'
+import { buildAuthRedirectUri } from '../src/utils/authRedirect'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import PressableScale from '../components/common/motion/PressableScale'
 
@@ -155,6 +155,9 @@ export default function LoginScreen() {
         email: email.trim(),
         password: senha,
         options: {
+          // Sem isto o link de confirmacao usa o "Site URL" do painel do
+          // Supabase, que pode apontar para fora do app.
+          emailRedirectTo: buildAuthRedirectUri('auth/callback'),
           data: {
             nome: nome.trim(),
           },
@@ -183,10 +186,7 @@ export default function LoginScreen() {
     try {
       setCarregando(true)
 
-      const redirectTo = makeRedirectUri({
-        scheme: 'brazllet',
-        path: 'reset-password',
-      })
+      const redirectTo = buildAuthRedirectUri('reset-password')
 
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo,
@@ -209,10 +209,21 @@ export default function LoginScreen() {
     try {
       setCarregandoGoogle(true)
 
-      const redirectTo = makeRedirectUri({
-        scheme: 'brazllet',
-        path: 'auth/callback',
-      })
+      const redirectTo = buildAuthRedirectUri('auth/callback')
+
+      // Na web quem conduz o retorno e o proprio navegador: deixamos o
+      // Supabase redirecionar para `redirectTo` e a rota /auth/callback troca
+      // o code pela sessao. O fluxo com WebBrowser abaixo e o padrao nativo e
+      // nao se traduz para o navegador.
+      if (Platform.OS === 'web') {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo },
+        })
+
+        if (error) setErro(error.message)
+        return
+      }
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
