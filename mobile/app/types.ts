@@ -122,6 +122,7 @@ export type PremiumEntitlement = {
 }
 
 export type Tema = {
+  // --- Tokens originais (mantidos: todo o app ja depende deles) ---
   background: string
   backgroundSoft: string
   card: string
@@ -136,6 +137,32 @@ export type Tema = {
   blue: string
   shadow: string
   white: string
+
+  // --- Tokens do redesign ---
+  /** Superficie acima do card (modais, itens destacados). */
+  surface: string
+  /** Dourado da marca, presente nos dois temas (premium, destaques). */
+  accent: string
+  /** Dourado translucido para fundos de badge/chip. */
+  accentSoft: string
+  /** Texto sobre fundo `primary`/`accent`. */
+  textInverse: string
+  /** Texto terciario, ainda mais discreto que `muted`. */
+  faint: string
+  /** Backdrop dos modais. */
+  overlay: string
+  /** Sombra mais densa, para elementos flutuantes. */
+  shadowStrong: string
+  /** Gradiente de destaque (saldo, hero). */
+  gradientFrom: string
+  gradientTo: string
+  /** Fundos tingidos para estados semanticos. */
+  greenSoft: string
+  redSoft: string
+  blueSoft: string
+  /** Placeholder de carregamento. */
+  skeleton: string
+  skeletonHighlight: string
 }
 
 export type AbaInferior = 'home' | 'fixo' | 'variavel' | 'cartao'

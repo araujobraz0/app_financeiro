@@ -272,13 +272,22 @@ export default function RootLayout() {
   return (
     <View style={styles.root}>
       <Animated.View style={[styles.appContainer, { opacity: fadeAnim }]}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="login" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            // Deslize horizontal com fade — a transicao padrao do redesign.
+            animation: 'slide_from_right',
+            animationDuration: 260,
+            gestureEnabled: true,
+            contentStyle: { backgroundColor: 'transparent' },
+          }}
+        >
+          <Stack.Screen name="login" options={{ animation: 'fade' }} />
           <Stack.Screen name="primeiro-acesso" />
-          <Stack.Screen name="home" />
-          <Stack.Screen name="premium" />
+          <Stack.Screen name="home" options={{ animation: 'fade', gestureEnabled: false }} />
+          <Stack.Screen name="premium" options={{ animation: 'slide_from_bottom' }} />
           <Stack.Screen name="reset-password" />
-          <Stack.Screen name="auth/callback" />
+          <Stack.Screen name="auth/callback" options={{ animation: 'fade' }} />
         </Stack>
       </Animated.View>
 

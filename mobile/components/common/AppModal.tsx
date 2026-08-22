@@ -1,6 +1,5 @@
-import { type ReactNode, useEffect, useRef } from 'react'
+import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import {
-  Animated,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -10,6 +9,17 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native'
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated'
+
+import { MODAL_SCALE_FROM, duration, easing, spring } from '../../src/theme/motion'
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
 
 type AppModalProps = {
   visible: boolean
@@ -24,13 +34,38 @@ type AppModalProps = {
 }
 
 export default function AppModal({ visible, onClose, children, level = 0 }: AppModalProps) {
-  const translateY = useRef(new Animated.Value(0)).current
+  /**
+   * O <Modal> nativo desmonta na hora que `visible` vira false, o que mataria
+   * a animacao de saida. Por isso mantemos um estado proprio: ele so desliga
+   * depois que a animacao termina.
+   */
+  const [mounted, setMounted] = useState(visible)
+
+  const progress = useSharedValue(visible ? 1 : 0)
+  const keyboardOffset = useSharedValue(0)
   const { height: windowHeight } = useWindowDimensions()
+
+  const unmount = useCallback(() => setMounted(false), [])
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true)
+      progress.value = withSpring(1, spring.gentle)
+      return
+    }
+
+    progress.value = withTiming(
+      0,
+      { duration: duration.fast, easing: easing.accelerate },
+      (finished) => {
+        if (finished) runOnJS(unmount)()
+      }
+    )
+  }, [progress, unmount, visible])
 
   useEffect(() => {
     if (!visible) {
-      translateY.stopAnimation()
-      translateY.setValue(0)
+      keyboardOffset.value = 0
       return
     }
 
@@ -44,19 +79,11 @@ export default function AppModal({ visible, onClose, children, level = 0 }: AppM
         Math.min(12, windowHeight * 0.018)
       )
 
-      Animated.timing(translateY, {
-        toValue: -deslocamento,
-        duration: Platform.OS === 'ios' ? 220 : 180,
-        useNativeDriver: true,
-      }).start()
+      keyboardOffset.value = withSpring(-deslocamento, spring.snappy)
     }
 
     const onKeyboardHide = () => {
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: Platform.OS === 'ios' ? 220 : 180,
-        useNativeDriver: true,
-      }).start()
+      keyboardOffset.value = withSpring(0, spring.snappy)
     }
 
     const showSubscription = Keyboard.addListener(showEvent as any, onKeyboardShow)
@@ -66,25 +93,40 @@ export default function AppModal({ visible, onClose, children, level = 0 }: AppM
       showSubscription.remove()
       hideSubscription.remove()
     }
-  }, [translateY, visible, windowHeight])
+  }, [keyboardOffset, visible, windowHeight])
+
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+  }))
+
+  const cardStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    transform: [
+      { translateY: keyboardOffset.value + (1 - progress.value) * 18 },
+      { scale: MODAL_SCALE_FROM + (1 - MODAL_SCALE_FROM) * progress.value },
+    ],
+  }))
 
   return (
     <Modal
-      visible={visible}
+      visible={mounted}
       transparent
-      animationType='fade'
+      animationType='none'
       onRequestClose={onClose}
       statusBarTranslucent
     >
       <View style={[styles.modalOverlay, level > 0 && { zIndex: level }]}>
-        <Pressable style={styles.modalBackdropTouch} onPress={onClose} />
+        <AnimatedPressable
+          style={[styles.modalBackdropTouch, styles.modalBackdrop, backdropStyle]}
+          onPress={onClose}
+        />
         <KeyboardAvoidingView
           pointerEvents='box-none'
           style={styles.modalCenterWrap}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}
         >
-          <Animated.View style={[styles.modalKeyboardWrap, { transform: [{ translateY }] }]}> 
+          <Animated.View style={[styles.modalKeyboardWrap, cardStyle]}>
             {children}
           </Animated.View>
         </KeyboardAvoidingView>
@@ -99,7 +141,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     minHeight: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.52)',
     paddingHorizontal: 18,
     paddingVertical: 14,
   },
@@ -113,6 +154,9 @@ const styles = StyleSheet.create({
   },
   modalBackdropTouch: {
     ...StyleSheet.absoluteFillObject,
+  },
+  modalBackdrop: {
+    backgroundColor: 'rgba(6, 14, 10, 0.62)',
   },
   modalKeyboardWrap: {
     flex: 1,
