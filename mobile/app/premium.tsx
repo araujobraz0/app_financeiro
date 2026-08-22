@@ -21,6 +21,7 @@ import { darkTheme, lightTheme, THEME_KEY, THEME_MODE_KEY } from '../src/theme/t
 import { formatarMoeda } from '../src/utils/currency'
 import type { PremiumEntitlement, SettingsThemeMode, Tema } from './types'
 import PressableScale from '../components/common/motion/PressableScale'
+import Icon from '../components/common/Icon'
 
 type PixResponse = {
   payment_id: string
@@ -423,7 +424,7 @@ export default function PremiumScreen() {
         <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.appOverviewHeader}>
             <View style={[styles.appOverviewIconWrap, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.appOverviewIcon, { color: theme.primary }]}>✓</Text>
+              <Icon name="confirmar" size={16} color={theme.primary} />
             </View>
             <View style={styles.appOverviewTitleWrap}>
               <Text style={[styles.sectionTitle, styles.appOverviewTitle, { color: theme.text }]}>O que o Brazllet possui</Text>

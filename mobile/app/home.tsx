@@ -3040,7 +3040,7 @@ function HomeScreenContent() {
       <AppModal visible={!!avisoAtualizacao} onClose={() => setAvisoAtualizacao(null)}>
         <View style={[styles.modalCard, styles.modalCardConfirmDelete, styles.modalCardUpdateNotice, { backgroundColor: theme.card, borderColor: theme.borderStrong }]}> 
           <View style={[styles.updateNoticeIconWrap, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
-            <Text style={[styles.updateNoticeIcon, { color: theme.primary }]}>{avisoAtualizacao?.acao ? '↻' : '✓'}</Text>
+            <Icon name={avisoAtualizacao?.acao ? "ordenar" : "confirmar"} size={26} color={theme.primary} />
           </View>
           <Text style={[styles.modalTitle, { color: theme.text, textAlign: 'center' }]}>{avisoAtualizacao?.titulo || 'Atualizações'}</Text>
           <Text style={[styles.emptyChartText, { color: theme.muted, marginBottom: 16, textAlign: 'center' }]}>{avisoAtualizacao?.mensagem || ''}</Text>

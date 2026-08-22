@@ -18,6 +18,7 @@ import Animated, {
 } from 'react-native-reanimated'
 
 import { MODAL_SCALE_FROM, duration, easing, spring } from '../../src/theme/motion'
+import Icon from './Icon'
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
 
@@ -128,6 +129,16 @@ export default function AppModal({ visible, onClose, children, level = 0 }: AppM
         >
           <Animated.View style={[styles.modalKeyboardWrap, cardStyle]}>
             {children}
+
+            <Pressable
+              onPress={onClose}
+              style={styles.closeButton}
+              accessibilityRole="button"
+              accessibilityLabel="Fechar"
+              hitSlop={8}
+            >
+              <Icon name="excluir" size={20} color="rgba(255,255,255,0.92)" />
+            </Pressable>
           </Animated.View>
         </KeyboardAvoidingView>
       </View>
@@ -156,7 +167,18 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   modalBackdrop: {
-    backgroundColor: 'rgba(6, 14, 10, 0.62)',
+    backgroundColor: 'rgba(5, 12, 8, 0.74)',
+  },
+  closeButton: {
+    marginTop: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
   },
   modalKeyboardWrap: {
     flex: 1,

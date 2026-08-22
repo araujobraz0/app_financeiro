@@ -5,6 +5,7 @@ import type { NoteItem, NoteModalMode, PixItem, Tema } from '../../app/types'
 import { styles } from '../../src/theme/homeStyles'
 import PressableScale from '../common/motion/PressableScale'
 import Icon from '../common/Icon'
+import ListRow from '../common/ListRow'
 
 type NotasPixCardProps = {
   theme: Tema
@@ -81,38 +82,41 @@ function NotasPixCard({
         </View>
       ) : (
         pixOrdenados.map((item) => (
-          <View
+          <ListRow
             key={item.id}
-            onLayout={(event) => registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)}
-            style={[
-              styles.fullRowCard,
-              highlightedItemId === item.id && styles.searchHighlightCard,
-              { borderColor: theme.border, backgroundColor: theme.cardSoft },
-            ]}
+            theme={theme}
+            titulo={item.nome}
+            meta={item.chave}
+            onEditar={() => onEditarPix(item)}
+            onExcluir={() => onExcluirPix(item.id, item.nome)}
+            acoesExtras={
+              <PressableScale
+                onPress={() => onCopiarPix(item.id, item.chave)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: copiedPixId === item.id ? theme.greenSoft : theme.card,
+                  borderColor: copiedPixId === item.id ? theme.green : theme.border,
+                }}
+              >
+                <Icon
+                  name={copiedPixId === item.id ? 'confirmar' : 'copiar'}
+                  size={15}
+                  color={copiedPixId === item.id ? theme.green : theme.muted}
+                />
+              </PressableScale>
+            }
+            destacado={highlightedItemId === item.id}
+            overlay={renderHighlightOverlay(item.id)}
+            onLayout={(y, height) => registrarLayoutItem(item.id, y, height)}
           >
-            {renderHighlightOverlay(item.id)}
-            <View style={styles.fullRowTop}>
-              <View style={styles.fullRowTitleWrap}>
-                <Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.nome}</Text>
-                {renderTextoSecundario(item.chave, item.chave, theme.muted)}
-                {!!item.observacao && renderTextoSecundario(item.observacao, item.observacao, theme.muted)}
-                {renderListaLinks(item.links)}
-              </View>
-              <View style={styles.inlineActions}>
-                <PressableScale onPress={() => onCopiarPix(item.id, item.chave)} style={styles.iconBtn}>
-                  <Text style={[styles.iconBtnText, { color: copiedPixId === item.id ? theme.green : theme.text }]}>
-                    {copiedPixId === item.id ? '✓' : '⎘'}
-                  </Text>
-                </PressableScale>
-                <PressableScale onPress={() => onEditarPix(item)} style={styles.iconBtn}>
-                  <Icon name="editar" size={16} color={theme.text} />
-                </PressableScale>
-                <PressableScale onPress={() => onExcluirPix(item.id, item.nome)} style={styles.iconBtn}>
-                  <Icon name="excluir" size={18} color={theme.red} />
-                </PressableScale>
-              </View>
-            </View>
-          </View>
+            {!!item.observacao && renderTextoSecundario(item.observacao, item.observacao, theme.muted)}
+            {renderListaLinks(item.links)}
+          </ListRow>
         ))
       )}
 
@@ -123,32 +127,19 @@ function NotasPixCard({
         </View>
       ) : (
         notasOrdenadas.map((item) => (
-          <View
+          <ListRow
             key={item.id}
-            onLayout={(event) => registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)}
-            style={[
-              styles.fullRowCard,
-              highlightedItemId === item.id && styles.searchHighlightCard,
-              { borderColor: theme.border, backgroundColor: theme.cardSoft },
-            ]}
+            theme={theme}
+            titulo={item.titulo}
+            onEditar={() => onEditarNota(item)}
+            onExcluir={() => onExcluirNota(item.id, item.titulo)}
+            destacado={highlightedItemId === item.id}
+            overlay={renderHighlightOverlay(item.id)}
+            onLayout={(y, height) => registrarLayoutItem(item.id, y, height)}
           >
-            {renderHighlightOverlay(item.id)}
-            <View style={styles.fullRowTop}>
-              <View style={styles.fullRowTitleWrap}>
-                <Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.titulo}</Text>
-                {renderTextoSecundario(item.conteudo, 'Sem conteúdo', theme.muted)}
-                {renderListaLinks(item.links)}
-              </View>
-              <View style={styles.inlineActions}>
-                <PressableScale onPress={() => onEditarNota(item)} style={styles.iconBtn}>
-                  <Icon name="editar" size={16} color={theme.text} />
-                </PressableScale>
-                <PressableScale onPress={() => onExcluirNota(item.id, item.titulo)} style={styles.iconBtn}>
-                  <Icon name="excluir" size={18} color={theme.red} />
-                </PressableScale>
-              </View>
-            </View>
-          </View>
+            {renderTextoSecundario(item.conteudo, 'Sem conteúdo', theme.muted)}
+            {renderListaLinks(item.links)}
+          </ListRow>
         ))
       )}
     </View>

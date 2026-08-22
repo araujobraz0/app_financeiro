@@ -6,6 +6,7 @@ import { formatarMoeda } from '../../src/utils/currency'
 import { formatarDiaMes } from '../../src/utils/dates'
 import { styles } from '../../src/theme/homeStyles'
 import PressableScale from '../common/motion/PressableScale'
+import ListRow from '../common/ListRow'
 import Icon from '../common/Icon'
 
 type VariavelTabProps = {
@@ -70,7 +71,7 @@ function VariavelTab({
       <View style={[styles.manageCard, styles.sectionCardSpaced, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <View style={styles.manageHeaderRow}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.manageTitle, { color: theme.text }]}>VARIÁVEL</Text>
+            <Text style={[styles.manageTitle, { color: theme.text }]}>Entradas e saídas</Text>
             <Text style={[styles.manageSub, { color: theme.muted }]}>
               {tipoVariavelTab === 'entrada'
                 ? `Total de entradas: ${formatarValorVisivel(totalEntradas)}`
@@ -174,32 +175,19 @@ function VariavelTab({
             </View>
           ) : (
             entradasOrdenadas.map((item) => (
-              <View
+              <ListRow
                 key={item.id}
-                onLayout={(event) => registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)}
-                style={[
-                  styles.fullRowCard,
-                  highlightedItemId === item.id && styles.searchHighlightCard,
-                  { borderColor: theme.border, backgroundColor: theme.cardSoft },
-                ]}
-              >
-                {renderHighlightOverlay(item.id)}
-                <View style={styles.fullRowTop}>
-                  <View style={styles.fullRowTitleWrap}>
-                    <Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.nome}</Text>
-                    <Text style={[styles.rowItemMeta, { color: theme.muted }]}>{formatarDiaMes(item.dia, chaveAtual)}</Text>
-                  </View>
-                  <View style={styles.inlineActions}>
-                    <Text style={[styles.rowItemValue, { color: theme.green }]}>{formatarValorVisivel(item.valor)}</Text>
-                    <PressableScale onPress={() => onEditarEntrada(item)} style={styles.iconBtn}>
-                      <Icon name="editar" size={16} color={theme.text} />
-                    </PressableScale>
-                    <PressableScale onPress={() => onExcluirEntrada(item.id, item.nome)} style={styles.iconBtn}>
-                      <Icon name="excluir" size={18} color={theme.red} />
-                    </PressableScale>
-                  </View>
-                </View>
-              </View>
+                theme={theme}
+                titulo={item.nome}
+                meta={formatarDiaMes(item.dia, chaveAtual)}
+                valor={formatarValorVisivel(item.valor)}
+                valorCor={theme.green}
+                onEditar={() => onEditarEntrada(item)}
+                onExcluir={() => onExcluirEntrada(item.id, item.nome)}
+                destacado={highlightedItemId === item.id}
+                overlay={renderHighlightOverlay(item.id)}
+                onLayout={(y, height) => registrarLayoutItem(item.id, y, height)}
+              />
             ))
           )
         ) : saidasOrdenadas.length === 0 ? (
@@ -208,34 +196,19 @@ function VariavelTab({
           </View>
         ) : (
           saidasOrdenadas.map((item) => (
-            <View
+            <ListRow
               key={item.id}
-              onLayout={(event) => registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)}
-              style={[
-                styles.fullRowCard,
-                highlightedItemId === item.id && styles.searchHighlightCard,
-                { borderColor: theme.border, backgroundColor: theme.cardSoft },
-              ]}
-            >
-              {renderHighlightOverlay(item.id)}
-              <View style={styles.fullRowTop}>
-                <View style={styles.fullRowTitleWrap}>
-                  <Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.nome}</Text>
-                  <Text style={[styles.rowItemMeta, { color: theme.muted }]}>
-                    {item.categoria} · {formatarDiaMes(item.dia, chaveAtual)}
-                  </Text>
-                </View>
-                <View style={styles.inlineActions}>
-                  <Text style={[styles.rowItemValue, { color: theme.red }]}>{formatarValorVisivel(item.valor)}</Text>
-                  <PressableScale onPress={() => onEditarSaida(item)} style={styles.iconBtn}>
-                    <Icon name="editar" size={16} color={theme.text} />
-                  </PressableScale>
-                  <PressableScale onPress={() => onExcluirSaida(item.id, item.nome)} style={styles.iconBtn}>
-                    <Icon name="excluir" size={18} color={theme.red} />
-                  </PressableScale>
-                </View>
-              </View>
-            </View>
+              theme={theme}
+              titulo={item.nome}
+              meta={`${item.categoria} · ${formatarDiaMes(item.dia, chaveAtual)}`}
+              valor={formatarValorVisivel(item.valor)}
+              valorCor={theme.red}
+              onEditar={() => onEditarSaida(item)}
+              onExcluir={() => onExcluirSaida(item.id, item.nome)}
+              destacado={highlightedItemId === item.id}
+              overlay={renderHighlightOverlay(item.id)}
+              onLayout={(y, height) => registrarLayoutItem(item.id, y, height)}
+            />
           ))
         )}
       </View>

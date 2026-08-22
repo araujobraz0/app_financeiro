@@ -4,7 +4,7 @@ import { Text, View } from 'react-native'
 import type { ShoppingWishItem, Tema } from '../../app/types'
 import { styles } from '../../src/theme/homeStyles'
 import PressableScale from '../common/motion/PressableScale'
-import Icon from '../common/Icon'
+import ListRow from '../common/ListRow'
 
 type ComprasDesejoCardProps = {
   theme: Tema
@@ -54,54 +54,30 @@ function ComprasDesejoCard({
         </View>
       ) : (
         itens.map((item) => (
-          <View
+          <ListRow
             key={item.id}
-            onLayout={(event) => registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)}
-            style={[
-              styles.fullRowCard,
-              highlightedItemId === item.id && styles.searchHighlightCard,
-              { borderColor: theme.border, backgroundColor: theme.cardSoft },
-            ]}
+            theme={theme}
+            titulo={item.nome}
+            valor={formatarValorVisivel(item.precoAtual)}
+            valorCor={item.comprado ? theme.muted : theme.text}
+            meta={[item.loja || 'Loja não informada', item.dataVista || 'Data não informada'].join(' · ')}
+            status={{
+              label: item.comprado ? 'Comprado' : 'Quero',
+              ativo: item.comprado,
+              onPress: () => onAlternarComprado(item.id, !item.comprado),
+            }}
+            onEditar={() => onEditar(item)}
+            onExcluir={() => onExcluir(item.id, item.nome)}
+            destacado={highlightedItemId === item.id}
+            overlay={renderHighlightOverlay(item.id)}
+            onLayout={(y, height) => registrarLayoutItem(item.id, y, height)}
           >
-            {renderHighlightOverlay(item.id)}
-            <View style={styles.fullRowTop}>
-              <View style={styles.fullRowTitleWrap}>
-                <Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.nome}</Text>
-                <Text style={[styles.rowItemMeta, { color: theme.muted }]}>
-                  Preço encontrado: {formatarValorVisivel(item.precoAtual)}
-                </Text>
-                <Text style={[styles.rowItemMeta, { color: theme.muted }]}>
-                  {item.loja || 'Loja não informada'} · {item.dataVista || 'Data não informada'}
-                </Text>
-                {!!item.observacao && (
-                  <Text style={[styles.rowItemMeta, { color: theme.muted }]}>{item.observacao}</Text>
-                )}
-              </View>
-              <View style={styles.inlineActions}>
-                <PressableScale
-                  onPress={() => onAlternarComprado(item.id, !item.comprado)}
-                  style={[
-                    styles.statusBtn,
-                    {
-                      backgroundColor: item.comprado ? theme.green : theme.card,
-                      borderWidth: 1,
-                      borderColor: item.comprado ? theme.green : theme.border,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.statusBtnText, { color: item.comprado ? theme.white : theme.text }]}>
-                    {item.comprado ? 'Comprado' : 'Não comprado'}
-                  </Text>
-                </PressableScale>
-                <PressableScale onPress={() => onEditar(item)} style={styles.iconBtn}>
-                  <Icon name="editar" size={16} color={theme.text} />
-                </PressableScale>
-                <PressableScale onPress={() => onExcluir(item.id, item.nome)} style={styles.iconBtn}>
-                  <Icon name="excluir" size={18} color={theme.red} />
-                </PressableScale>
-              </View>
-            </View>
-          </View>
+            {item.observacao ? (
+              <Text style={{ color: theme.muted, fontSize: 12, fontWeight: '500', marginTop: 4, lineHeight: 17 }}>
+                {item.observacao}
+              </Text>
+            ) : null}
+          </ListRow>
         ))
       )}
     </View>
