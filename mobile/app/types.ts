@@ -16,14 +16,41 @@ export type SaidaItem = {
   dia?: number
 }
 
+/** Gasto fixo como a tela ve: ja resolvido para uma competencia. */
 export type FixoItem = {
   id: string
   nome: string
   valor: number
   pago: boolean
+  /** Dia em que foi marcado como pago. Null enquanto estiver em aberto. */
+  pagoNoDia?: number | null
   dia?: number
   recorrenteId?: string
   criadoEmCompetencia?: string
+}
+
+/** Um valor do gasto fixo, valendo a partir de uma competencia. */
+export type FixoVersao = {
+  desde: string
+  nome: string
+  valor: number
+}
+
+/**
+ * Definicao de um gasto fixo, guardada uma unica vez.
+ *
+ * O app antes gravava uma copia do gasto dentro de cada mes, e "mudar daqui
+ * para a frente" virava um laco que so alcancava os meses ja gravados. Aqui a
+ * regra e a propria estrutura: o gasto vale de `criadoEm` ate `encerradoEm`
+ * (exclusivo) e cada versao passa a valer a partir da sua competencia. Meses
+ * anteriores continuam lendo a versao antiga porque nunca foram tocados.
+ */
+export type FixoRecorrente = {
+  id: string
+  criadoEm: string
+  /** Primeira competencia em que o gasto NAO existe mais. Null = sem fim. */
+  encerradoEm: string | null
+  versoes: FixoVersao[]
 }
 
 export type NoteItem = {
@@ -85,7 +112,14 @@ export type ShoppingWishItem = {
 export type DadosMes = {
   salario: number
   entradas: EntradaItem[]
+  /**
+   * Copia legada dos gastos fixos do mes. Nao e mais a fonte da verdade — os
+   * gastos vivem em `global.fixosRecorrentes` —, mas continua gravada para que
+   * dados antigos possam ser relidos se a migracao precisar rodar de novo.
+   */
   fixo: FixoItem[]
+  /** Dia em que cada gasto fixo foi marcado como pago neste mes. */
+  fixoPagos?: Record<string, number>
   saidas: SaidaItem[]
   categoriasSaidas: string[]
 }
@@ -109,6 +143,14 @@ export type GlobalData = {
   investmentPercentage: number
   investmentBaseMode: InvestmentBaseMode
   hideValues: boolean
+  /** Gastos fixos do usuario, com o historico de valores. */
+  fixosRecorrentes: FixoRecorrente[]
+  /**
+   * Marca que os gastos fixos ja sairam do formato antigo (uma copia por mes).
+   * Sem ela nao da para distinguir "ainda nao migrou" de "migrou e o usuario
+   * apagou todos" — e o segundo caso reviveria os gastos a cada carga.
+   */
+  fixosMigrados: boolean
 }
 
 export type AppData = {

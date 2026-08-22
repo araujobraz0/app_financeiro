@@ -1,6 +1,10 @@
 // Cabecalho fixo do app: foto a esquerda, mes no meio, acoes a direita.
 // Nome e e-mail moram so nas configuracoes — aqui o espaco e curto demais.
 //
+// Desfazer e refazer ficam num par colado, com um traco no meio: sao uma
+// ferramenta so, e separa-los em dois circulos soltos fazia a barra parecer
+// uma fileira de botoes sem relacao.
+//
 // Fica FORA do ScrollView de proposito — assim ele nao rola por construcao,
 // sem depender de posicionamento absoluto ou de listener de scroll.
 
@@ -20,9 +24,12 @@ type Props = {
   competencia: string
   onAbrirPeriodo: () => void
   valoresOcultos: boolean
+  temaEscuro: boolean
   onAbrirPerfil: () => void
   onAbrirConfiguracoes: () => void
   onAlternarValores: () => void
+  onAlternarTema: () => void
+  onSair: () => void
   /** Desfazer / refazer a ultima edicao de dados. */
   podeDesfazer: boolean
   podeRefazer: boolean
@@ -38,9 +45,12 @@ function AppHeader({
   competencia,
   onAbrirPeriodo,
   valoresOcultos,
+  temaEscuro,
   onAbrirPerfil,
   onAbrirConfiguracoes,
   onAlternarValores,
+  onAlternarTema,
+  onSair,
   podeDesfazer,
   podeRefazer,
   onDesfazer,
@@ -68,7 +78,30 @@ function AppHeader({
         },
       ]}
     >
-      <Icon name={icone} size={16} color={ativo ? theme.textInverse : theme.muted} />
+      <Icon name={icone} size={15} color={ativo ? theme.textInverse : theme.muted} />
+    </PressableScale>
+  )
+
+  const meia = (
+    onPress: () => void,
+    icone: Parameters<typeof Icon>[0]['name'],
+    rotulo: string,
+    desabilitado: boolean,
+    lado: 'esquerda' | 'direita'
+  ) => (
+    <PressableScale
+      onPress={desabilitado ? () => {} : onPress}
+      scaleTo={desabilitado ? 1 : 0.88}
+      accessibilityRole="button"
+      accessibilityLabel={rotulo}
+      accessibilityState={{ disabled: desabilitado }}
+      style={[
+        styles.metade,
+        lado === 'esquerda' ? styles.metadeEsquerda : styles.metadeDireita,
+        { opacity: desabilitado ? 0.32 : 1 },
+      ]}
+    >
+      <Icon name={icone} size={15} color={desabilitado ? theme.faint : theme.text} />
     </PressableScale>
   )
 
@@ -103,13 +136,18 @@ function AppHeader({
         <Icon name="seta_baixo" size={12} color={theme.accent} />
       </PressableScale>
 
-      {/* Tema e sair moram nas configuracoes: o espaco aqui e curto e desfazer
-          /refazer precisam estar sempre a um toque, do lado do conteudo. */}
       <View style={styles.acoes}>
-        {botao(onDesfazer, 'desfazer', false, 'Desfazer', !podeDesfazer)}
-        {botao(onRefazer, 'refazer', false, 'Refazer', !podeRefazer)}
+        {/* Par de desfazer/refazer: uma peca so, com divisor no meio */}
+        <View style={[styles.historico, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+          {meia(onDesfazer, 'desfazer', 'Desfazer', !podeDesfazer, 'esquerda')}
+          <View style={[styles.divisor, { backgroundColor: theme.border }]} />
+          {meia(onRefazer, 'refazer', 'Refazer', !podeRefazer, 'direita')}
+        </View>
+
         {botao(onAlternarValores, valoresOcultos ? 'olho_fechado' : 'olho', valoresOcultos, 'Mostrar ou ocultar valores')}
+        {botao(onAlternarTema, temaEscuro ? 'sol' : 'lua', false, 'Alternar tema')}
         {botao(onAbrirConfiguracoes, 'configuracoes', false, 'Configurações')}
+        {botao(onSair, 'sair', false, 'Sair')}
       </View>
     </View>
   )
@@ -120,16 +158,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
-    paddingHorizontal: 16,
+    gap: 8,
+    paddingHorizontal: 14,
     paddingTop: 8,
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
   perfil: { flexShrink: 0 },
   avatar: {
-    width: 42,
-    height: 42,
+    width: 38,
+    height: 38,
     borderRadius: 999,
     borderWidth: 1.5,
     alignItems: 'center',
@@ -137,7 +175,7 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   avatarImagem: { width: '100%', height: '100%', borderRadius: 999 },
-  iniciais: { fontSize: 15, fontWeight: '800' },
+  iniciais: { fontSize: 14, fontWeight: '800' },
   selo: {
     position: 'absolute',
     right: -2,
@@ -162,9 +200,21 @@ const styles = StyleSheet.create({
   },
   competenciaTexto: { fontSize: 12, fontWeight: '800', letterSpacing: -0.1 },
   acoes: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 0 },
+  historico: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 30,
+    borderRadius: 999,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  metade: { width: 29, height: '100%', alignItems: 'center', justifyContent: 'center' },
+  metadeEsquerda: { paddingRight: 1 },
+  metadeDireita: { paddingLeft: 1 },
+  divisor: { width: 1, height: 16 },
   botao: {
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     borderRadius: 999,
     borderWidth: 1,
     alignItems: 'center',

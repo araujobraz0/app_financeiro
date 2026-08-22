@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   AppState,
@@ -26,6 +26,7 @@ import { StatusBar } from 'expo-status-bar'
 import PdfPreview from '../components/PdfPreview'
 import AppModal from '../components/common/AppModal'
 import * as Haptics from 'expo-haptics'
+import BarraDesfazer from '../components/home/BarraDesfazer'
 import BottomTabItem from '../components/home/BottomTabItem'
 import Calendario from '../components/common/Calendario'
 import SeletorCompetencia from '../components/common/SeletorCompetencia'
@@ -99,7 +100,14 @@ import {
   meses,
   parseDiaMesInput,
 } from '../src/utils/dates'
-import { addMonthsToCompetencia, competenciaMaiorOuIgual, garantirCompetencia, resolverMesComRecorrentes } from '../src/utils/competency'
+import { addMonthsToCompetencia, competenciaMaiorOuIgual } from '../src/utils/competency'
+import {
+  alternarPago as alternarPagoRecorrente,
+  criarFixo as criarFixoRecorrente,
+  editarFixo as editarFixoRecorrente,
+  excluirFixo as excluirFixoRecorrente,
+  fixosDoMes,
+} from '../src/utils/fixos'
 import {
   buildExportRows,
   buildExportWorkbook,
@@ -183,6 +191,7 @@ function HomeScreenContent() {
   const {
     appData,
     setAppData,
+    atualizarSemHistorico,
     carregando,
     sincronizando,
     usuarioId,
@@ -204,6 +213,9 @@ function HomeScreenContent() {
     podeRefazer,
     desfazer,
     refazer,
+    ultimaAcao,
+    rotularProximaAcao,
+    dispensarUltimaAcao,
   } = useFinance()
   const [modalPremiumBloqueioAberto, setModalPremiumBloqueioAberto] = useState(false)
   const [premiumBloqueioTitulo, setPremiumBloqueioTitulo] = useState('Modo somente leitura')
@@ -569,18 +581,17 @@ function HomeScreenContent() {
   }, [bancoDeDados, chaveAtual])
 
   const temDadosExistentes = useMemo(() => {
+    if ((globalData.fixosRecorrentes || []).length > 0) return true
     if (!bancoDeDados || !Object.keys(bancoDeDados).length) return false
 
     return Object.values(bancoDeDados).some((mes: any) => {
       return (
         Number(mes?.salario || 0) > 0 ||
         (Array.isArray(mes?.entradas) && mes.entradas.length > 0) ||
-        (Array.isArray(mes?.saidas) && mes.saidas.length > 0) ||
-        (Array.isArray(mes?.fixo) &&
-          mes.fixo.some((item: any) => item?.nome && String(item.nome).trim()))
+        (Array.isArray(mes?.saidas) && mes.saidas.length > 0)
       )
     })
-  }, [bancoDeDados])
+  }, [bancoDeDados, globalData.fixosRecorrentes])
 
   useEffect(() => {
     if (!carregando && globalData.firstAccessCompleted === false && !temDadosExistentes) {
@@ -648,45 +659,63 @@ function HomeScreenContent() {
     setAvatarEditavel(avatarPerfil)
   }, [nome, avatarPerfil])
 
-  const dadosAtual: DadosMes = useMemo(() => {
-    const mesVazio: DadosMes = {
+  const dadosAtual: DadosMes = useMemo(
+    () =>
+      bancoDeDados[chaveAtual] || {
+        salario: 0,
+        entradas: [],
+        fixo: [],
+        saidas: [],
+        categoriasSaidas: [...categoriasPadrao],
+      },
+    [bancoDeDados, chaveAtual]
+  )
+
+  /**
+   * Gastos fixos do mes em exibicao.
+   *
+   * Vem das definicoes em `global.fixosRecorrentes`, nao de uma copia gravada
+   * dentro do mes. E o que faz "vale deste mes em diante" ser verdade tambem
+   * nos meses que o usuario nunca abriu.
+   */
+  const fixosDoMesAtual = useMemo(
+    () => fixosDoMes(globalData.fixosRecorrentes || [], dadosAtual.fixoPagos, chaveAtual),
+    [globalData.fixosRecorrentes, dadosAtual.fixoPagos, chaveAtual]
+  )
+
+  const salario = Number(dadosAtual.salario || 0)
+
+  /** Mes em branco, usado ao abrir uma competencia que ainda nao existe. */
+  const mesEmBranco = useCallback(
+    (): DadosMes => ({
       salario: 0,
       entradas: [],
       fixo: [],
       saidas: [],
       categoriasSaidas: [...categoriasPadrao],
-    }
-    return resolverMesComRecorrentes(bancoDeDados, chaveAtual, mesVazio)
-  }, [bancoDeDados, chaveAtual])
-
-  const salario = Number(dadosAtual.salario || 0)
-
-  /** Mes em branco, usado como base ao materializar uma competencia nova. */
-  const mesEmBranco = (): DadosMes => ({
-    salario: 0,
-    entradas: [],
-    fixo: [],
-    saidas: [],
-    categoriasSaidas: [...categoriasPadrao],
-  })
-
-  /** Competencias com algum lancamento, para marcar no seletor de periodo. */
-  const competenciasComLancamentos = useMemo(
-    () =>
-      Object.keys(bancoDeDados).filter((chave) => {
-        const mes = bancoDeDados[chave]
-        return Boolean(
-          mes &&
-            (mes.salario > 0 ||
-              (mes.entradas || []).length > 0 ||
-              (mes.saidas || []).length > 0 ||
-              (mes.fixo || []).length > 0)
-        )
-      }),
-    [bancoDeDados]
+    }),
+    []
   )
+
+  /**
+   * Cria a competencia em exibicao quando ela ainda nao existe.
+   *
+   * A roleta de anos alcanca bem mais longe do que a faixa que o app grava por
+   * padrao. Sem este passo, qualquer edicao nesses meses escreveria em cima de
+   * `undefined`. Nao entra no historico: abrir um mes nao e uma acao para
+   * desfazer.
+   */
+  useEffect(() => {
+    if (bancoDeDados[chaveAtual]) return
+    atualizarSemHistorico((prev) =>
+      prev.bancoDeDados[chaveAtual]
+        ? prev
+        : { ...prev, bancoDeDados: { ...prev.bancoDeDados, [chaveAtual]: mesEmBranco() } }
+    )
+  }, [bancoDeDados, chaveAtual, atualizarSemHistorico, mesEmBranco])
+
   const entradas = dadosAtual.entradas || []
-  const fixos = dadosAtual.fixo || []
+  const fixos = fixosDoMesAtual
   const saidas = dadosAtual.saidas || []
   const categoriasSaidas = (dadosAtual.categoriasSaidas || [...categoriasPadrao]).filter((categoria) => !categoriaEhImportado(categoria))
   const pixContacts = globalData.pixContacts || []
@@ -852,13 +881,8 @@ function HomeScreenContent() {
     const prox = addMonthsToCompetencia(chaveAtual, 1)
     return selectedCard.parcelas.filter((item) => item.competencia === prox)
   }, [selectedCard, chaveAtual])
-  const parcelasFuturasCartao = useMemo(() => {
-    if (!selectedCard) return [] as CardInstallment[]
-    return selectedCard.parcelas.filter((item) => item.competencia !== chaveAtual && item.competencia !== addMonthsToCompetencia(chaveAtual, 1))
-  }, [selectedCard, chaveAtual])
   const totalFaturaAtual = parcelasFaturaAtual.reduce((acc, item) => acc + Number(item.valorParcela || 0), 0)
   const totalProximaFatura = parcelasProximaFatura.reduce((acc, item) => acc + Number(item.valorParcela || 0), 0)
-  const totalFuturoCartao = parcelasFuturasCartao.reduce((acc, item) => acc + Number(item.valorParcela || 0), 0)
 
   // --- informacoes derivadas do cartao, para a aba mostrar sem contas manuais ---
 
@@ -884,17 +908,6 @@ function HomeScreenContent() {
     hoje.setHours(0, 0, 0, 0)
     return Math.round((alvo.getTime() - hoje.getTime()) / 86400000)
   }, [datasFaturaCartao.vencimentoAtual, chaveAtual])
-
-  /** Quantas compras do cartao ainda tem parcela para cair depois deste mes. */
-  const comprasAbertasCartao = useMemo(() => {
-    if (!selectedCard) return 0
-    const chaves = new Set(
-      (selectedCard.parcelas || [])
-        .filter((item) => competenciaMaiorOuIgual(item.competencia, chaveAtual))
-        .map((item) => item.groupId || item.id)
-    )
-    return chaves.size
-  }, [selectedCard, chaveAtual])
 
   /** Soma das faturas do mes de TODOS os cartoes, nao so o selecionado. */
   const totalTodosCartoesMes = useMemo(
@@ -1886,6 +1899,20 @@ function HomeScreenContent() {
   }
 
   const salvarLancamento = (values: LaunchFormValues) => {
+    const [nomeDoTipo, genero] =
+      tipoFormularioLancamento === 'fixo'
+        ? (['Gasto fixo', 'o'] as const)
+        : tipoFormularioLancamento === 'entrada'
+          ? (['Entrada', 'a'] as const)
+          : tipoFormularioLancamento === 'parcela'
+            ? (['Compra parcelada', 'a'] as const)
+            : (['Saída', 'a'] as const)
+    rotularProximaAcao(
+      modoModalLancamento === 'novo'
+        ? `${nomeDoTipo} adicionad${genero}`
+        : `${nomeDoTipo} editad${genero}`
+    )
+
     if (tipoFormularioLancamento === 'parcela') {
       salvarNovaParcelaDentroDoLancamento(values)
       return
@@ -1902,18 +1929,19 @@ function HomeScreenContent() {
         const bancoAtualizado: BancoDeDados = { ...prev.bancoDeDados }
 
         if (tipoFormularioLancamento === 'fixo') {
-          const recorrenteId = `fixo-recorrente-${Date.now()}`
-          Object.keys(bancoAtualizado).forEach((chave) => {
-            if (!competenciaMaiorOuIgual(chave, chaveAtual)) return
-            const mes = bancoAtualizado[chave]
-            bancoAtualizado[chave] = {
-              ...mes,
-              fixo: [
-                ...(mes.fixo || []),
-                { ...base, id: `${recorrenteId}-${chave}`, pago: false, recorrenteId, criadoEmCompetencia: chaveAtual },
-              ],
-            }
-          })
+          // Uma definicao so, valendo deste mes em diante. Nada e copiado para
+          // dentro de cada mes, entao nao ha meses para o laco "esquecer".
+          return {
+            ...prev,
+            global: {
+              ...prev.global,
+              fixosRecorrentes: criarFixoRecorrente(prev.global.fixosRecorrentes || [], chaveAtual, {
+                id: `fixo-recorrente-${Date.now()}`,
+                nome: base.nome,
+                valor: base.valor,
+              }),
+            },
+          }
         } else {
           bancoAtualizado[chaveAtual] = {
             ...bancoAtualizado[chaveAtual],
@@ -1934,46 +1962,23 @@ function HomeScreenContent() {
       /**
        * Editar um gasto fixo vale deste mes em diante.
        *
-       * Um gasto recorrente que muda de valor — aluguel reajustado, plano que
-       * subiu — mudou para o futuro, nao para tras: os meses ja fechados
-       * devem continuar com o valor que foi realmente pago. Por isso a
-       * alteracao segue o `recorrenteId` a partir da competencia atual e nao
-       * encosta nas anteriores.
-       *
-       * O `pago` de cada mes e preservado: alterar o valor nao desmarca uma
-       * conta que ja foi quitada.
+       * Um reajuste — aluguel, plano que subiu — mudou para o futuro, nao para
+       * tras: os meses ja fechados continuam com o valor que foi realmente
+       * pago. Aqui isso e uma nova versao a partir da competencia atual; os
+       * meses anteriores seguem lendo a versao antiga sem ninguem toca-los.
        */
-      setAppData((prev) => {
-        // O mes precisa existir no banco antes de ser alterado: se ele so foi
-        // herdado na leitura, nao ha o que editar e a mudanca se perderia.
-        const bancoAtualizado: BancoDeDados = garantirCompetencia(
-          prev.bancoDeDados,
-          chaveAtual,
-          mesEmBranco()
-        )
-        const atual = bancoAtualizado[chaveAtual]?.fixo?.find((item) => item.id === itemEditandoId)
-        const recorrenteId = atual?.recorrenteId
-
-        const campos = {
-          nome: values.name.trim(),
-          valor: valorConvertido,
-          dia: Math.min(31, Math.max(1, Number(diaEdicao || atual?.dia || 1))),
-        }
-
-        Object.keys(bancoAtualizado).forEach((chave) => {
-          if (!competenciaMaiorOuIgual(chave, chaveAtual)) return
-          const mes = bancoAtualizado[chave]
-          bancoAtualizado[chave] = {
-            ...mes,
-            fixo: (mes.fixo || []).map((item) => {
-              const alvo = recorrenteId ? item.recorrenteId === recorrenteId : item.id === itemEditandoId
-              return alvo ? { ...item, ...campos } : item
-            }),
-          }
-        })
-
-        return { ...prev, bancoDeDados: bancoAtualizado }
-      })
+      setAppData((prev) => ({
+        ...prev,
+        global: {
+          ...prev.global,
+          fixosRecorrentes: editarFixoRecorrente(
+            prev.global.fixosRecorrentes || [],
+            chaveAtual,
+            itemEditandoId || '',
+            { nome: values.name.trim(), valor: valorConvertido }
+          ),
+        },
+      }))
     } else {
       setAppData((prev) => ({
         ...prev,
@@ -1995,7 +2000,6 @@ function HomeScreenContent() {
                     item.id === itemEditandoId ? { ...item, nome: values.name.trim(), valor: valorConvertido, dia: Math.min(31, Math.max(1, Number(diaEdicao || item.dia || 1))) } : item
                   )
                 : prev.bancoDeDados[chaveAtual].entradas,
-            fixo: prev.bancoDeDados[chaveAtual].fixo,
           },
         },
       }))
@@ -2011,7 +2015,23 @@ function HomeScreenContent() {
   const confirmarExclusao = () => {
     if (!confirmacaoExclusao) return
 
-    const { type, id } = confirmacaoExclusao
+    const { type, id, label } = confirmacaoExclusao
+
+    // Nome e genero juntos: sem isso saia "Entrada excluido".
+    const nomesDoTipo: Record<DeleteTarget, [string, 'o' | 'a']> = {
+      fixo: ['Gasto fixo', 'o'],
+      entrada: ['Entrada', 'a'],
+      saida: ['Saída', 'a'],
+      pix: ['Chave Pix', 'a'],
+      nota: ['Anotação', 'a'],
+      cartao: ['Cartão', 'o'],
+      parcela: ['Compra parcelada', 'a'],
+      categoria: ['Categoria', 'a'],
+      compra_desejo: ['Item da lista', 'o'],
+      objetivo: ['Objetivo', 'o'],
+    }
+    const [nomeDoTipoExcluido, generoExcluido] = nomesDoTipo[type] || ['Item', 'o']
+    rotularProximaAcao(`${nomeDoTipoExcluido} "${label}" excluíd${generoExcluido}`)
 
     if (type === 'fixo') excluirFixo(id)
     else if (type === 'entrada') excluirEntrada(id)
@@ -2035,44 +2055,37 @@ function HomeScreenContent() {
       return
     }
 
+    // O dia fica guardado junto: a lista mostra quando a conta foi quitada.
+    const hoje = new Date().getDate()
+    const jaPago = Boolean(fixos.find((item) => item.id === id)?.pago)
+    rotularProximaAcao(jaPago ? 'Gasto fixo reaberto' : 'Gasto fixo marcado como pago')
+
     setAppData((prev) => {
-      // Mesmo motivo da edicao: um mes herdado precisa existir antes de mudar.
-      const banco = garantirCompetencia(prev.bancoDeDados, chaveAtual, mesEmBranco())
+      const mes = prev.bancoDeDados[chaveAtual]
+      if (!mes) return prev
 
       return {
         ...prev,
         bancoDeDados: {
-          ...banco,
-          [chaveAtual]: {
-            ...banco[chaveAtual],
-            fixo: (banco[chaveAtual].fixo || []).map((item) =>
-              item.id === id ? { ...item, pago: !item.pago } : item
-            ),
-          },
+          ...prev.bancoDeDados,
+          [chaveAtual]: { ...mes, fixoPagos: alternarPagoRecorrente(mes.fixoPagos, id, hoje) },
         },
       }
     })
   }
 
   const excluirFixo = (id: string) => {
-    setAppData((prev) => {
-      const bancoAtualizado: BancoDeDados = garantirCompetencia(
-        prev.bancoDeDados,
-        chaveAtual,
-        mesEmBranco()
-      )
-      const itemAtual = bancoAtualizado[chaveAtual]?.fixo?.find((item) => item.id === id)
-      const recorrenteId = itemAtual?.recorrenteId
-      Object.keys(bancoAtualizado).forEach((chave) => {
-        if (!competenciaMaiorOuIgual(chave, chaveAtual)) return
-        const mes = bancoAtualizado[chave]
-        bancoAtualizado[chave] = {
-          ...mes,
-          fixo: (mes.fixo || []).filter((item) => (recorrenteId ? item.recorrenteId !== recorrenteId : item.id !== id)),
-        }
-      })
-      return { ...prev, bancoDeDados: bancoAtualizado }
-    })
+    /**
+     * Excluir vale deste mes em diante: o gasto e encerrado nesta competencia
+     * e os meses anteriores continuam com ele, como realmente aconteceu.
+     */
+    setAppData((prev) => ({
+      ...prev,
+      global: {
+        ...prev.global,
+        fixosRecorrentes: excluirFixoRecorrente(prev.global.fixosRecorrentes || [], chaveAtual, id),
+      },
+    }))
   }
 
   const excluirEntrada = (id: string) => {
@@ -2499,9 +2512,12 @@ function HomeScreenContent() {
         competencia={`${mesSelecionado.slice(0, 3)} ${anoSelecionado}`}
         onAbrirPeriodo={() => setSeletorPeriodoAberto(true)}
         valoresOcultos={ocultarValores}
+        temaEscuro={temaEscuro}
         onAbrirPerfil={() => setModalConfiguracoesAberto(true)}
         onAbrirConfiguracoes={() => setModalConfiguracoesAberto(true)}
         onAlternarValores={() => atualizarPreferenciasInvestimento({ hideValues: !ocultarValores })}
+        onAlternarTema={alternarTema}
+        onSair={handleSair}
         podeDesfazer={podeDesfazer}
         podeRefazer={podeRefazer}
         onDesfazer={desfazer}
@@ -2674,10 +2690,8 @@ function HomeScreenContent() {
             totalProximaFatura={totalProximaFatura}
             percentualUsoCartao={percentualUsoCartao}
             datasFaturaCartao={datasFaturaCartao}
-            totalFuturoCartao={totalFuturoCartao}
             melhorDiaCompraCartao={melhorDiaCompraCartao}
             diasAteVencimentoCartao={diasAteVencimentoCartao}
-            comprasAbertasCartao={comprasAbertasCartao}
             totalTodosCartoesMes={totalTodosCartoesMes}
             highlightedItemId={highlightedItemId}
             formatarValorVisivel={formatarValorVisivel}
@@ -2693,6 +2707,17 @@ function HomeScreenContent() {
         )}
       </ScrollView>
       </View>
+
+      {!algumModalAberto ? (
+        <BarraDesfazer
+          theme={theme}
+          acao={ultimaAcao}
+          podeDesfazer={podeDesfazer}
+          onDesfazer={desfazer}
+          onDispensar={dispensarUltimaAcao}
+          margemInferior={Math.max(insets.bottom, 10) + 78}
+        />
+      ) : null}
 
       {!algumModalAberto && <View style={[styles.bottomBar, { backgroundColor: theme.card, borderColor: theme.border, bottom: Math.max(insets.bottom, 10) }]}>
         <View style={styles.bottomHalf}>
@@ -2909,7 +2934,6 @@ function HomeScreenContent() {
           setMesSelecionado(mes)
           setAnoSelecionado(ano)
         }}
-        competenciasComDados={competenciasComLancamentos}
         mesAtual={meses[mesAtualIndex]}
         anoAtual={anoAtual}
       />

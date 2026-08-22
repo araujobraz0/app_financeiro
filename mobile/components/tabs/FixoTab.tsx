@@ -122,7 +122,7 @@ function FixoTab({
             key={item.id}
             theme={theme}
             titulo={item.nome}
-            meta={item.recorrenteId ? 'Repete todo mês' : 'Só neste mês'}
+            meta={item.pagoNoDia ? `Pago no dia ${item.pagoNoDia}` : undefined}
             valor={formatarValorVisivel(item.valor)}
             valorCor={item.pago ? theme.muted : theme.text}
             status={{

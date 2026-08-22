@@ -300,32 +300,36 @@ export default function LaunchModal({
           />
 
           {/* Para lancar rapido quando o nome nao vem agora: o gasto entra na
-              conta do mes com "N/S" e pode ser renomeado depois. */}
-          <PressableScale
-            onPress={() => setNaoSei((v) => !v)}
-            scaleTo={0.98}
-            style={styles.naoSeiLinha}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: naoSei }}
-          >
-            <View
-              style={[
-                styles.caixa,
-                {
-                  backgroundColor: naoSei ? theme.primary : theme.cardSoft,
-                  borderColor: naoSei ? theme.primary : theme.borderStrong,
-                },
-              ]}
+              conta do mes com "N/S" e pode ser renomeado depois. Nao vale para
+              gasto fixo, que se repete todo mes — um "N/S" recorrente nao
+              ajuda ninguem. */}
+          {formType !== 'fixo' ? (
+            <PressableScale
+              onPress={() => setNaoSei((v) => !v)}
+              scaleTo={0.98}
+              style={styles.naoSeiLinha}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: naoSei }}
             >
-              {naoSei ? <Icon name="confirmar" size={13} color={theme.textInverse} /> : null}
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[styles.naoSeiTitulo, { color: theme.text }]}>Não sei o nome</Text>
-              <Text style={[styles.naoSeiDica, { color: theme.muted }]}>
-                Salva como N/S e você renomeia depois
-              </Text>
-            </View>
-          </PressableScale>
+              <View
+                style={[
+                  styles.caixa,
+                  {
+                    backgroundColor: naoSei ? theme.primary : theme.cardSoft,
+                    borderColor: naoSei ? theme.primary : theme.borderStrong,
+                  },
+                ]}
+              >
+                {naoSei ? <Icon name="confirmar" size={13} color={theme.textInverse} /> : null}
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.naoSeiTitulo, { color: theme.text }]}>Não sei o nome</Text>
+                <Text style={[styles.naoSeiDica, { color: theme.muted }]}>
+                  Salva como N/S e você renomeia depois
+                </Text>
+              </View>
+            </PressableScale>
+          ) : null}
 
           {formType === 'saida' ? (
             <>

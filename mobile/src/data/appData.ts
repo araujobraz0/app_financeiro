@@ -2,9 +2,10 @@
 // Extraido do home.tsx: e a camada que define a forma dos dados,
 // usada tanto na criacao inicial quanto ao carregar do Supabase.
 
-import type { AppData, BancoDeDados, DadosMes, GlobalData } from '../../app/types'
+import type { AppData, BancoDeDados, DadosMes, FixoRecorrente, GlobalData } from '../../app/types'
 import { listaAnosAtual } from '../utils/competency'
 import { meses } from '../utils/dates'
+import { migrarFixosLegado } from '../utils/fixos'
 
 
 export const STORAGE_KEY = 'controle-financeiro-v16'
@@ -70,6 +71,8 @@ export function globalDefaults(): GlobalData {
     investmentPercentage: 10,
     investmentBaseMode: 'salary',
     hideValues: false,
+    fixosRecorrentes: [],
+    fixosMigrados: false,
   }
 }
 
@@ -162,19 +165,30 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
           valor: Number(item.valor || 0),
           dia: Number(item.dia || 1),
         })),
-        fixo: (Array.isArray(bloco.fixo) && bloco.fixo.length ? bloco.fixo : fallback.fixo).map(
+        // Copia legada, so para a migracao poder reler.
+        //
+        // Sem fallback de propósito: preencher cada mes com gastos padrao era
+        // o que fazia os gastos de exemplo brotarem em meses que o usuario
+        // nunca abriu, e ressuscitava tudo quando ele apagava o ultimo item.
+        // Quem nao tem nada recebe os padroes uma vez so, mais abaixo.
+        fixo: (Array.isArray(bloco.fixo) ? bloco.fixo : []).map(
           (item: any, index: number) => ({
             id: item.id || `fixo-${chave}-${index}`,
             nome: item.nome || '',
             valor: Number(item.valor || 0),
             pago: Boolean(item.pago),
             dia: Number(item.dia || 5),
-            // Sem isto o vinculo do gasto recorrente se perdia a cada carga:
-            // o item voltava como "so neste mes" e as edicoes deixavam de
-            // valer para os meses seguintes.
             recorrenteId: item.recorrenteId || undefined,
           })
         ),
+        fixoPagos:
+          bloco.fixoPagos && typeof bloco.fixoPagos === 'object'
+            ? Object.fromEntries(
+                Object.entries(bloco.fixoPagos)
+                  .map(([id, dia]) => [id, Math.min(31, Math.max(1, Number(dia) || 1))])
+                  .filter(([, dia]) => Number.isFinite(dia as number))
+              )
+            : undefined,
         saidas: (Array.isArray(bloco.saidas) ? bloco.saidas : []).map((item: any, index: number) => ({
           id: item.id || `saida-${chave}-${index}`,
           nome: item.nome || '',
@@ -191,6 +205,53 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
       }
     })
   })
+
+  // Gastos fixos: le as definicoes se ja existirem; senao, converte o formato
+  // antigo (uma copia por mes) uma unica vez e leva junto os dias de pagamento.
+  let fixosRecorrentes: FixoRecorrente[]
+  const jaMigrou = Boolean(globalBase.fixosMigrados) && Array.isArray(globalBase.fixosRecorrentes)
+  if (jaMigrou) {
+    fixosRecorrentes = globalBase.fixosRecorrentes
+      .filter((fixo: any) => fixo && fixo.id && Array.isArray(fixo.versoes) && fixo.versoes.length)
+      .map((fixo: any) => ({
+        id: String(fixo.id),
+        criadoEm: String(fixo.criadoEm || fixo.versoes[0]?.desde || ''),
+        encerradoEm: fixo.encerradoEm ? String(fixo.encerradoEm) : null,
+        versoes: fixo.versoes
+          .filter((versao: any) => versao && versao.desde)
+          .map((versao: any) => ({
+            desde: String(versao.desde),
+            nome: String(versao.nome || ''),
+            valor: Number(versao.valor || 0),
+          })),
+      }))
+      .filter((fixo) => fixo.criadoEm && fixo.versoes.length)
+  } else {
+    // So os meses realmente gravados entram na conversao. Se os meses criados
+    // agora (vazios, por padrao) entrassem, o primeiro deles seria lido como
+    // "o gasto some aqui" e encerraria tudo logo depois do ultimo mes usado.
+    const bancoGravado: Record<string, { fixo?: any[] }> = {}
+    Object.keys(bancoDeDados).forEach((chave) => {
+      if (Array.isArray(bancoFonte[chave]?.fixo)) bancoGravado[chave] = bancoDeDados[chave]
+    })
+
+    const migrado = migrarFixosLegado(bancoGravado)
+    fixosRecorrentes = migrado.recorrentes
+    Object.entries(migrado.pagosPorMes).forEach(([chave, pagos]) => {
+      if (bancoDeDados[chave]) bancoDeDados[chave].fixoPagos = pagos
+    })
+
+    // Conta nova (ou sem nenhum gasto gravado): semeia os padroes uma vez.
+    if (fixosRecorrentes.length === 0) {
+      const primeiraCompetencia = `${anos[0]}-${meses[0]}`
+      fixosRecorrentes = buildMonthDefaults(primeiraCompetencia, globalBase).fixo.map((item, index) => ({
+        id: item.recorrenteId || `fixo-padrao-${index}`,
+        criadoEm: primeiraCompetencia,
+        encerradoEm: null,
+        versoes: [{ desde: primeiraCompetencia, nome: item.nome, valor: item.valor }],
+      }))
+    }
+  }
 
   return {
     bancoDeDados,
@@ -265,6 +326,8 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
       investmentPercentage: Math.min(50, Math.max(0, Number(globalBase.investmentPercentage ?? 10))),
       investmentBaseMode: globalBase.investmentBaseMode === 'salary_plus_entries' ? 'salary_plus_entries' : 'salary',
       hideValues: Boolean(globalBase.hideValues),
+      fixosRecorrentes,
+      fixosMigrados: true,
     },
   }
 }

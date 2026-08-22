@@ -30,7 +30,7 @@ import {
   meses,
   parseDiaMesInputOptional as parseDiaMesInput,
 } from '../src/utils/dates'
-import type { AppData, BancoDeDados, CardItem } from './types'
+import type { AppData, BancoDeDados, CardItem, FixoRecorrente } from './types'
 import PressableScale from '../components/common/motion/PressableScale'
 import Icon from '../components/common/Icon'
 
@@ -66,7 +66,18 @@ const categoriasVariaveisBase = ['Mercado', 'Saúde', 'Transporte', 'Lazer', 'Co
 
 const createId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 
-function criarBancoInicial(salario: number, fixos: { nome: string; valor: number }[], categoriasVariaveis: string[]) {
+/** Definicoes dos gastos fixos escolhidos no primeiro acesso. */
+function criarFixosIniciais(fixos: { nome: string; valor: number }[]): FixoRecorrente[] {
+  const primeiraCompetencia = `${new Date().getFullYear() - 2}-${meses[0]}`
+  return fixos.map((item, index) => ({
+    id: `fixo-inicial-${index}-${item.nome}`,
+    criadoEm: primeiraCompetencia,
+    encerradoEm: null,
+    versoes: [{ desde: primeiraCompetencia, nome: item.nome, valor: item.valor }],
+  }))
+}
+
+function criarBancoInicial(salario: number, categoriasVariaveis: string[]) {
   const dataAtual = new Date()
   const anoAtual = dataAtual.getFullYear()
   const listaAnos = [anoAtual - 2, anoAtual - 1, anoAtual, anoAtual + 1, anoAtual + 2]
@@ -79,12 +90,8 @@ function criarBancoInicial(salario: number, fixos: { nome: string; valor: number
       banco[chave] = {
         salario,
         entradas: [],
-        fixo: fixos.map((item, index) => ({
-          id: `fixo-${ano}-${mes}-${index}`,
-          nome: item.nome,
-          valor: item.valor,
-          pago: false,
-        })),
+        // Os gastos fixos moram em global.fixosRecorrentes; aqui fica so o mes.
+        fixo: [],
         saidas: [],
         categoriasSaidas: [...categoriasVariaveis],
       }
@@ -384,12 +391,14 @@ export default function PrimeiroAcessoScreen() {
       }
 
       const payload: AppData = {
-        bancoDeDados: criarBancoInicial(salario, fixedItemsPreview, categoriasVariaveisPreview),
+        bancoDeDados: criarBancoInicial(salario, categoriasVariaveisPreview),
         global: {
           firstAccessCompleted: true,
           salaryMode: 'fixo',
           defaultFixedSalary: salario,
           onboardingFixedExpenses: fixedItemsPreview.map((item) => item.nome),
+          fixosRecorrentes: criarFixosIniciais(fixedItemsPreview),
+          fixosMigrados: true,
           pixContacts: [],
           notes: [],
           cards: hasCreditCards ? cardsPreview : [],

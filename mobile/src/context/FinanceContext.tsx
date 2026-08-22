@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
-import { AppState, useColorScheme } from 'react-native'
+import { AppState } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router } from 'expo-router'
 import { supabase } from '../lib/supabase'
+import { usePreferenciaDeCor } from '../utils/esquemaDeCor'
 import { darkTheme, lightTheme, THEME_KEY, THEME_MODE_KEY } from '../theme/themes'
 import {
   BACKUP_LAST_KEY,
@@ -34,6 +35,8 @@ type FinanceContextValue = {
   // dados
   appData: AppData
   setAppData: Dispatch<SetStateAction<AppData>>
+  /** Muda os dados sem criar um passo de desfazer (ajustes internos). */
+  atualizarSemHistorico: Dispatch<SetStateAction<AppData>>
   carregando: boolean
 
   // desfazer / refazer
@@ -41,6 +44,12 @@ type FinanceContextValue = {
   podeRefazer: boolean
   desfazer: () => void
   refazer: () => void
+  /** Ultima acao registrada, para a barra de desfazer. */
+  ultimaAcao: { rotulo: string; id: number } | null
+  /** Nomeia a proxima alteracao ("Gasto fixo excluido"). */
+  rotularProximaAcao: (rotulo: string) => void
+  /** Esconde a barra de desfazer. */
+  dispensarUltimaAcao: () => void
 
   sincronizando: boolean
   dadosRemotosCarregados: boolean
@@ -85,7 +94,8 @@ export function useFinance() {
 }
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
-  const colorScheme = useColorScheme()
+  // Na web isto e a preferencia do navegador; no aparelho, a do sistema.
+  const colorScheme = usePreferenciaDeCor()
 
   const [appData, setAppData] = useState<AppData>(criarAppDataInicial())
   const [carregando, setCarregando] = useState(true)
@@ -103,6 +113,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   /** Marca a proxima mudanca como "nao e edicao do usuario" (carga, desfazer, refazer). */
   const ignorarNoHistoricoRef = useRef(true)
   const [tamanhoHistorico, setTamanhoHistorico] = useState({ passado: 0, futuro: 0 })
+
+  // A barra de desfazer precisa saber o QUE mudou. Quem altera os dados avisa
+  // antes pelo rotulo; sem aviso, fica um texto generico.
+  const rotuloPendenteRef = useRef<string | null>(null)
+  const contadorAcaoRef = useRef(0)
+  const [ultimaAcao, setUltimaAcao] = useState<{ rotulo: string; id: number } | null>(null)
+
+  const rotularProximaAcao = useCallback((rotulo: string) => {
+    rotuloPendenteRef.current = rotulo
+  }, [])
+
+  const dispensarUltimaAcao = useCallback(() => setUltimaAcao(null), [])
 
   const sincronizarTamanhoHistorico = useCallback(() => {
     setTamanhoHistorico((anterior) => {
@@ -126,7 +148,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     passadoRef.current = [...passadoRef.current, anterior].slice(-LIMITE_HISTORICO)
     futuroRef.current = []
     sincronizarTamanhoHistorico()
+
+    contadorAcaoRef.current += 1
+    setUltimaAcao({
+      rotulo: rotuloPendenteRef.current || 'Alteração salva',
+      id: contadorAcaoRef.current,
+    })
+    rotuloPendenteRef.current = null
   }, [appData, sincronizarTamanhoHistorico])
+
+  const atualizarSemHistorico = useCallback<Dispatch<SetStateAction<AppData>>>((acao) => {
+    ignorarNoHistoricoRef.current = true
+    setAppData(acao)
+  }, [])
 
   const desfazer = useCallback(() => {
     const anterior = passadoRef.current[passadoRef.current.length - 1]
@@ -137,6 +171,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     ignorarNoHistoricoRef.current = true
     setAppData(anterior)
     sincronizarTamanhoHistorico()
+    setUltimaAcao(null)
   }, [sincronizarTamanhoHistorico])
 
   const refazer = useCallback(() => {
@@ -148,6 +183,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     ignorarNoHistoricoRef.current = true
     setAppData(proximo)
     sincronizarTamanhoHistorico()
+    setUltimaAcao(null)
   }, [sincronizarTamanhoHistorico])
   const [sincronizando, setSincronizando] = useState(false)
   const [dadosRemotosCarregados, setDadosRemotosCarregados] = useState(false)
@@ -415,11 +451,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     () => ({
       appData,
       setAppData,
+      atualizarSemHistorico,
       carregando,
       podeDesfazer: tamanhoHistorico.passado > 0,
       podeRefazer: tamanhoHistorico.futuro > 0,
       desfazer,
       refazer,
+      ultimaAcao,
+      rotularProximaAcao,
+      dispensarUltimaAcao,
       sincronizando,
       dadosRemotosCarregados,
       usuarioId,
@@ -442,9 +482,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     [
       appData,
       carregando,
+      atualizarSemHistorico,
       tamanhoHistorico,
       desfazer,
       refazer,
+      ultimaAcao,
+      rotularProximaAcao,
+      dispensarUltimaAcao,
       sincronizando,
       dadosRemotosCarregados,
       usuarioId,

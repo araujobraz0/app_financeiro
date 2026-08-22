@@ -22,14 +22,10 @@ type CartaoTabProps = {
   totalProximaFatura: number
   percentualUsoCartao: number
   datasFaturaCartao: { fechamentoAtual: string; vencimentoAtual: string }
-  /** Total das parcelas que caem depois da proxima fatura. */
-  totalFuturoCartao: number
   /** Dia seguinte ao fechamento: maior prazo possivel para pagar. */
   melhorDiaCompraCartao: number | null
   /** Dias que faltam para a fatura vencer. Negativo quando ja venceu. */
   diasAteVencimentoCartao: number | null
-  /** Compras com parcelas ainda por cair. */
-  comprasAbertasCartao: number
   /** Soma das faturas do mes somando todos os cartoes. */
   totalTodosCartoesMes: number
   highlightedItemId: string | null
@@ -66,10 +62,8 @@ function CartaoTab({
   totalProximaFatura,
   percentualUsoCartao,
   datasFaturaCartao,
-  totalFuturoCartao,
   melhorDiaCompraCartao,
   diasAteVencimentoCartao,
-  comprasAbertasCartao,
   totalTodosCartoesMes,
   highlightedItemId,
   formatarValorVisivel,
@@ -232,12 +226,6 @@ function CartaoTab({
               melhorDiaCompraCartao ? `Dia ${melhorDiaCompraCartao}` : '—',
               theme.text,
               melhorDiaCompraCartao ? 'Maior prazo para pagar' : 'Defina o fechamento'
-            )}
-            {dado(
-              'Ainda a pagar',
-              formatarValorVisivel(totalFuturoCartao + totalProximaFatura),
-              totalFuturoCartao + totalProximaFatura > 0 ? theme.accent : theme.text,
-              `${comprasAbertasCartao} ${comprasAbertasCartao === 1 ? 'compra aberta' : 'compras abertas'}`
             )}
             {dado(
               'Todos os cartões',

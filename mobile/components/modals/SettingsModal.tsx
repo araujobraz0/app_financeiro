@@ -3,6 +3,7 @@ import type { Tema } from '../../app/types'
 import Campo from '../common/Campo'
 import Icon, { type IconName } from '../common/Icon'
 import Interruptor from '../common/Interruptor'
+import { origemDoTema } from '../../src/utils/esquemaDeCor'
 import ModalSheet from '../common/ModalSheet'
 import PressableScale from '../common/motion/PressableScale'
 
@@ -221,7 +222,7 @@ export default function SettingsModal({
           {linha(
             'lua',
             'Tema escuro',
-            seguirTemaDoSistema ? 'Controlado pelo sistema' : 'Fundo escuro em todo o app',
+            seguirTemaDoSistema ? `Quem manda é o ${origemDoTema}` : 'Fundo escuro em todo o app',
             <Interruptor
               theme={theme}
               ativo={temaEscuro}
@@ -231,8 +232,10 @@ export default function SettingsModal({
           <View style={[styles.divisor, { backgroundColor: theme.border }]} />
           {linha(
             'atualizar',
-            'Seguir o tema do sistema',
-            'Acompanha o modo claro ou escuro do aparelho',
+            `Seguir o tema do ${origemDoTema}`,
+            origemDoTema === 'navegador'
+              ? 'Acompanha o modo claro ou escuro do navegador, na hora em que ele mudar'
+              : 'Acompanha o modo claro ou escuro do aparelho',
             <Interruptor theme={theme} ativo={seguirTemaDoSistema} onAlternar={onAlternarModoTemaSistema} />
           )}
           <View style={[styles.divisor, { backgroundColor: theme.border }]} />
