@@ -30,6 +30,7 @@ import PdfPreview from '../components/PdfPreview'
 import AppModal from '../components/common/AppModal'
 import * as Haptics from 'expo-haptics'
 import BottomTabItem from '../components/home/BottomTabItem'
+import HomeSkeleton from '../components/home/HomeSkeleton'
 import PressableScale from '../components/common/motion/PressableScale'
 import AppearIn from '../components/common/motion/AppearIn'
 import SelectionModal from '../components/modals/SelectionModal'
@@ -2631,10 +2632,7 @@ function HomeScreenContent() {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
         <StatusBar style={temaEscuro ? 'light' : 'dark'} />
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator size='large' color={theme.primary} />
-          <Text style={[styles.loadingText, { color: theme.text }]}>Carregando seus dados...</Text>
-        </View>
+        <HomeSkeleton theme={theme} />
       </SafeAreaView>
     )
   }
