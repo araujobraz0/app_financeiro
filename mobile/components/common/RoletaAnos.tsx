@@ -28,6 +28,8 @@ type Props = {
   anos: number[]
   ano: number
   onSelecionar: (ano: number) => void
+  /** Chamado quando a escolha esta feita: o toque, ou a rolagem que parou. */
+  onEscolhido?: (ano: number) => void
 }
 
 function ItemAno({
@@ -71,7 +73,7 @@ function ItemAno({
   )
 }
 
-export default function RoletaAnos({ theme, anos, ano, onSelecionar }: Props) {
+export default function RoletaAnos({ theme, anos, ano, onSelecionar, onEscolhido }: Props) {
   const deslocamento = useSharedValue(0)
   const ultimoIndice = useSharedValue(-1)
   const lista = useRef<Animated.ScrollView>(null)
@@ -108,11 +110,20 @@ export default function RoletaAnos({ theme, anos, ano, onSelecionar }: Props) {
     },
   })
 
-  /** Encaixa no item mais proximo quando o dedo solta, se o snap nativo falhar. */
+  /**
+   * Encaixa no item mais proximo quando o dedo solta (o snap nativo nem sempre
+   * pega na web) e trata isso como a escolha feita.
+   */
   const encaixar = (y: number) => {
-    const indice = Math.round(y / ALTURA_ITEM)
-    const destino = Math.min(anos.length - 1, Math.max(0, indice)) * ALTURA_ITEM
+    const indice = Math.min(anos.length - 1, Math.max(0, Math.round(y / ALTURA_ITEM)))
+    const destino = indice * ALTURA_ITEM
     if (Math.abs(destino - y) > 1) lista.current?.scrollTo({ y: destino, animated: true })
+
+    const escolhido = anos[indice]
+    if (escolhido === undefined || !onEscolhido) return
+    // Um respiro antes de fechar: o encaixe precisa terminar na tela, senao a
+    // roleta some no meio do movimento e parece que engoliu o toque.
+    setTimeout(() => onEscolhido(escolhido), 320)
   }
 
   return (
@@ -148,6 +159,7 @@ export default function RoletaAnos({ theme, anos, ano, onSelecionar }: Props) {
             onPress={() => {
               lista.current?.scrollTo({ y: indice * ALTURA_ITEM, animated: true })
               onSelecionar(valor)
+              onEscolhido?.(valor)
             }}
           />
         ))}

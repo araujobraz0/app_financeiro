@@ -128,48 +128,45 @@ function VariavelTab({
               </View>
             </View>
 
-            {/* Limites: so as categorias com teto, e as mais apertadas em cima.
-                Uma barra por categoria responde "posso gastar mais?" sem
-                obrigar ninguem a somar nada. */}
+            {/* Limites numa linha por categoria: nome, barra e quanto ja foi.
+                A versao anterior era um cartao por categoria, com barra e duas
+                linhas de texto — com tres ou quatro tetos, o bloco empurrava a
+                lista de gastos para fora da tela. */}
             {limitesDoMes.length > 0 ? (
               <View style={local.limites}>
                 {limitesDoMes.map(({ categoria, limite, gasto, proporcao }) => {
                   const estourou = gasto > limite
                   const cor = estourou ? theme.red : proporcao >= 0.8 ? theme.accent : theme.green
-                  const sobra = limite - gasto
 
                   return (
                     <PressableScale
                       key={categoria}
                       onPress={() => onFiltroCategoriaChange(categoria)}
                       scaleTo={0.98}
-                      style={[local.limite, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${categoria}: ${Math.round(proporcao * 100)}% do limite`}
+                      style={local.limite}
                     >
-                      <View style={local.limiteTopo}>
-                        <Text style={[local.limiteNome, { color: theme.text }]} numberOfLines={1}>
-                          {categoria}
-                        </Text>
-                        <Text style={[local.limiteValor, { color: cor }]} numberOfLines={1}>
-                          {formatarValorVisivel(gasto)} de {formatarValorVisivel(limite)}
-                        </Text>
-                      </View>
+                      <Text style={[local.limiteNome, { color: theme.text }]} numberOfLines={1}>
+                        {categoria}
+                      </Text>
 
                       <View style={[local.trilha, { backgroundColor: theme.background }]}>
                         <View
                           style={[
                             local.preenchimento,
                             {
-                              width: `${Math.min(100, Math.max(2, proporcao * 100))}%`,
+                              width: `${Math.min(100, Math.max(3, proporcao * 100))}%`,
                               backgroundColor: cor,
                             },
                           ]}
                         />
                       </View>
 
-                      <Text style={[local.limiteApoio, { color: estourou ? theme.red : theme.muted }]} numberOfLines={1}>
+                      <Text style={[local.limiteValor, { color: cor }]} numberOfLines={1}>
                         {estourou
-                          ? `Passou ${formatarValorVisivel(gasto - limite)} do limite`
-                          : `Ainda cabe ${formatarValorVisivel(sobra)}`}
+                          ? `+${formatarValorVisivel(gasto - limite)}`
+                          : `${Math.round(proporcao * 100)}%`}
                       </Text>
                     </PressableScale>
                   )
@@ -280,14 +277,12 @@ const local = StyleSheet.create({
     minWidth: 0,
   },
   categoriasAcoes: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  limites: { gap: 8, marginBottom: 12 },
-  limite: { borderWidth: 1, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12 },
-  limiteTopo: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
-  limiteNome: { fontSize: 13, fontWeight: '800', letterSpacing: -0.2, flexShrink: 1 },
-  limiteValor: { fontSize: 11.5, fontWeight: '800', flexShrink: 0 },
-  trilha: { height: 6, borderRadius: 999, overflow: 'hidden', marginTop: 8 },
+  limites: { gap: 6, marginBottom: 12 },
+  limite: { flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: 22 },
+  limiteNome: { fontSize: 11.5, fontWeight: '700', letterSpacing: -0.1, width: '31%' },
+  trilha: { flex: 1, height: 5, borderRadius: 999, overflow: 'hidden' },
   preenchimento: { height: '100%', borderRadius: 999 },
-  limiteApoio: { fontSize: 10.5, fontWeight: '600', marginTop: 5 },
+  limiteValor: { fontSize: 11, fontWeight: '800', minWidth: 46, textAlign: 'right' },
   botaoCategoria: {
     width: 30,
     height: 30,

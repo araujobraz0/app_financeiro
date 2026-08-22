@@ -5,8 +5,10 @@
 // que deixava metade do modal vazia. Aqui os dois viram um so, no formato de
 // calendario: o ano no cabecalho, com setas, e os doze meses em grade.
 //
-// O ano tem setas para o passo a passo e vira uma roleta ao ser tocado, para
-// quando o destino esta longe: dez toques de seta viram um arrasto so.
+// O ano tem setas para o passo a passo e abre uma roleta ao ser tocado, para
+// quando o destino esta longe: dez toques de seta viram um arrasto so. A
+// roleta flutua sobre a grade de meses e se fecha assim que o ano e escolhido,
+// entao o modal nao muda de tamanho e ninguem perde o lugar de vista.
 
 import { useMemo, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
@@ -116,19 +118,9 @@ export default function SeletorCompetencia({
         </PressableScale>
       </View>
 
-      {roletaAberta ? (
-        <View style={styles.roleta}>
-          <RoletaAnos
-            theme={theme}
-            anos={anosDisponiveis}
-            ano={anoVisivel}
-            onSelecionar={setAnoVisivel}
-          />
-        </View>
-      ) : null}
-
       {/* Doze meses em grade: cabem todos sem rolagem e sem sobra */}
-      <View style={styles.grade}>
+      <View style={styles.area}>
+        <View style={styles.grade}>
         {ABREVIADOS.map((abreviado, indice) => {
           const nomeCompleto = meses[indice]
           const selecionado = anoVisivel === ano && nomeCompleto === mes
@@ -166,6 +158,42 @@ export default function SeletorCompetencia({
             </PressableScale>
           )
         })}
+        </View>
+
+        {roletaAberta ? (
+          // Um painel so, cobrindo a grade: a roleta dentro de um cartao
+          // proprio, com o fundo por tras, virava caixa dentro de caixa.
+          <View
+            style={[
+              styles.painelRoleta,
+              { backgroundColor: theme.card, borderColor: theme.border, shadowColor: theme.shadowStrong },
+            ]}
+          >
+            <View style={styles.painelTopo}>
+              <Text style={[styles.painelRotulo, { color: theme.muted }]}>Escolha o ano</Text>
+              <PressableScale
+                onPress={() => setRoletaAberta(false)}
+                scaleTo={0.9}
+                accessibilityRole="button"
+                accessibilityLabel="Fechar a lista de anos"
+                style={[styles.painelFechar, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+              >
+                <Icon name="excluir" size={14} color={theme.muted} />
+              </PressableScale>
+            </View>
+
+            <RoletaAnos
+              theme={theme}
+              anos={anosDisponiveis}
+              ano={anoVisivel}
+              onSelecionar={setAnoVisivel}
+              onEscolhido={(escolhido) => {
+                setAnoVisivel(escolhido)
+                setRoletaAberta(false)
+              }}
+            />
+          </View>
+        ) : null}
       </View>
 
       {(anoVisivel !== anoAtual || mes !== mesAtual) ? (
@@ -211,7 +239,45 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   ano: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
-  roleta: { marginBottom: 16 },
+
+  area: { position: 'relative' },
+  painelRoleta: {
+    position: 'absolute',
+    top: -10,
+    right: -6,
+    bottom: -10,
+    left: -6,
+    justifyContent: 'center',
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingBottom: 6,
+    shadowOpacity: 0.28,
+    shadowRadius: 26,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 16,
+  },
+  painelTopo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+    marginBottom: 4,
+  },
+  painelRotulo: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  painelFechar: {
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   grade: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   mes: {

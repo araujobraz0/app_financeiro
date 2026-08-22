@@ -71,9 +71,6 @@ type FinanceContextValue = {
   alternarModoTemaSistema: () => void
 }
 
-/** Quantas edicoes o app lembra para tras (e para frente). */
-const LIMITE_HISTORICO = 50
-
 /**
  * Mudou algo que o usuario queira poder desfazer?
  *
@@ -114,29 +111,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [appData, setAppData] = useState<AppData>(criarAppDataInicial())
   const [carregando, setCarregando] = useState(true)
 
-  // --- historico de desfazer/refazer ---
+  // --- desfazer / refazer ---
   //
-  // Todo o estado editavel do app mora em `appData`, entao o historico e
-  // simplesmente uma pilha de versoes anteriores desse objeto. Guardar as
-  // pilhas em refs (e nao em estado) evita re-renderizar a arvore inteira a
-  // cada edicao: so as duas contagens abaixo viram estado, e elas mudam
-  // apenas quando um botao precisa ligar ou desligar.
-  const passadoRef = useRef<AppData[]>([])
-  const futuroRef = useRef<AppData[]>([])
+  // Guarda uma alteracao, so. Desfazer aqui e o arrependimento imediato —
+  // "nao era isso que eu queria" —, nao uma linha do tempo para navegar: uma
+  // pilha de cinquenta passos convida a clicar varias vezes sem saber onde a
+  // volta vai parar. Uma alteracao para tras e uma para frente bastam.
+  /** Como os dados estavam antes da ultima alteracao. */
+  const anteriorRef = useRef<AppData | null>(null)
+  /** O que o desfazer tirou, para o refazer devolver. */
+  const desfeitoRef = useRef<AppData | null>(null)
   const ultimoAppDataRef = useRef<AppData | null>(null)
-  /** Marca a proxima mudanca como "nao e edicao do usuario" (carga, desfazer, refazer). */
+  /** Marca a proxima mudanca como "nao e edicao do usuario" (carga, desfazer). */
   const ignorarNoHistoricoRef = useRef(true)
-  const [tamanhoHistorico, setTamanhoHistorico] = useState({ passado: 0, futuro: 0 })
-
-
-  const sincronizarTamanhoHistorico = useCallback(() => {
-    setTamanhoHistorico((anterior) => {
-      const passado = passadoRef.current.length
-      const futuro = futuroRef.current.length
-      if (anterior.passado === passado && anterior.futuro === futuro) return anterior
-      return { passado, futuro }
-    })
-  }, [])
+  const [disponivel, setDisponivel] = useState({ desfazer: false, refazer: false })
 
   useEffect(() => {
     const anterior = ultimoAppDataRef.current
@@ -149,40 +137,41 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     if (anterior === null || anterior === appData) return
     // Desfazer serve para criar, editar e excluir. Ocultar valores, trocar de
     // tema ou renomear o perfil mudam `appData`, mas nao ha nada a recuperar
-    // ali — e entulhavam o historico com passos que nao interessam.
+    // ali — e ocupariam a unica vaga do historico.
     if (!mudouAlgumLancamento(anterior, appData)) return
 
-    passadoRef.current = [...passadoRef.current, anterior].slice(-LIMITE_HISTORICO)
-    futuroRef.current = []
-    sincronizarTamanhoHistorico()
-  }, [appData, sincronizarTamanhoHistorico])
+    anteriorRef.current = anterior
+    desfeitoRef.current = null
+    setDisponivel({ desfazer: true, refazer: false })
+  }, [appData])
+
+  const desfazer = useCallback(() => {
+    const alvo = anteriorRef.current
+    if (!alvo) return
+
+    desfeitoRef.current = ultimoAppDataRef.current
+    anteriorRef.current = null
+    ignorarNoHistoricoRef.current = true
+    setAppData(alvo)
+    setDisponivel({ desfazer: false, refazer: true })
+  }, [])
+
+  const refazer = useCallback(() => {
+    const alvo = desfeitoRef.current
+    if (!alvo) return
+
+    anteriorRef.current = ultimoAppDataRef.current
+    desfeitoRef.current = null
+    ignorarNoHistoricoRef.current = true
+    setAppData(alvo)
+    setDisponivel({ desfazer: true, refazer: false })
+  }, [])
 
   const atualizarSemHistorico = useCallback<Dispatch<SetStateAction<AppData>>>((acao) => {
     ignorarNoHistoricoRef.current = true
     setAppData(acao)
   }, [])
 
-  const desfazer = useCallback(() => {
-    const anterior = passadoRef.current[passadoRef.current.length - 1]
-    if (!anterior) return
-    const atual = ultimoAppDataRef.current
-    passadoRef.current = passadoRef.current.slice(0, -1)
-    if (atual) futuroRef.current = [atual, ...futuroRef.current].slice(0, LIMITE_HISTORICO)
-    ignorarNoHistoricoRef.current = true
-    setAppData(anterior)
-    sincronizarTamanhoHistorico()
-  }, [sincronizarTamanhoHistorico])
-
-  const refazer = useCallback(() => {
-    const proximo = futuroRef.current[0]
-    if (!proximo) return
-    const atual = ultimoAppDataRef.current
-    futuroRef.current = futuroRef.current.slice(1)
-    if (atual) passadoRef.current = [...passadoRef.current, atual].slice(-LIMITE_HISTORICO)
-    ignorarNoHistoricoRef.current = true
-    setAppData(proximo)
-    sincronizarTamanhoHistorico()
-  }, [sincronizarTamanhoHistorico])
   const [sincronizando, setSincronizando] = useState(false)
   const [dadosRemotosCarregados, setDadosRemotosCarregados] = useState(false)
 
@@ -451,8 +440,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       setAppData,
       atualizarSemHistorico,
       carregando,
-      podeDesfazer: tamanhoHistorico.passado > 0,
-      podeRefazer: tamanhoHistorico.futuro > 0,
+      podeDesfazer: disponivel.desfazer,
+      podeRefazer: disponivel.refazer,
       desfazer,
       refazer,
       sincronizando,
@@ -478,7 +467,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       appData,
       carregando,
       atualizarSemHistorico,
-      tamanhoHistorico,
+      disponivel,
       desfazer,
       refazer,
       sincronizando,
