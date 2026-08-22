@@ -25,19 +25,11 @@ type SettingsModalProps = {
   initials: string
   onChooseProfileImage: () => void
   onSaveProfile: () => void
-  selectedMonth: string
-  selectedYear: number
   themeMode: SettingsThemeMode
   onToggleSystemTheme: () => void
-  pixCount: number
-  notesCount: number
-  cardsCount: number
-  categoriesCount: number
   processingFile: ProcessFileType
   onOpenExportPreview: (type: ExportType) => void
   onImportData: () => void
-  checkingUpdates: boolean
-  onCheckUpdates: () => void
   backups: { id: string; created_at: string }[]
   loadingBackups: boolean
   restoringBackupId: string | null
@@ -89,19 +81,11 @@ export default function SettingsModal({
   initials,
   onChooseProfileImage,
   onSaveProfile,
-  selectedMonth,
-  selectedYear,
   themeMode,
   onToggleSystemTheme,
-  pixCount,
-  notesCount,
-  cardsCount,
-  categoriesCount,
   processingFile,
   onOpenExportPreview,
   onImportData,
-  checkingUpdates,
-  onCheckUpdates,
   backups,
   loadingBackups,
   restoringBackupId,
@@ -232,31 +216,6 @@ export default function SettingsModal({
         )
       )}
 
-      {/* ---------- Resumo ---------- */}
-      <View style={styles.secao}>
-        <Text style={[styles.secaoTitulo, { color: theme.muted }]}>Seus dados</Text>
-        <View style={styles.resumoGrade}>
-          {([
-            ['Pix', pixCount, 'pix'],
-            ['Notas', notesCount, 'nota'],
-            ['Cartões', cardsCount, 'cartao'],
-            ['Categorias', categoriesCount, 'grafico'],
-          ] as [string, number, IconName][]).map(([rotulo, total, icone]) => (
-            <View
-              key={rotulo}
-              style={[styles.resumoItem, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
-            >
-              <Icon name={icone} size={15} color={theme.muted} />
-              <Text style={[styles.resumoValor, { color: theme.text }]}>{total}</Text>
-              <Text style={[styles.resumoRotulo, { color: theme.muted }]}>{rotulo}</Text>
-            </View>
-          ))}
-        </View>
-        <Text style={[styles.competencia, { color: theme.faint }]}>
-          Competência atual: {selectedMonth} de {selectedYear}
-        </Text>
-      </View>
-
       {/* ---------- Exportar e importar ---------- */}
       {secao(
         'Exportar e importar',
@@ -297,19 +256,6 @@ export default function SettingsModal({
             processingFile === 'importar'
           )}
         </>
-      )}
-
-      {/* ---------- Atualizacoes ---------- */}
-      {secao(
-        'Aplicativo',
-        linha(
-          'atualizar',
-          checkingUpdates ? 'Checando...' : 'Checar atualizações',
-          'Procura uma versão mais nova',
-          seta,
-          onCheckUpdates,
-          checkingUpdates
-        )
       )}
 
       {/* ---------- Backups ---------- */}
@@ -423,19 +369,6 @@ const styles = StyleSheet.create({
   linhaTitulo: { fontSize: 14, fontWeight: '700', letterSpacing: -0.2 },
   linhaDescricao: { fontSize: 11, fontWeight: '500', marginTop: 2 },
   divisor: { height: 1, marginLeft: 60 },
-
-  resumoGrade: { flexDirection: 'row', gap: 8 },
-  resumoItem: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
-    gap: 3,
-  },
-  resumoValor: { fontSize: 18, fontWeight: '800', letterSpacing: -0.4 },
-  resumoRotulo: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },
-  competencia: { fontSize: 11, fontWeight: '500', marginTop: 10, paddingHorizontal: 4 },
 
   vazio: { fontSize: 12, fontWeight: '500', padding: 16, lineHeight: 17 },
   restaurar: {

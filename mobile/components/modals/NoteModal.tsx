@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import type { NoteModalMode, Tema } from '../../app/types'
-import AppModal from '../common/AppModal'
-import PressableScale from '../common/motion/PressableScale'
+import Campo from '../common/Campo'
 import Icon from '../common/Icon'
+import ModalSheet from '../common/ModalSheet'
+import PressableScale from '../common/motion/PressableScale'
 
 /**
  * Campos do formulario de Pix / anotacao. O modal e dono deles: recebe os
@@ -39,6 +40,27 @@ type NoteModalProps = {
   onSave: (values: NoteFormValues) => void
 }
 
+/** Tipos de chave Pix, para o app formatar e o teclado abrir certo. */
+type TipoChave = 'cpf' | 'telefone' | 'email' | 'aleatoria'
+
+const TIPOS_CHAVE: { valor: TipoChave; label: string; teclado: 'default' | 'number-pad' | 'email-address' }[] = [
+  { valor: 'cpf', label: 'CPF/CNPJ', teclado: 'number-pad' },
+  { valor: 'telefone', label: 'Telefone', teclado: 'number-pad' },
+  { valor: 'email', label: 'E-mail', teclado: 'email-address' },
+  { valor: 'aleatoria', label: 'Aleatória', teclado: 'default' },
+]
+
+/** Adivinha o tipo a partir do que ja esta salvo, ao editar. */
+function detectarTipo(chave: string): TipoChave {
+  const texto = String(chave || '')
+  if (texto.includes('@')) return 'email'
+  const digitos = texto.replace(/\D/g, '')
+  if (digitos.length === 11 && texto.includes('(')) return 'telefone'
+  if (digitos.length === 11 || digitos.length === 14) return 'cpf'
+  if (digitos.length >= 10 && digitos.length <= 13) return 'telefone'
+  return 'aleatoria'
+}
+
 export default function NoteModal({
   visible,
   onClose,
@@ -54,209 +76,208 @@ export default function NoteModal({
   const [notaTitulo, setNotaTitulo] = useState(initialValues.notaTitulo)
   const [notaConteudo, setNotaConteudo] = useState(initialValues.notaConteudo)
   const [notaLinks, setNotaLinks] = useState<string[]>(initialValues.notaLinks)
+  const [tipoChave, setTipoChave] = useState<TipoChave>(detectarTipo(initialValues.pixChave))
 
-  const atualizarCampoLink = (
-    setter: (value: string[] | ((prev: string[]) => string[])) => void,
-    index: number,
-    value: string
-  ) => {
-    setter((prev) => prev.map((item, idx) => (idx === index ? value : item)))
-  }
+  const ehPix = type === 'pix'
 
-  const adicionarCampoLink = (setter: (value: string[] | ((prev: string[]) => string[])) => void) => {
-    setter((prev) => [...prev, ''])
-  }
-
-  const removerCampoLink = (setter: (value: string[] | ((prev: string[]) => string[])) => void, index: number) => {
-    setter((prev) => {
-      if (prev.length <= 1) return ['']
-      return prev.filter((_, idx) => idx !== index)
-    })
-  }
-
-  const handleSave = () => {
+  const salvar = () =>
     onSave({ pixNome, pixChave, pixObservacao, pixLinks, notaTitulo, notaConteudo, notaLinks })
-  }
 
-  const linksField = (
-    links: string[],
-    setter: (value: string[] | ((prev: string[]) => string[])) => void,
-    keyPrefix: string
-  ) => (
-    <View style={styles.modalField}>
-      <View style={styles.linkFieldHeader}>
-        <Text style={[styles.modalLabel, { color: theme.muted }]}>Links</Text>
-        <PressableScale
-          onPress={() => adicionarCampoLink(setter)}
-          style={[styles.smallActionBtn, styles.linkAddBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
-        >
-          <Icon name="adicionar" size={18} color={theme.text} />
-        </PressableScale>
-      </View>
-      {links.map((link, index) => (
-        <View key={`${keyPrefix}-link-${index}`} style={styles.linkInputRow}>
-          <TextInput
-            value={link}
-            onChangeText={(value) => atualizarCampoLink(setter, index, value)}
-            placeholder='Cole um link aqui'
-            placeholderTextColor={theme.muted}
-            autoCapitalize='none'
-            autoCorrect={false}
-            keyboardType='url'
-            style={[styles.modalInput, styles.linkInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
-          />
-          <PressableScale
-            onPress={() => removerCampoLink(setter, index)}
-            style={[styles.linkRemoveBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
-          >
-            <Icon name="excluir" size={18} color={theme.red} />
-          </PressableScale>
-        </View>
-      ))}
-    </View>
-  )
+  const podeSalvar = ehPix
+    ? pixNome.trim().length > 0 && pixChave.trim().length > 0
+    : notaTitulo.trim().length > 0
+
+  const links = ehPix ? pixLinks : notaLinks
+  const setLinks = ehPix ? setPixLinks : setNotaLinks
+
+  const atualizarLink = (indice: number, valor: string) =>
+    setLinks((anteriores) => anteriores.map((link, i) => (i === indice ? valor : link)))
+
+  const removerLink = (indice: number) =>
+    setLinks((anteriores) => anteriores.filter((_, i) => i !== indice))
+
+  const adicionarLink = () => setLinks((anteriores) => [...anteriores, ''])
+
+  const tecladoDaChave = TIPOS_CHAVE.find((t) => t.valor === tipoChave)?.teclado ?? 'default'
 
   return (
-    <AppModal visible={visible} onClose={onClose}>
-      <View style={[styles.modalCard, styles.modalCardNotesFixedFooter, styles.modalCardWithFixedFooter, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <View style={styles.modalContentFill}>
-          <ScrollView
-            style={styles.modalScroll}
-            contentContainerStyle={[styles.modalScrollContent, styles.modalScrollContentWithFooter]}
-            showsVerticalScrollIndicator
-            keyboardShouldPersistTaps='always'
-            nestedScrollEnabled
-            scrollEnabled
-          >
-            <View style={styles.modalContentWrap}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>{type === 'pix' ? 'Salvar Pix' : 'Salvar anotação'}</Text>
+    <ModalSheet
+      theme={theme}
+      visible={visible}
+      onClose={onClose}
+      titulo={ehPix ? 'Chave Pix' : 'Nova anotação'}
+      subtitulo={
+        ehPix
+          ? 'Salve uma chave para copiar com um toque depois.'
+          : 'Guarde lembretes, senhas e links importantes.'
+      }
+      acoes={[
+        { label: 'Cancelar', onPress: onClose },
+        { label: 'Salvar', onPress: salvar, primaria: true, desabilitada: !podeSalvar },
+      ]}
+    >
+      {ehPix ? (
+        <>
+          <Campo
+            theme={theme}
+            rotulo="Nome do contato"
+            value={pixNome}
+            onChangeText={setPixNome}
+            placeholder="Ex.: Maria, Padaria do Zé"
+            autoFocus
+          />
 
-              {type === 'pix' ? (
-                <>
-                  <View style={styles.modalField}>
-                    <Text style={[styles.modalLabel, { color: theme.muted }]}>Nome</Text>
-                    <TextInput
-                      value={pixNome}
-                      onChangeText={setPixNome}
-                      placeholder='Ex.: Mãe, João, fornecedor...'
-                      placeholderTextColor={theme.muted}
-                      style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
-                    />
-                  </View>
-
-                  <View style={styles.modalField}>
-                    <Text style={[styles.modalLabel, { color: theme.muted }]}>Chave Pix</Text>
-                    <TextInput
-                      value={pixChave}
-                      onChangeText={setPixChave}
-                      placeholder='CPF, e-mail, telefone...'
-                      placeholderTextColor={theme.muted}
-                      style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
-                    />
-                  </View>
-
-                  <View style={styles.modalField}>
-                    <Text style={[styles.modalLabel, { color: theme.muted }]}>Observação</Text>
-                    <TextInput
-                      value={pixObservacao}
-                      onChangeText={setPixObservacao}
-                      placeholder='Apelido, banco, detalhe...'
-                      placeholderTextColor={theme.muted}
-                      style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
-                    />
-                  </View>
-
-                  {linksField(pixLinks, setPixLinks, 'pix')}
-                </>
-              ) : (
-                <>
-                  <View style={styles.modalField}>
-                    <Text style={[styles.modalLabel, { color: theme.muted }]}>Título</Text>
-                    <TextInput
-                      value={notaTitulo}
-                      onChangeText={setNotaTitulo}
-                      placeholder='Digite o título'
-                      placeholderTextColor={theme.muted}
-                      style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
-                    />
-                  </View>
-
-                  <View style={styles.modalField}>
-                    <Text style={[styles.modalLabel, { color: theme.muted }]}>Conteúdo</Text>
-                    <TextInput
-                      value={notaConteudo}
-                      onChangeText={setNotaConteudo}
-                      multiline
-                      scrollEnabled
-                      textAlignVertical='top'
-                      placeholder='Escreva sua anotação'
-                      placeholderTextColor={theme.muted}
-                      style={[styles.modalInput, styles.modalInputMultiline, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
-                    />
-                  </View>
-
-                  {linksField(notaLinks, setNotaLinks, 'nota')}
-                </>
-              )}
-            </View>
-          </ScrollView>
-
-          <View style={[styles.modalActionsSticky, { borderTopColor: theme.border, backgroundColor: theme.card }]}>
-            <View style={styles.modalActions}>
-              <PressableScale onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-              </PressableScale>
-              <PressableScale onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
-                <Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text>
-              </PressableScale>
-            </View>
+          <Text style={[styles.rotulo, { color: theme.muted }]}>Tipo da chave</Text>
+          <View style={styles.tipos}>
+            {TIPOS_CHAVE.map((item) => {
+              const ativo = tipoChave === item.valor
+              return (
+                <PressableScale
+                  key={item.valor}
+                  onPress={() => setTipoChave(item.valor)}
+                  style={[
+                    styles.tipo,
+                    {
+                      backgroundColor: ativo ? theme.accentSoft : theme.cardSoft,
+                      borderColor: ativo ? theme.accent : theme.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.tipoTexto, { color: ativo ? theme.accent : theme.muted }]}>
+                    {item.label}
+                  </Text>
+                </PressableScale>
+              )
+            })}
           </View>
-        </View>
-      </View>
-    </AppModal>
+
+          <Campo
+            theme={theme}
+            rotulo="Chave"
+            value={pixChave}
+            onChangeText={setPixChave}
+            placeholder={
+              tipoChave === 'email'
+                ? 'nome@email.com'
+                : tipoChave === 'telefone'
+                  ? '(11) 90000-0000'
+                  : tipoChave === 'cpf'
+                    ? '000.000.000-00'
+                    : 'Cole a chave aleatória'
+            }
+            keyboardType={tecladoDaChave}
+            autoCapitalize="none"
+          />
+
+          <Campo
+            theme={theme}
+            rotulo="Observação"
+            value={pixObservacao}
+            onChangeText={setPixObservacao}
+            placeholder="Ex.: banco, para que serve"
+            dica="Opcional"
+          />
+        </>
+      ) : (
+        <>
+          <Campo
+            theme={theme}
+            rotulo="Título"
+            value={notaTitulo}
+            onChangeText={setNotaTitulo}
+            placeholder="Ex.: Renovar seguro do carro"
+            autoFocus
+          />
+
+          <Campo
+            theme={theme}
+            rotulo="Conteúdo"
+            value={notaConteudo}
+            onChangeText={setNotaConteudo}
+            placeholder="Escreva o que precisa lembrar"
+            multilinha
+          />
+        </>
+      )}
+
+      {/* Links, comuns aos dois tipos */}
+      <Text style={[styles.rotulo, { color: theme.muted }]}>Links</Text>
+      {links.length === 0 ? (
+        <Text style={[styles.vazio, { color: theme.faint }]}>Nenhum link adicionado.</Text>
+      ) : (
+        links.map((link, indice) => (
+          <View key={indice} style={styles.linkLinha}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Campo
+                theme={theme}
+                rotulo={`Link ${indice + 1}`}
+                value={link}
+                onChangeText={(valor) => atualizarLink(indice, valor)}
+                placeholder="https://"
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+            </View>
+            <PressableScale
+              onPress={() => removerLink(indice)}
+              style={[styles.remover, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+            >
+              <Icon name="excluir" size={15} color={theme.red} />
+            </PressableScale>
+          </View>
+        ))
+      )}
+
+      <PressableScale
+        onPress={adicionarLink}
+        style={[styles.adicionar, { borderColor: theme.borderStrong }]}
+      >
+        <Icon name="adicionar" size={15} color={theme.muted} />
+        <Text style={[styles.adicionarTexto, { color: theme.muted }]}>Adicionar link</Text>
+      </PressableScale>
+    </ModalSheet>
   )
 }
 
 const styles = StyleSheet.create({
-  modalCard: {
-    width: '84%',
-    maxWidth: 420,
-    maxHeight: '94%',
-    alignSelf: 'center',
-    borderRadius: 28,
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 30,
-    borderWidth: 1,
-    overflow: 'hidden',
-    shadowColor: '#000000',
-    shadowOpacity: 0.18,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 14,
+  rotulo: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
   },
-  modalCardNotesFixedFooter: { width: '88%', maxWidth: 440, minHeight: 430, maxHeight: '86%', paddingBottom: 0 },
-  modalCardWithFixedFooter: { overflow: 'hidden' },
-  modalContentFill: { flex: 1 },
-  modalScroll: { width: '100%' },
-  modalScrollContent: { paddingBottom: 4, flexGrow: 1 },
-  modalScrollContentWithFooter: { paddingBottom: 26 },
-  modalContentWrap: { width: '100%' },
-  modalTitle: { fontSize: 18, fontWeight: '900', textAlign: 'center', marginBottom: 14 },
-  modalField: { marginBottom: 10 },
-  modalLabel: { fontSize: 12, fontWeight: '800', marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.8 },
-  modalInput: { minHeight: 46, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, fontSize: 15, fontWeight: '700' },
-  modalInputMultiline: { minHeight: 120, maxHeight: 140, textAlignVertical: 'top', paddingTop: 12, paddingBottom: 12 },
-  linkFieldHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  linkInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  linkInputField: { flex: 1, minHeight: 44 },
-  linkAddBtn: { minWidth: 30, minHeight: 30, paddingHorizontal: 0, borderRadius: 10 },
-  linkRemoveBtn: { width: 34, height: 34, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  linkRemoveBtnText: { fontSize: 18, fontWeight: '900', lineHeight: 18 },
-  smallActionBtn: { minHeight: 34, minWidth: 34, paddingHorizontal: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  smallActionBtnIcon: { fontSize: 14, fontWeight: '900' },
-  modalActionsSticky: { borderTopWidth: 1, paddingTop: 1, paddingHorizontal: 2, paddingBottom: 10 },
-  modalActions: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginTop: 12, width: '100%' },
-  modalActionBtn: { flex: 1, minHeight: 42, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  modalActionText: { fontSize: 13, fontWeight: '900' },
+  tipos: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 16 },
+  tipo: {
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tipoTexto: { fontSize: 12, fontWeight: '700' },
+
+  vazio: { fontSize: 12, fontWeight: '500', marginBottom: 12 },
+  linkLinha: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  remover: {
+    width: 44,
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 25,
+  },
+  adicionar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    minHeight: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+  },
+  adicionarTexto: { fontSize: 13, fontWeight: '700' },
 })

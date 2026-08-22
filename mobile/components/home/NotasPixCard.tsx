@@ -126,14 +126,21 @@ function NotasPixCard({
                   </Text>
                 </PressableScale>
 
-                <View style={local.contatoAcoes}>
-                  <PressableScale onPress={() => onEditarPix(item)} hitSlop={6} style={local.miniBtn}>
-                    <Icon name="editar" size={13} color={theme.faint} />
-                  </PressableScale>
-                  <PressableScale onPress={() => onExcluirPix(item.id, item.nome)} hitSlop={6} style={local.miniBtn}>
-                    <Icon name="excluir" size={15} color={theme.red} />
-                  </PressableScale>
-                </View>
+                <PressableScale
+                  onPress={() => onEditarPix(item)}
+                  hitSlop={6}
+                  style={[local.cantoEsquerdo, { backgroundColor: theme.card, borderColor: theme.border }]}
+                >
+                  <Icon name="editar" size={11} color={theme.faint} />
+                </PressableScale>
+
+                <PressableScale
+                  onPress={() => onExcluirPix(item.id, item.nome)}
+                  hitSlop={6}
+                  style={[local.cantoDireito, { backgroundColor: theme.card, borderColor: theme.border }]}
+                >
+                  <Icon name="excluir" size={12} color={theme.red} />
+                </PressableScale>
               </View>
             )
           })}
@@ -161,7 +168,7 @@ function NotasPixCard({
             onPress={onAbrirFiltro}
             style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
           >
-            <Icon name="ordenar" size={15} color={theme.text} />
+            <Icon name="filtrar" size={15} color={theme.text} />
           </PressableScale>
         </View>
       </View>
@@ -241,8 +248,8 @@ const local = StyleSheet.create({
     width: '31.3%',
     borderWidth: 1,
     borderRadius: 16,
-    paddingTop: 11,
-    paddingBottom: 6,
+    paddingTop: 30,
+    paddingBottom: 11,
     paddingHorizontal: 6,
     alignItems: 'center',
   },
@@ -251,8 +258,28 @@ const local = StyleSheet.create({
   circuloTexto: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
   contatoNome: { fontSize: 11, fontWeight: '800', letterSpacing: -0.2, textAlign: 'center', width: '100%' },
   contatoChave: { fontSize: 9, fontWeight: '600', marginTop: 1, textAlign: 'center', width: '100%' },
-  contatoAcoes: { flexDirection: 'row', gap: 2, marginTop: 6 },
-  miniBtn: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
+  cantoEsquerdo: {
+    position: 'absolute',
+    top: 5,
+    left: 5,
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cantoDireito: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   mural: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   nota: {

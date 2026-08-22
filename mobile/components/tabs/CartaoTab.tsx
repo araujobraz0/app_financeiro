@@ -205,7 +205,7 @@ function CartaoTab({
             </Text>
           </View>
           <PressableScale onPress={onAbrirFiltro} style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-            <Icon name="ordenar" size={15} color={theme.text} />
+            <Icon name="filtrar" size={15} color={theme.text} />
           </PressableScale>
         </View>
 
@@ -222,49 +222,112 @@ function CartaoTab({
             </Text>
           </View>
         ) : (
-          parcelasOrdenadas.map((item) => {
-            const progresso = item.totalParcelas > 0 ? item.parcelaAtual / item.totalParcelas : 0
-            return (
-              <View
-                key={item.id}
-                onLayout={(event) => registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)}
-                style={[
-                  styles.fullRowCard,
-                  highlightedItemId === item.id && styles.searchHighlightCard,
-                  { borderColor: theme.border, backgroundColor: theme.cardSoft },
-                ]}
-              >
-                {renderHighlightOverlay(item.id)}
-                <Text style={[styles.rowItemTitle, { color: theme.text }]} numberOfLines={2}>
-                  {item.descricao}
-                </Text>
+          <View style={local.gradeParcelas}>
+            {parcelasOrdenadas.map((item) => {
+              const pagas = Math.max(0, Math.min(item.parcelaAtual, item.totalParcelas))
+              const restantes = Math.max(0, item.totalParcelas - pagas)
+              const progresso = item.totalParcelas > 0 ? pagas / item.totalParcelas : 0
+              const totalCompra = item.valorParcela * item.totalParcelas
+              const faltaPagar = item.valorParcela * restantes
+              const quitada = restantes === 0
 
-                <View style={local.linhaValor}>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[local.parcelaValor, { color: theme.text }]} numberOfLines={1}>
-                      {formatarValorVisivel(item.valorParcela)}
-                    </Text>
-                    <Text style={[styles.rowItemMeta, { color: theme.muted }]} numberOfLines={1}>
-                      Parcela {item.parcelaAtual} de {item.totalParcelas} · {formatarDiaMes(item.dia, item.competencia)}
-                    </Text>
+              return (
+                <View
+                  key={item.id}
+                  onLayout={(event) =>
+                    registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)
+                  }
+                  style={[
+                    local.compra,
+                    {
+                      backgroundColor: theme.cardSoft,
+                      borderColor: highlightedItemId === item.id ? theme.accent : theme.border,
+                    },
+                  ]}
+                >
+                  {renderHighlightOverlay(item.id)}
+
+                  <View style={local.compraTopo}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[local.compraNome, { color: theme.text }]} numberOfLines={2}>
+                        {item.descricao}
+                      </Text>
+                      <Text style={[local.compraMeta, { color: theme.muted }]} numberOfLines={1}>
+                        {formatarDiaMes(item.dia, item.competencia)} · total {formatarValorVisivel(totalCompra)}
+                      </Text>
+                    </View>
+
+                    <View style={local.compraAcoes}>
+                      <PressableScale
+                        onPress={() => onEditarParcela(item)}
+                        hitSlop={6}
+                        style={[local.acaoBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
+                      >
+                        <Icon name="editar" size={13} color={theme.muted} />
+                      </PressableScale>
+                      <PressableScale
+                        onPress={() => onExcluirParcela(item.id, item.descricao)}
+                        hitSlop={6}
+                        style={[local.acaoBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
+                      >
+                        <Icon name="excluir" size={15} color={theme.red} />
+                      </PressableScale>
+                    </View>
                   </View>
-                  <View style={local.acoes}>
-                    <PressableScale onPress={() => onEditarParcela(item)} style={[local.acaoBtn, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                      <Icon name="editar" size={14} color={theme.muted} />
-                    </PressableScale>
-                    <PressableScale onPress={() => onExcluirParcela(item.id, item.descricao)} style={[local.acaoBtn, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                      <Icon name="excluir" size={16} color={theme.red} />
-                    </PressableScale>
+
+                  {/* Uma marca por parcela: da para contar quantas faltam sem ler numero */}
+                  <View style={local.marcadores}>
+                    {Array.from({ length: Math.min(item.totalParcelas, 24) }, (_, i) => (
+                      <View
+                        key={i}
+                        style={[
+                          local.marcador,
+                          { backgroundColor: i < pagas ? theme.green : theme.borderStrong },
+                        ]}
+                      />
+                    ))}
+                  </View>
+
+                  <View style={local.compraRodape}>
+                    <View style={local.parcelaBloco}>
+                      <Text style={[local.parcelaValor, { color: theme.text }]} numberOfLines={1}>
+                        {formatarValorVisivel(item.valorParcela)}
+                      </Text>
+                      <Text style={[local.parcelaLegenda, { color: theme.muted }]}>por mês</Text>
+                    </View>
+
+                    <View
+                      style={[
+                        local.selo,
+                        {
+                          backgroundColor: quitada ? theme.greenSoft : theme.accentSoft,
+                          borderColor: quitada ? theme.green : theme.accent,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[local.seloTexto, { color: quitada ? theme.green : theme.accent }]}
+                        numberOfLines={1}
+                      >
+                        {quitada
+                          ? 'Quitada'
+                          : `${pagas} de ${item.totalParcelas} · falta ${formatarValorVisivel(faltaPagar)}`}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={[local.progressoTrilha, { backgroundColor: theme.border }]}>
+                    <View
+                      style={[
+                        local.progressoFill,
+                        { width: `${progresso * 100}%`, backgroundColor: theme.green },
+                      ]}
+                    />
                   </View>
                 </View>
-
-                {/* Quanto da compra ja foi pago */}
-                <View style={[local.progressoTrilha, { backgroundColor: theme.background }]}>
-                  <View style={[local.progressoFill, { width: `${progresso * 100}%`, backgroundColor: theme.green }]} />
-                </View>
-              </View>
-            )
-          })
+              )
+            })}
+          </View>
         )}
       </View>
     </>
@@ -308,9 +371,37 @@ const local = StyleSheet.create({
   anteciparBtn: { minHeight: 40, paddingHorizontal: 16, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   anteciparTexto: { fontSize: 13, fontWeight: '800' },
 
-  linhaValor: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
-  parcelaValor: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
-  acoes: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  gradeParcelas: { gap: 10, marginTop: 4 },
+  compra: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 14,
+  },
+  compraTopo: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  compraNome: { fontSize: 14, fontWeight: '700', lineHeight: 19, letterSpacing: -0.2 },
+  compraMeta: { fontSize: 11, fontWeight: '500', marginTop: 3 },
+  compraAcoes: { flexDirection: 'row', gap: 7, flexShrink: 0 },
+
+  marcadores: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, marginTop: 12 },
+  marcador: { flex: 1, minWidth: 6, height: 5, borderRadius: 999 },
+
+  compraRodape: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
+  parcelaBloco: { flexShrink: 0 },
+  parcelaValor: { fontSize: 17, fontWeight: '800', letterSpacing: -0.4 },
+  parcelaLegenda: { fontSize: 10, fontWeight: '600', marginTop: 1 },
+  selo: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 32,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  seloTexto: { fontSize: 10, fontWeight: '800' },
   acaoBtn: { width: 32, height: 32, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 
   progressoTrilha: { height: 4, borderRadius: 999, overflow: 'hidden', marginTop: 10 },

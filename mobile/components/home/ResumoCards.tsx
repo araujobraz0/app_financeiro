@@ -76,6 +76,11 @@ function ResumoCards({
               placeholder="R$ 0,00"
               placeholderTextColor={theme.faint}
               returnKeyType="done"
+              // O foco por ref vinha dentro de um setTimeout, e navegador
+              // recusa abrir o teclado fora do gesto do usuario. Como o campo
+              // so monta ao entrar em edicao, autoFocus resolve na montagem.
+              autoFocus
+              selectTextOnFocus
             />
           ) : (
             <PressableScale onPress={onIniciarEdicaoSalario} scaleTo={0.96} style={styles.toqueSalario}>

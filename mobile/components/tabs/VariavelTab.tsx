@@ -80,7 +80,26 @@ function VariavelTab({
             </Text>
           </View>
           <View style={styles.categoryToolbar}>
-            {tipoVariavelTab === 'saida' && (
+            <PressableScale
+              onPress={() => onAbrirFiltro(tipoVariavelTab === 'entrada' ? 'entradas' : 'saidas')}
+              style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+            >
+              <Icon name="filtrar" size={15} color={theme.text} />
+            </PressableScale>
+          </View>
+        </View>
+
+        <Segmentado
+          theme={theme}
+          selecionado={tipoVariavelTab}
+          onSelecionar={onTipoChange}
+          opcoes={[
+            { valor: 'entrada', label: 'Entradas', icone: 'seta_cima', cor: theme.green },
+            { valor: 'saida', label: 'Saídas', icone: 'seta_baixo', cor: theme.red },
+          ]}
+        />
+
+        {tipoVariavelTab === 'saida' && (
           <View style={local.categorias}>
             <Text style={[local.categoriasRotulo, { color: theme.muted }]}>Filtrar por categoria</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={local.faixa}>
@@ -108,58 +127,7 @@ function VariavelTab({
             </ScrollView>
           </View>
         )}
-            <PressableScale
-              onPress={() => onAbrirFiltro(tipoVariavelTab === 'entrada' ? 'entradas' : 'saidas')}
-              style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
-            >
-              <Icon name="filtrar" size={15} color={theme.text} />
-            </PressableScale>
-          </View>
-        </View>
 
-        <Segmentado
-          theme={theme}
-          selecionado={tipoVariavelTab}
-          onSelecionar={onTipoChange}
-          opcoes={[
-            { valor: 'entrada', label: 'Entradas', icone: 'seta_cima', cor: theme.green },
-            { valor: 'saida', label: 'Saídas', icone: 'seta_baixo', cor: theme.red },
-          ]}
-        />
-
-        {tipoVariavelTab === 'saida' && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-            <PressableScale
-              onPress={() => onFiltroCategoriaChange('Todas')}
-              style={[
-                styles.filterPill,
-                {
-                  backgroundColor: filtroCategoria === 'Todas' ? theme.primary : theme.cardSoft,
-                  borderColor: filtroCategoria === 'Todas' ? theme.primary : theme.border,
-                },
-              ]}
-            >
-              <Text style={[styles.filterPillText, { color: filtroCategoria === 'Todas' ? theme.white : theme.text }]}>Todas</Text>
-            </PressableScale>
-            {categoriasSaidas.map((categoria) => (
-              <PressableScale
-                key={categoria}
-                onPress={() => onFiltroCategoriaChange(categoria)}
-                style={[
-                  styles.filterPill,
-                  {
-                    backgroundColor: filtroCategoria === categoria ? theme.primary : theme.cardSoft,
-                    borderColor: filtroCategoria === categoria ? theme.primary : theme.border,
-                  },
-                ]}
-              >
-                <Text style={[styles.filterPillText, { color: filtroCategoria === categoria ? theme.white : theme.text }]}>
-                  {categoria}
-                </Text>
-              </PressableScale>
-            ))}
-          </ScrollView>
-        )}
       </View>
 
       <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border }]}>

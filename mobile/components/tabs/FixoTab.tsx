@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native'
 import type { FixoItem, Tema } from '../../app/types'
 import { formatarDiaMes } from '../../src/utils/dates'
 import { styles } from '../../src/theme/homeStyles'
+import AnelProgresso from '../common/AnelProgresso'
 import Icon from '../common/Icon'
 import ListRow from '../common/ListRow'
 import PressableScale from '../common/motion/PressableScale'
@@ -64,30 +65,50 @@ function FixoTab({
           onPress={onAbrirFiltro}
           style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
         >
-          <Icon name="ordenar" size={15} color={theme.text} />
+          <Icon name="filtrar" size={15} color={theme.text} />
         </PressableScale>
       </View>
 
       {/* Quanto do mes ja foi quitado */}
       {fixosOrdenados.length > 0 ? (
         <View style={[local.resumo, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-          <View style={local.resumoLinha}>
-            <View style={local.resumoItem}>
-              <Text style={[local.resumoRotulo, { color: theme.muted }]}>Pago</Text>
-              <Text style={[local.resumoValor, { color: theme.green }]} numberOfLines={1}>
-                {formatarValorVisivel(totalFixoPago)}
+          <AnelProgresso
+            progresso={progresso}
+            cor={theme.green}
+            corFundo={theme.background}
+            valor={`${Math.round(progresso * 100)}%`}
+            rotulo="quitado"
+            corValor={theme.green}
+            corRotulo={theme.muted}
+          />
+
+          <View style={local.legenda}>
+            <View style={local.legendaItem}>
+              <View style={[local.marca, { backgroundColor: theme.green }]} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[local.legendaRotulo, { color: theme.muted }]}>Pago</Text>
+                <Text style={[local.legendaValor, { color: theme.green }]} numberOfLines={1}>
+                  {formatarValorVisivel(totalFixoPago)}
+                </Text>
+              </View>
+            </View>
+
+            <View style={local.legendaItem}>
+              <View style={[local.marca, { backgroundColor: theme.red }]} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[local.legendaRotulo, { color: theme.muted }]}>Falta pagar</Text>
+                <Text style={[local.legendaValor, { color: theme.red }]} numberOfLines={1}>
+                  {formatarValorVisivel(totalFixoNaoPago)}
+                </Text>
+              </View>
+            </View>
+
+            <View style={[local.totalLinha, { borderTopColor: theme.border }]}>
+              <Text style={[local.legendaRotulo, { color: theme.muted }]}>Total do mês</Text>
+              <Text style={[local.totalValor, { color: theme.text }]} numberOfLines={1}>
+                {formatarValorVisivel(total)}
               </Text>
             </View>
-            <View style={[local.divisor, { backgroundColor: theme.border }]} />
-            <View style={local.resumoItem}>
-              <Text style={[local.resumoRotulo, { color: theme.muted }]}>Falta pagar</Text>
-              <Text style={[local.resumoValor, { color: theme.red }]} numberOfLines={1}>
-                {formatarValorVisivel(totalFixoNaoPago)}
-              </Text>
-            </View>
-          </View>
-          <View style={[local.trilha, { backgroundColor: theme.background }]}>
-            <View style={[local.preenchimento, { width: `${progresso * 100}%`, backgroundColor: theme.green }]} />
           </View>
         </View>
       ) : null}
@@ -125,14 +146,22 @@ function FixoTab({
 }
 
 const local = StyleSheet.create({
-  resumo: { borderWidth: 1, borderRadius: 18, padding: 14, marginBottom: 4 },
-  resumoLinha: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  resumoItem: { flex: 1, minWidth: 0 },
-  divisor: { width: 1, alignSelf: 'stretch' },
-  resumoRotulo: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
-  resumoValor: { fontSize: 18, fontWeight: '800', letterSpacing: -0.4 },
-  trilha: { height: 6, borderRadius: 999, overflow: 'hidden', marginTop: 12 },
-  preenchimento: { height: '100%', borderRadius: 999 },
+  resumo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 4,
+  },
+  legenda: { flex: 1, minWidth: 0, gap: 11 },
+  legendaItem: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  marca: { width: 9, height: 9, borderRadius: 999 },
+  legendaRotulo: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.9 },
+  legendaValor: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3, marginTop: 1 },
+  totalLinha: { borderTopWidth: 1, paddingTop: 10 },
+  totalValor: { fontSize: 14, fontWeight: '800', letterSpacing: -0.2, marginTop: 2 },
 })
 
 export default memo(FixoTab)

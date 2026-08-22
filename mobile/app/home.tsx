@@ -16,7 +16,6 @@ import {
   useWindowDimensions,
   type DimensionValue,
 } from 'react-native'
-import Constants from 'expo-constants'
 import * as Clipboard from 'expo-clipboard'
 import * as ImagePicker from 'expo-image-picker'
 import * as Updates from 'expo-updates'
@@ -29,6 +28,7 @@ import AppModal from '../components/common/AppModal'
 import * as Haptics from 'expo-haptics'
 import BottomTabItem from '../components/home/BottomTabItem'
 import Calendario from '../components/common/Calendario'
+import { gerarPdfUri } from '../src/utils/export/pdfDoc'
 import AppHeader from '../components/home/AppHeader'
 import BuscaGlobal from '../components/home/BuscaGlobal'
 import PeriodoSelector from '../components/home/PeriodoSelector'
@@ -63,7 +63,6 @@ import {
   lerArquivoComoArrayBuffer,
   lerArquivoComoTexto,
 } from '../src/utils/download'
-import { gerarArquivoPdfWeb } from '../src/utils/exportPdfWeb'
 import { styles } from '../src/theme/homeStyles'
 import FixoTab from '../components/tabs/FixoTab'
 import VariavelTab from '../components/tabs/VariavelTab'
@@ -104,7 +103,6 @@ import {
 import {
   buildExportRows,
   buildExportWorkbook,
-  buildPdfHtml,
   montarNomeArquivoExportacao,
 } from '../src/utils/export'
 import type { ExportData } from '../src/utils/export'
@@ -117,31 +115,9 @@ import type {
   NoteModalMode, SearchResult, CardModalMode, SortTarget, DeleteTarget, CalendarTarget,
 } from './types'
 
-const BRAZLLET_PLATFORM = 'android'
-
 // Paleta categorica do grafico: tons dessaturados ancorados no verde e no
 // dourado da marca, escolhidos para manter contraste nos dois temas.
 const coresPizza = ['#2FA765', '#E0A82E', '#4A90C4', '#E0685F', '#8B6FC7', '#2FA79A', '#E08A3C', '#8AA23C']
-
-const compararVersoesApp = (versaoAtual: string, versaoNova: string) => {
-  const atual = String(versaoAtual || '0').split('.').map((parte) => Number(parte.replace(/\D/g, '') || 0))
-  const nova = String(versaoNova || '0').split('.').map((parte) => Number(parte.replace(/\D/g, '') || 0))
-  const tamanho = Math.max(atual.length, nova.length)
-
-  for (let index = 0; index < tamanho; index += 1) {
-    const a = atual[index] || 0
-    const b = nova[index] || 0
-    if (b > a) return 1
-    if (b < a) return -1
-  }
-
-  return 0
-}
-
-const obterVersaoInstalada = () => {
-  const config = Constants.expoConfig || (Constants as any).manifest2?.extra?.expoClient || (Constants as any).manifest
-  return String(config?.version || '1.0.0')
-}
 
 function calcularCompetenciaInicialPorFechamento(
   chaveBase: string,
@@ -356,7 +332,6 @@ function HomeScreenContent() {
   const [arquivoImportacaoNome, setArquivoImportacaoNome] = useState('')
   const [previewImportacao, setPreviewImportacao] = useState<{ entradas: EntradaItem[]; saidas: SaidaItem[] }>({ entradas: [], saidas: [] })
   const [modalCalendarioAberto, setModalCalendarioAberto] = useState(false)
-  const [checandoAtualizacoes, setChecandoAtualizacoes] = useState(false)
   const [backupsDisponiveis, setBackupsDisponiveis] = useState<{ id: string; created_at: string }[]>([])
   const [carregandoBackups, setCarregandoBackups] = useState(false)
   const [restaurandoBackupId, setRestaurandoBackupId] = useState<string | null>(null)
@@ -1205,76 +1180,6 @@ function HomeScreenContent() {
     )
   }
 
-  const checarAtualizacoesManual = async () => {
-    if (checandoAtualizacoes) return
-
-    setChecandoAtualizacoes(true)
-
-    try {
-      try {
-        if (!__DEV__) {
-          const update = await Updates.checkForUpdateAsync()
-
-          if (update.isAvailable) {
-            await Updates.fetchUpdateAsync()
-            setAvisoAtualizacao({
-              titulo: 'Atualização pronta',
-              mensagem: 'Uma atualização rápida do Brazllet foi baixada. Reinicie o app para aplicar agora.',
-              acao: 'reload',
-              botaoPrincipal: 'Reiniciar agora',
-            })
-            return
-          }
-        }
-      } catch (error) {
-        // Em development build, Expo Go ou ambiente sem canal compatível, seguimos checando o APK novo pelo Supabase.
-        console.warn('[atualização] Checagem OTA indisponível neste ambiente:', error)
-      }
-
-      const versaoInstalada = obterVersaoInstalada()
-      const { data, error } = await supabase
-        .from('app_versions')
-        .select('latest_version, apk_url, message, force_update')
-        .eq('platform', BRAZLLET_PLATFORM)
-        .maybeSingle<{
-          latest_version: string | null
-          apk_url: string | null
-          message: string | null
-          force_update: boolean | null
-        }>()
-
-      if (error) throw error
-
-      const versaoNova = String(data?.latest_version || '')
-      const apkUrl = String(data?.apk_url || '')
-      const temApkNovo = !!versaoNova && !!apkUrl && compararVersoesApp(versaoInstalada, versaoNova) > 0
-
-      if (temApkNovo) {
-        setAvisoAtualizacao({
-          titulo: `Nova versão ${versaoNova}`,
-          mensagem: data?.message || 'Existe uma nova versão do Brazllet disponível para download.',
-          acao: 'apk',
-          apkUrl,
-          botaoPrincipal: 'Atualizar agora',
-        })
-        return
-      }
-
-      setAvisoAtualizacao({
-        titulo: 'Brazllet atualizado',
-        mensagem: 'Você já está usando a versão mais recente disponível para este aparelho.',
-      })
-    } catch (error) {
-      console.error('[atualização] Falha ao checar atualizações:', error)
-      setAvisoAtualizacao({
-        titulo: 'Atualizações',
-        mensagem: 'Não foi possível checar atualizações agora. Tente novamente em instantes.',
-      })
-    } finally {
-      setChecandoAtualizacoes(false)
-    }
-  }
-
   const executarAcaoAvisoAtualizacao = async () => {
     const aviso = avisoAtualizacao
     if (!aviso) return
@@ -1548,10 +1453,7 @@ function HomeScreenContent() {
     }
   }
 
-  const gerarArquivoPdf = async () => {
-    const html = buildPdfHtml(dadosExportacao)
-    return gerarArquivoPdfWeb(html)
-  }
+  const gerarArquivoPdf = async () => gerarPdfUri(dadosExportacao)
 
   const exportarPdf = async () => {
     try {
@@ -2580,7 +2482,6 @@ function HomeScreenContent() {
               />
             </AppearIn>
 
-
             <AppearIn index={5}>
               <ComprasDesejoCard
                 theme={theme}
@@ -2950,19 +2851,11 @@ function HomeScreenContent() {
         initials={iniciais}
         onChooseProfileImage={escolherImagemPerfil}
         onSaveProfile={salvarPerfil}
-        selectedMonth={mesSelecionado}
-        selectedYear={anoSelecionado}
         themeMode={themeMode}
         onToggleSystemTheme={alternarModoTemaSistema}
-        pixCount={pixContacts.length}
-        notesCount={notes.length}
-        cardsCount={cards.length}
-        categoriesCount={categoriasSaidas.length}
         processingFile={processandoArquivo}
         onOpenExportPreview={abrirPreviewExportacao}
         onImportData={importarDadosBanco}
-        checkingUpdates={checandoAtualizacoes}
-        onCheckUpdates={checarAtualizacoesManual}
         backups={backupsDisponiveis}
         loadingBackups={carregandoBackups}
         restoringBackupId={restaurandoBackupId}
