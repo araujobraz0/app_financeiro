@@ -399,6 +399,7 @@ export default function PrimeiroAcessoScreen() {
           defaultFixedSalary: salario,
           onboardingFixedExpenses: fixedItemsPreview.map((item) => item.nome),
           fixosRecorrentes: criarFixosIniciais(fixedItemsPreview),
+          limitesCategorias: {},
           fixosMigrados: true,
           fixosMigracaoVersao: VERSAO_MIGRACAO_FIXOS,
           pixContacts: [],

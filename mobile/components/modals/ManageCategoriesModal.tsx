@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native'
 import type { Tema } from '../../app/types'
+import { formatarMoeda } from '../../src/utils/currency'
 import Icon from '../common/Icon'
 import ModalSheet from '../common/ModalSheet'
 import PressableScale from '../common/motion/PressableScale'
@@ -9,6 +10,8 @@ type ManageCategoriesModalProps = {
   onClose: () => void
   theme: Tema
   categories: string[]
+  /** Teto mensal de cada categoria; ausente = sem limite. */
+  limites: Record<string, number>
   onCreate: () => void
   onEdit: (category: string) => void
   onDelete: (category: string) => void
@@ -19,6 +22,7 @@ export default function ManageCategoriesModal({
   onClose,
   theme,
   categories,
+  limites,
   onCreate,
   onEdit,
   onDelete,
@@ -54,9 +58,16 @@ export default function ManageCategoriesModal({
             key={categoria}
             style={[styles.linha, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
           >
-            <Text style={[styles.nome, { color: theme.text }]} numberOfLines={1}>
-              {categoria}
-            </Text>
+            <View style={styles.textos}>
+              <Text style={[styles.nome, { color: theme.text }]} numberOfLines={1}>
+                {categoria}
+              </Text>
+              <Text style={[styles.limite, { color: theme.muted }]} numberOfLines={1}>
+                {limites[categoria] > 0
+                  ? `Limite de ${formatarMoeda(limites[categoria])} por mês`
+                  : 'Sem limite'}
+              </Text>
+            </View>
             <View style={styles.acoes}>
               <PressableScale
                 onPress={() => onEdit(categoria)}
@@ -96,12 +107,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    minHeight: 54,
+    minHeight: 58,
     paddingHorizontal: 14,
     borderRadius: 16,
     borderWidth: 1,
   },
-  nome: { flex: 1, fontSize: 14, fontWeight: '700', letterSpacing: -0.2 },
+  textos: { flex: 1, minWidth: 0 },
+  nome: { fontSize: 14, fontWeight: '700', letterSpacing: -0.2 },
+  limite: { fontSize: 10.5, fontWeight: '600', marginTop: 2 },
   acoes: { flexDirection: 'row', gap: 7 },
   botao: {
     width: 32,

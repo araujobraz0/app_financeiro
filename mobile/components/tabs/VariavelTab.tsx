@@ -27,6 +27,8 @@ type VariavelTabProps = {
   formatarValorVisivel: (valor: number) => string
   registrarItem: (id: string) => (node: View | null) => void
   renderHighlightOverlay: (id: string) => ReactNode
+  /** Categorias com teto mensal, ja com quanto foi gasto. */
+  limitesDoMes: { categoria: string; limite: number; gasto: number; proporcao: number }[]
   onNovaCategoria: () => void
   onGerenciarCategorias: () => void
   onAbrirFiltro: (alvo: 'entradas' | 'saidas') => void
@@ -59,6 +61,7 @@ function VariavelTab({
   formatarValorVisivel,
   registrarItem,
   renderHighlightOverlay,
+  limitesDoMes,
   onNovaCategoria,
   onGerenciarCategorias,
   onAbrirFiltro,
@@ -124,6 +127,55 @@ function VariavelTab({
                 </PressableScale>
               </View>
             </View>
+
+            {/* Limites: so as categorias com teto, e as mais apertadas em cima.
+                Uma barra por categoria responde "posso gastar mais?" sem
+                obrigar ninguem a somar nada. */}
+            {limitesDoMes.length > 0 ? (
+              <View style={local.limites}>
+                {limitesDoMes.map(({ categoria, limite, gasto, proporcao }) => {
+                  const estourou = gasto > limite
+                  const cor = estourou ? theme.red : proporcao >= 0.8 ? theme.accent : theme.green
+                  const sobra = limite - gasto
+
+                  return (
+                    <PressableScale
+                      key={categoria}
+                      onPress={() => onFiltroCategoriaChange(categoria)}
+                      scaleTo={0.98}
+                      style={[local.limite, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+                    >
+                      <View style={local.limiteTopo}>
+                        <Text style={[local.limiteNome, { color: theme.text }]} numberOfLines={1}>
+                          {categoria}
+                        </Text>
+                        <Text style={[local.limiteValor, { color: cor }]} numberOfLines={1}>
+                          {formatarValorVisivel(gasto)} de {formatarValorVisivel(limite)}
+                        </Text>
+                      </View>
+
+                      <View style={[local.trilha, { backgroundColor: theme.background }]}>
+                        <View
+                          style={[
+                            local.preenchimento,
+                            {
+                              width: `${Math.min(100, Math.max(2, proporcao * 100))}%`,
+                              backgroundColor: cor,
+                            },
+                          ]}
+                        />
+                      </View>
+
+                      <Text style={[local.limiteApoio, { color: estourou ? theme.red : theme.muted }]} numberOfLines={1}>
+                        {estourou
+                          ? `Passou ${formatarValorVisivel(gasto - limite)} do limite`
+                          : `Ainda cabe ${formatarValorVisivel(sobra)}`}
+                      </Text>
+                    </PressableScale>
+                  )
+                })}
+              </View>
+            ) : null}
 
             {/* Grade em vez de faixa horizontal: numa faixa as ultimas
                 categorias ficam escondidas fora da tela e nada indica que ha
@@ -228,6 +280,14 @@ const local = StyleSheet.create({
     minWidth: 0,
   },
   categoriasAcoes: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  limites: { gap: 8, marginBottom: 12 },
+  limite: { borderWidth: 1, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12 },
+  limiteTopo: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  limiteNome: { fontSize: 13, fontWeight: '800', letterSpacing: -0.2, flexShrink: 1 },
+  limiteValor: { fontSize: 11.5, fontWeight: '800', flexShrink: 0 },
+  trilha: { height: 6, borderRadius: 999, overflow: 'hidden', marginTop: 8 },
+  preenchimento: { height: '100%', borderRadius: 999 },
+  limiteApoio: { fontSize: 10.5, fontWeight: '600', marginTop: 5 },
   botaoCategoria: {
     width: 30,
     height: 30,

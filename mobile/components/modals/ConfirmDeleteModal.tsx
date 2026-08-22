@@ -7,6 +7,8 @@ import PressableScale from '../common/motion/PressableScale'
 type ConfirmDeleteModalProps = {
   visible: boolean
   label?: string
+  /** Texto no lugar do padrao, quando a exclusao tem regra propria. */
+  descricao?: string
   onClose: () => void
   onConfirm: () => void
   theme: Tema
@@ -25,6 +27,7 @@ type ConfirmDeleteModalProps = {
 export default function ConfirmDeleteModal({
   visible,
   label,
+  descricao,
   onClose,
   onConfirm,
   theme,
@@ -89,8 +92,8 @@ export default function ConfirmDeleteModal({
       ]}
     >
       <Text style={[styles.texto, { color: theme.muted }]}>
-        Tem certeza que deseja excluir {label ? `"${label}"` : 'este item'}? Esta ação não pode ser
-        desfeita.
+        {descricao ||
+          `Tem certeza que deseja excluir ${label ? `"${label}"` : 'este item'}? Dá para voltar atrás no botão de desfazer, lá em cima.`}
       </Text>
     </ModalSheet>
   )

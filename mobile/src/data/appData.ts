@@ -81,6 +81,7 @@ export function globalDefaults(): GlobalData {
     hideValues: false,
     fixosRecorrentes: [],
     fixosMigrados: false,
+    limitesCategorias: {},
   }
 }
 
@@ -139,6 +140,15 @@ function normalizarDias(valor: unknown): Record<string, number> | undefined {
     .map(([id, dia]) => [id, Math.min(31, Math.max(1, Number(dia) || 1))] as const)
     .filter(([, dia]) => Number.isFinite(dia))
   return entradas.length ? Object.fromEntries(entradas) : undefined
+}
+
+/** Limites por categoria: descarta o que nao for um numero positivo. */
+function normalizarLimites(valor: unknown): Record<string, number> {
+  if (!valor || typeof valor !== 'object') return {}
+  const entradas = Object.entries(valor as Record<string, unknown>)
+    .map(([categoria, limite]) => [categoria, Number(limite) || 0] as const)
+    .filter(([categoria, limite]) => categoria && limite > 0)
+  return Object.fromEntries(entradas)
 }
 
 export function normalizarAppData(dataOriginal: unknown): AppData {
@@ -302,6 +312,23 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
             fechamentoMes: Number(card.fechamentoMes || 0),
             vencimento: Number(card.vencimento || 0),
             vencimentoMes: Number(card.vencimentoMes || 0),
+            assinaturas: Array.isArray(card.assinaturas)
+              ? card.assinaturas
+                  .filter((a: any) => a && a.id && Array.isArray(a.versoes) && a.versoes.length)
+                  .map((a: any) => ({
+                    id: String(a.id),
+                    criadoEm: String(a.criadoEm || a.versoes[0]?.desde || ''),
+                    encerradoEm: a.encerradoEm ? String(a.encerradoEm) : null,
+                    versoes: a.versoes
+                      .filter((v: any) => v && v.desde)
+                      .map((v: any) => ({
+                        desde: String(v.desde),
+                        nome: String(v.nome || ''),
+                        valor: Number(v.valor || 0),
+                      })),
+                  }))
+                  .filter((a: any) => a.criadoEm && a.versoes.length)
+              : [],
             parcelas: Array.isArray(card.parcelas)
               ? card.parcelas.map((item: any, index: number) => ({
                   id: item.id || `installment-${cIndex}-${index}`,
@@ -342,6 +369,7 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
       investmentBaseMode: globalBase.investmentBaseMode === 'salary_plus_entries' ? 'salary_plus_entries' : 'salary',
       hideValues: Boolean(globalBase.hideValues),
       fixosRecorrentes,
+      limitesCategorias: normalizarLimites(globalBase.limitesCategorias),
       fixosMigrados: true,
       fixosMigracaoVersao: VERSAO_MIGRACAO_FIXOS,
     },

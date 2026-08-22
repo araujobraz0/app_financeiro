@@ -6,6 +6,7 @@ import { formatarDiaMes } from '../../src/utils/dates'
 import { styles } from '../../src/theme/homeStyles'
 import Icon from '../common/Icon'
 import PressableScale from '../common/motion/PressableScale'
+import ListRow from '../common/ListRow'
 import CartaoVisual from './CartaoVisual'
 
 type CartaoTabProps = {
@@ -29,6 +30,12 @@ type CartaoTabProps = {
   /** Dia em que a fatura deste mes foi paga. Null enquanto estiver em aberto. */
   faturaPagaNoDia: number | null
   onAlternarFaturaPaga: () => void
+  /** Cobrancas que se repetem todo mes neste cartao. */
+  assinaturas: { id: string; nome: string; valor: number }[]
+  totalAssinaturas: number
+  onNovaAssinatura: () => void
+  onEditarAssinatura: (item: { id: string; nome: string; valor: number }) => void
+  onExcluirAssinatura: (id: string, nome: string) => void
   highlightedItemId: string | null
   formatarValorVisivel: (valor: number) => string
   registrarItem: (id: string) => (node: View | null) => void
@@ -67,6 +74,11 @@ function CartaoTab({
   diasAteVencimentoCartao,
   faturaPagaNoDia,
   onAlternarFaturaPaga,
+  assinaturas,
+  totalAssinaturas,
+  onNovaAssinatura,
+  onEditarAssinatura,
+  onExcluirAssinatura,
   highlightedItemId,
   formatarValorVisivel,
   registrarItem,
@@ -204,6 +216,7 @@ function CartaoTab({
             {faturaPaga
               ? `Paga no dia ${faturaPagaNoDia} · vencia em ${datasFaturaCartao.vencimentoAtual}`
               : `Fecha em ${datasFaturaCartao.fechamentoAtual} · vence em ${datasFaturaCartao.vencimentoAtual}`}
+            {totalAssinaturas > 0 ? ` · inclui ${formatarValorVisivel(totalAssinaturas)} de assinaturas` : ''}
           </Text>
 
           {/* Uso do limite */}
@@ -292,7 +305,59 @@ function CartaoTab({
         </View>
       )}
 
-      {/* ---------- 3. Compras parceladas ---------- */}
+      {/* ---------- 3. Assinaturas ----------
+          Sao cobrancas do mesmo cartao, so que sem fim a vista: nao cabem em
+          "compras parceladas", que tem contagem, nem em gastos fixos, que nao
+          entram na fatura. Por isso um bloco proprio. */}
+      {selectedCard ? (
+        <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.manageHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.manageTitle, { color: theme.text }]}>Assinaturas</Text>
+              <Text style={[styles.manageSub, { color: theme.muted }]}>
+                {assinaturas.length === 0
+                  ? 'Spotify, Netflix e outras cobranças mensais'
+                  : `${assinaturas.length} ${assinaturas.length === 1 ? 'assinatura' : 'assinaturas'} · ${formatarValorVisivel(totalAssinaturas)} por mês`}
+              </Text>
+            </View>
+            <PressableScale
+              onPress={onNovaAssinatura}
+              accessibilityRole="button"
+              accessibilityLabel="Nova assinatura"
+              style={[styles.smallActionBtn, { backgroundColor: theme.primary, borderColor: theme.primary }]}
+            >
+              <Icon name="adicionar" size={18} color={theme.textInverse} />
+            </PressableScale>
+          </View>
+
+          {assinaturas.length === 0 ? (
+            <PressableScale
+              onPress={onNovaAssinatura}
+              style={[local.vazioAssinatura, { borderColor: theme.borderStrong, backgroundColor: theme.cardSoft }]}
+            >
+              <Icon name="aba_fixo" size={22} color={theme.muted} />
+              <Text style={[local.vazioSub, { color: theme.muted }]}>
+                Cadastre uma vez e ela entra na fatura todo mês.
+              </Text>
+            </PressableScale>
+          ) : (
+            assinaturas.map((item) => (
+              <ListRow
+                key={item.id}
+                theme={theme}
+                titulo={item.nome}
+                meta="Todo mês"
+                valor={formatarValorVisivel(item.valor)}
+                compacto
+                onEditar={() => onEditarAssinatura(item)}
+                onExcluir={() => onExcluirAssinatura(item.id, item.nome)}
+              />
+            ))
+          )}
+        </View>
+      ) : null}
+
+      {/* ---------- 4. Compras parceladas ---------- */}
       <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
         <View style={styles.manageHeaderRow}>
           <View style={{ flex: 1 }}>
@@ -433,6 +498,16 @@ function CartaoTab({
 }
 
 const local = StyleSheet.create({
+  vazioAssinatura: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 96,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+  },
   faturaLinha: { flexDirection: 'row', alignItems: 'center', gap: 9, flexWrap: 'wrap' },
   seloPaga: {
     flexDirection: 'row',

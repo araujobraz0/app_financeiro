@@ -1,4 +1,8 @@
-// Gastos fixos recorrentes.
+// Gastos recorrentes.
+//
+// Serve para os gastos fixos do mes e para as assinaturas do cartao (Spotify,
+// Netflix): sao a mesma coisa — uma cobranca que se repete e que pode mudar de
+// valor ou acabar em algum momento. Muda so onde a lista aparece.
 //
 // O app guardava uma copia do gasto dentro de cada mes. "Alterar deste mes em
 // diante" virava entao um laco sobre os meses ja gravados — e meses nunca

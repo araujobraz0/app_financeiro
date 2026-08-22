@@ -51,6 +51,8 @@ import LaunchModal, { emptyLaunchFormValues } from '../components/modals/LaunchM
 import type { LaunchFormValues } from '../components/modals/LaunchModal'
 import CardPurchaseModal, { emptyCardPurchaseValues } from '../components/modals/CardPurchaseModal'
 import type { CardPurchaseFormValues } from '../components/modals/CardPurchaseModal'
+import CardSubscriptionModal, { emptyCardSubscriptionValues } from '../components/modals/CardSubscriptionModal'
+import type { CardSubscriptionValues } from '../components/modals/CardSubscriptionModal'
 import ManageCardsModal from '../components/modals/ManageCardsModal'
 import CardEditorModal, { emptyCardEditorValues } from '../components/modals/CardEditorModal'
 import type { CardEditorFormValues } from '../components/modals/CardEditorModal'
@@ -115,7 +117,7 @@ import {
 import type { ExportData } from '../src/utils/export'
 import Icon from '../components/common/Icon'
 import type {
-  EntradaItem, SaidaItem, FixoItem, NoteItem, PixItem, CardInstallment, CardItem,
+  EntradaItem, SaidaItem, FixoItem, FixoRecorrente, NoteItem, PixItem, CardInstallment, CardItem,
   ShoppingWishItem, DadosMes, BancoDeDados, GlobalData,
   AppData, PremiumEntitlement, AbaInferior, SortMode, SettingsThemeMode,
   TipoVariavelTab, TipoFormularioLancamento, QuickAddType, ModoModal, ModoCategoria,
@@ -262,6 +264,13 @@ function HomeScreenContent() {
   // O campo de nome da categoria vive dentro do CategoryNameModal.
   const [categoriaFormKey, setCategoriaFormKey] = useState(0)
   const [categoriaInicial, setCategoriaInicial] = useState('')
+  const [limiteInicial, setLimiteInicial] = useState('')
+  const [modalAssinaturaAberto, setModalAssinaturaAberto] = useState(false)
+  const [assinaturaEditandoId, setAssinaturaEditandoId] = useState<string | null>(null)
+  const [assinaturaFormKey, setAssinaturaFormKey] = useState(0)
+  const [assinaturaInitialValues, setAssinaturaInitialValues] = useState<CardSubscriptionValues>(
+    () => emptyCardSubscriptionValues()
+  )
   const [filtroCategoria, setFiltroCategoria] = useState('Todas')
   const [itemEditandoId, setItemEditandoId] = useState<string | null>(null)
   const [diaEdicao, setDiaEdicao] = useState('1')
@@ -844,8 +853,13 @@ function HomeScreenContent() {
     [selectedCard, chaveAtual]
   )
   const totalCartaoSelecionado = useMemo(
-    () => parcelasMesAtualCartao.reduce((acc, item) => acc + Number(item.valorParcela || 0), 0),
-    [parcelasMesAtualCartao]
+    () =>
+      parcelasMesAtualCartao.reduce((acc, item) => acc + Number(item.valorParcela || 0), 0) +
+      fixosDoMes(selectedCard?.assinaturas || [], undefined, chaveAtual).reduce(
+        (acc, item) => acc + Number(item.valor || 0),
+        0
+      ),
+    [parcelasMesAtualCartao, selectedCard, chaveAtual]
   )
 
   const limiteCartaoSelecionado = Number(selectedCard?.limite || 0)
@@ -869,8 +883,28 @@ function HomeScreenContent() {
     const prox = addMonthsToCompetencia(chaveAtual, 1)
     return selectedCard.parcelas.filter((item) => item.competencia === prox)
   }, [selectedCard, chaveAtual])
-  const totalFaturaAtual = parcelasFaturaAtual.reduce((acc, item) => acc + Number(item.valorParcela || 0), 0)
-  const totalProximaFatura = parcelasProximaFatura.reduce((acc, item) => acc + Number(item.valorParcela || 0), 0)
+  /** Assinaturas que caem na fatura do mes em exibicao. */
+  const assinaturasDoMes = useMemo(
+    () => (selectedCard ? fixosDoMes(selectedCard.assinaturas || [], undefined, chaveAtual) : []),
+    [selectedCard, chaveAtual]
+  )
+  const totalAssinaturas = assinaturasDoMes.reduce((acc, item) => acc + Number(item.valor || 0), 0)
+
+  const totalAssinaturasProximoMes = useMemo(() => {
+    if (!selectedCard) return 0
+    return fixosDoMes(
+      selectedCard.assinaturas || [],
+      undefined,
+      addMonthsToCompetencia(chaveAtual, 1)
+    ).reduce((acc, item) => acc + Number(item.valor || 0), 0)
+  }, [selectedCard, chaveAtual])
+
+  // A fatura e parcelas + assinaturas: as duas coisas chegam na mesma cobranca.
+  const totalFaturaAtual =
+    parcelasFaturaAtual.reduce((acc, item) => acc + Number(item.valorParcela || 0), 0) + totalAssinaturas
+  const totalProximaFatura =
+    parcelasProximaFatura.reduce((acc, item) => acc + Number(item.valorParcela || 0), 0) +
+    totalAssinaturasProximoMes
 
   // --- informacoes derivadas do cartao, para a aba mostrar sem contas manuais ---
 
@@ -938,6 +972,28 @@ function HomeScreenContent() {
       }
     })
   }
+  /**
+   * Quanto ja foi gasto de cada categoria com limite, neste mes.
+   *
+   * So entram as categorias que tem teto: uma lista com todas viraria mais uma
+   * parede de numeros, e o ponto aqui e olhar para as poucas que importam.
+   */
+  const limitesDoMes = useMemo(() => {
+    const limites = globalData.limitesCategorias || {}
+
+    return categoriasSaidas
+      .filter((categoria) => Number(limites[categoria] || 0) > 0)
+      .map((categoria) => {
+        const limite = Number(limites[categoria])
+        const gasto = saidas
+          .filter((item) => item.categoria === categoria)
+          .reduce((total, item) => total + Number(item.valor || 0), 0)
+
+        return { categoria, limite, gasto, proporcao: limite > 0 ? gasto / limite : 0 }
+      })
+      .sort((a, b) => b.proporcao - a.proporcao)
+  }, [categoriasSaidas, globalData.limitesCategorias, saidas])
+
   const fixosOrdenados = useMemo(() => ordenarLista(fixos, sortFixo), [fixos, sortFixo])
   const entradasOrdenadas = useMemo(() => ordenarLista(entradas, sortEntradas), [entradas, sortEntradas])
   const saidasOrdenadas = useMemo(() => ordenarLista(saidasFiltradas, sortSaidas), [saidasFiltradas, sortSaidas])
@@ -2026,6 +2082,7 @@ function HomeScreenContent() {
     else if (type === 'nota') excluirNota(id)
     else if (type === 'cartao') excluirCartao(id)
     else if (type === 'parcela') excluirParcela(id)
+    else if (type === 'assinatura') excluirAssinatura(id)
     else if (type === 'categoria') excluirCategoria(id)
     else if (type === 'compra_desejo') excluirCompraDesejo(id)
 
@@ -2098,18 +2155,86 @@ function HomeScreenContent() {
     }))
   }
 
+  // --- assinaturas do cartao ---
+
+  const abrirNovaAssinatura = () => {
+    if (!selectedCard) return
+    if (bloquearAcaoSemPremium('Cadastrar assinaturas do cartão é um recurso premium.')) return
+    setAssinaturaEditandoId(null)
+    setAssinaturaInitialValues(emptyCardSubscriptionValues())
+    setAssinaturaFormKey((prev) => prev + 1)
+    setModalAssinaturaAberto(true)
+  }
+
+  const abrirEditarAssinatura = (item: { id: string; nome: string; valor: number }) => {
+    if (bloquearAcaoSemPremium('Editar assinaturas do cartão é um recurso premium.')) return
+    setAssinaturaEditandoId(item.id)
+    setAssinaturaInitialValues({ nome: item.nome, valor: formatarValorInput(item.valor) })
+    setAssinaturaFormKey((prev) => prev + 1)
+    setModalAssinaturaAberto(true)
+  }
+
+  const fecharModalAssinatura = () => {
+    setModalAssinaturaAberto(false)
+    setAssinaturaEditandoId(null)
+  }
+
+  /** Aplica uma mudanca so nas assinaturas do cartao selecionado. */
+  const alterarAssinaturas = (
+    transformar: (assinaturas: FixoRecorrente[]) => FixoRecorrente[]
+  ) => {
+    if (!selectedCard) return
+    const cartaoId = selectedCard.id
+
+    setAppData((prev) => ({
+      ...prev,
+      global: {
+        ...prev.global,
+        cards: prev.global.cards.map((card) =>
+          card.id === cartaoId ? { ...card, assinaturas: transformar(card.assinaturas || []) } : card
+        ),
+      },
+    }))
+  }
+
+  const salvarAssinatura = (values: CardSubscriptionValues) => {
+    const nome = values.nome.trim()
+    const valor = moneyStringToNumber(values.valor)
+    if (!nome || valor <= 0) return
+
+    alterarAssinaturas((assinaturas) =>
+      assinaturaEditandoId
+        ? editarFixoRecorrente(assinaturas, chaveAtual, assinaturaEditandoId, { nome, valor })
+        : criarFixoRecorrente(assinaturas, chaveAtual, {
+            id: `assinatura-${Date.now()}`,
+            nome,
+            valor,
+          })
+    )
+
+    fecharModalAssinatura()
+  }
+
+  /** Cancelar vale deste mes em diante: as cobrancas anteriores aconteceram. */
+  const excluirAssinatura = (id: string) => {
+    alterarAssinaturas((assinaturas) => excluirFixoRecorrente(assinaturas, chaveAtual, id))
+  }
+
   const abrirModalNovaCategoria = () => {
     setModoCategoria('nova')
     setCategoriaOriginal('')
     setCategoriaInicial('')
+    setLimiteInicial('')
     setCategoriaFormKey((prev) => prev + 1)
     setModalCategoriaNomeAberto(true)
   }
 
   const abrirModalEditarCategoria = (categoria: string) => {
+    const limite = Number(globalData.limitesCategorias?.[categoria] || 0)
     setModoCategoria('editar')
     setCategoriaOriginal(categoria)
     setCategoriaInicial(categoria)
+    setLimiteInicial(limite > 0 ? formatarValorInput(limite) : '')
     setCategoriaFormKey((prev) => prev + 1)
     setModalCategoriaNomeAberto(true)
   }
@@ -2119,11 +2244,25 @@ function HomeScreenContent() {
     setModoCategoria('nova')
     setCategoriaOriginal('')
     setCategoriaInicial('')
+    setLimiteInicial('')
   }
 
-  const salvarCategoria = (valorDigitado: string) => {
+  /** Grava (ou apaga, quando zero) o teto mensal de uma categoria. */
+  const aplicarLimiteCategoria = (
+    limites: Record<string, number>,
+    categoria: string,
+    limite: number
+  ) => {
+    const atualizados = { ...limites }
+    if (limite > 0) atualizados[categoria] = limite
+    else delete atualizados[categoria]
+    return atualizados
+  }
+
+  const salvarCategoria = (valorDigitado: string, limite: number) => {
     const nomeNova = valorDigitado.trim()
     if (!nomeNova) return
+
     if (modoCategoria === 'nova') {
       if (categoriasSaidas.includes(nomeNova)) return
       setAppData((prev) => ({
@@ -2135,29 +2274,52 @@ function HomeScreenContent() {
             categoriasSaidas: [...prev.bancoDeDados[chaveAtual].categoriasSaidas, nomeNova],
           },
         },
-      }))
-    } else {
-      if (nomeNova === categoriaOriginal || categoriasSaidas.includes(nomeNova)) {
-        fecharModalCategoriaNome()
-        return
-      }
-      setAppData((prev) => ({
-        ...prev,
-        bancoDeDados: {
-          ...prev.bancoDeDados,
-          [chaveAtual]: {
-            ...prev.bancoDeDados[chaveAtual],
-            categoriasSaidas: prev.bancoDeDados[chaveAtual].categoriasSaidas.map((cat) =>
-              cat === categoriaOriginal ? nomeNova : cat
-            ),
-            saidas: prev.bancoDeDados[chaveAtual].saidas.map((item) =>
-              item.categoria === categoriaOriginal ? { ...item, categoria: nomeNova } : item
-            ),
-          },
+        global: {
+          ...prev.global,
+          limitesCategorias: aplicarLimiteCategoria(prev.global.limitesCategorias || {}, nomeNova, limite),
         },
       }))
-      if (filtroCategoria === categoriaOriginal) setFiltroCategoria(nomeNova)
+      fecharModalCategoriaNome()
+      return
     }
+
+    const renomeou = nomeNova !== categoriaOriginal
+    if (renomeou && categoriasSaidas.includes(nomeNova)) {
+      fecharModalCategoriaNome()
+      return
+    }
+
+    setAppData((prev) => {
+      // O limite acompanha o nome novo: renomear nao pode zerar o teto.
+      const limites = { ...(prev.global.limitesCategorias || {}) }
+      if (renomeou) delete limites[categoriaOriginal]
+
+      const bancoAtualizado = renomeou
+        ? {
+            ...prev.bancoDeDados,
+            [chaveAtual]: {
+              ...prev.bancoDeDados[chaveAtual],
+              categoriasSaidas: prev.bancoDeDados[chaveAtual].categoriasSaidas.map((cat) =>
+                cat === categoriaOriginal ? nomeNova : cat
+              ),
+              saidas: prev.bancoDeDados[chaveAtual].saidas.map((item) =>
+                item.categoria === categoriaOriginal ? { ...item, categoria: nomeNova } : item
+              ),
+            },
+          }
+        : prev.bancoDeDados
+
+      return {
+        ...prev,
+        bancoDeDados: bancoAtualizado,
+        global: {
+          ...prev.global,
+          limitesCategorias: aplicarLimiteCategoria(limites, nomeNova, limite),
+        },
+      }
+    })
+
+    if (renomeou && filtroCategoria === categoriaOriginal) setFiltroCategoria(nomeNova)
     fecharModalCategoriaNome()
   }
 
@@ -2172,6 +2334,10 @@ function HomeScreenContent() {
           ...prev.bancoDeDados[chaveAtual],
           categoriasSaidas: prev.bancoDeDados[chaveAtual].categoriasSaidas.filter((cat) => cat !== categoria),
         },
+      },
+      global: {
+        ...prev.global,
+        limitesCategorias: aplicarLimiteCategoria(prev.global.limitesCategorias || {}, categoria, 0),
       },
     }))
     if (filtroCategoria === categoria) setFiltroCategoria('Todas')
@@ -2653,6 +2819,7 @@ function HomeScreenContent() {
             formatarValorVisivel={formatarValorVisivel}
             registrarItem={registrarItem}
             renderHighlightOverlay={renderHighlightOverlay}
+            limitesDoMes={limitesDoMes}
             onNovaCategoria={abrirModalNovaCategoria}
             onGerenciarCategorias={() => setModalCategoriasAberto(true)}
             onAbrirFiltro={abrirFiltro}
@@ -2682,6 +2849,11 @@ function HomeScreenContent() {
             diasAteVencimentoCartao={diasAteVencimentoCartao}
             faturaPagaNoDia={faturaPagaNoDia}
             onAlternarFaturaPaga={alternarFaturaPaga}
+            assinaturas={assinaturasDoMes}
+            totalAssinaturas={totalAssinaturas}
+            onNovaAssinatura={abrirNovaAssinatura}
+            onEditarAssinatura={abrirEditarAssinatura}
+            onExcluirAssinatura={(id, nome) => abrirConfirmacaoExclusao('assinatura', id, nome)}
             highlightedItemId={highlightedItemId}
             formatarValorVisivel={formatarValorVisivel}
             registrarItem={registrarItem}
@@ -2786,6 +2958,7 @@ function HomeScreenContent() {
         onClose={() => setModalCategoriasAberto(false)}
         theme={theme}
         categories={categoriasSaidas}
+        limites={globalData.limitesCategorias || {}}
         onCreate={abrirModalNovaCategoria}
         onEdit={abrirModalEditarCategoria}
         onDelete={(categoria) => abrirConfirmacaoExclusao('categoria', categoria, categoria)}
@@ -2797,6 +2970,7 @@ function HomeScreenContent() {
         onClose={fecharModalCategoriaNome}
         mode={modoCategoria}
         initialValue={categoriaInicial}
+        initialLimit={limiteInicial}
         onSave={salvarCategoria}
         theme={theme}
       />
@@ -2809,6 +2983,18 @@ function HomeScreenContent() {
         type={noteModalType}
         initialValues={noteInitialValues}
         onSave={salvarAnotacao}
+      />
+
+      <CardSubscriptionModal
+        key={`assinatura-${assinaturaFormKey}`}
+        visible={modalAssinaturaAberto}
+        onClose={fecharModalAssinatura}
+        theme={theme}
+        editando={!!assinaturaEditandoId}
+        cartaoNome={selectedCard?.nome || 'seu cartão'}
+        competencia={`${mesSelecionado.slice(0, 3)}/${anoSelecionado}`}
+        initialValues={assinaturaInitialValues}
+        onSave={salvarAssinatura}
       />
 
       <CardPurchaseModal
@@ -2920,6 +3106,13 @@ function HomeScreenContent() {
       <ConfirmDeleteModal
         visible={!!confirmacaoExclusao}
         label={confirmacaoExclusao?.label}
+        descricao={
+          confirmacaoExclusao?.type === 'fixo'
+            ? `"${confirmacaoExclusao.label}" sai deste mês em diante. Os meses anteriores ficam como estão.`
+            : confirmacaoExclusao?.type === 'assinatura'
+              ? `"${confirmacaoExclusao.label}" para de cair na fatura deste mês em diante. As cobranças anteriores continuam registradas.`
+              : undefined
+        }
         onClose={() => setConfirmacaoExclusao(null)}
         onConfirm={confirmarExclusao}
         theme={theme}

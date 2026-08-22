@@ -88,6 +88,14 @@ export type CardItem = {
   vencimento?: number | null
   vencimentoMes?: number | null
   parcelas: CardInstallment[]
+  /**
+   * Cobrancas que se repetem todo mes neste cartao (Spotify, Netflix).
+   *
+   * Mesma estrutura dos gastos fixos: uma definicao com validade e historico de
+   * valores, em vez de uma copia por mes. Assim "cancelei em outubro" nao apaga
+   * as cobrancas que realmente aconteceram antes.
+   */
+  assinaturas?: FixoRecorrente[]
 }
 
 export type GoalItem = {
@@ -147,6 +155,8 @@ export type GlobalData = {
   hideValues: boolean
   /** Gastos fixos do usuario, com o historico de valores. */
   fixosRecorrentes: FixoRecorrente[]
+  /** Teto mensal de gasto por categoria. Ausente = categoria sem limite. */
+  limitesCategorias: Record<string, number>
   /**
    * Marca que os gastos fixos ja sairam do formato antigo (uma copia por mes).
    * Sem ela nao da para distinguir "ainda nao migrou" de "migrou e o usuario
@@ -235,5 +245,5 @@ export type SearchResult = {
 
 export type CardModalMode = 'card' | 'installment'
 export type SortTarget = 'fixo' | 'entradas' | 'saidas' | 'notas' | 'cartao'
-export type DeleteTarget = 'fixo' | 'entrada' | 'saida' | 'pix' | 'nota' | 'cartao' | 'parcela' | 'categoria' | 'compra_desejo' | 'objetivo'
+export type DeleteTarget = 'fixo' | 'entrada' | 'saida' | 'pix' | 'nota' | 'cartao' | 'parcela' | 'categoria' | 'compra_desejo' | 'objetivo' | 'assinatura'
 export type CalendarTarget = 'dia_edicao' | 'cartao_fechamento' | 'cartao_vencimento' | 'wish_data'
