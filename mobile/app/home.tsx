@@ -120,7 +120,9 @@ import type {
 
 const BRAZLLET_PLATFORM = 'android'
 
-const coresPizza = ['#38bdf8', '#2563eb', '#16a34a', '#dc2626', '#9333ea', '#ea580c', '#14b8a6', '#ca8a04']
+// Paleta categorica do grafico: tons dessaturados ancorados no verde e no
+// dourado da marca, escolhidos para manter contraste nos dois temas.
+const coresPizza = ['#2FA765', '#E0A82E', '#4A90C4', '#E0685F', '#8B6FC7', '#2FA79A', '#E08A3C', '#8AA23C']
 
 const compararVersoesApp = (versaoAtual: string, versaoNova: string) => {
   const atual = String(versaoAtual || '0').split('.').map((parte) => Number(parte.replace(/\D/g, '') || 0))
@@ -3390,8 +3392,8 @@ function HomeScreenContent() {
       </AppModal>
 
       {sincronizando && (
-        <View style={[styles.syncBadge, { backgroundColor: temaEscuro ? '#1e293b' : '#dbeafe', borderColor: temaEscuro ? '#334155' : '#bfdbfe', bottom: 115 + Math.max(insets.bottom, 10) }]}>
-          <Text style={[styles.syncBadgeText, { color: temaEscuro ? '#93c5fd' : '#2563eb' }]}>Salvando...</Text>
+        <View style={[styles.syncBadge, { backgroundColor: theme.accentSoft, borderColor: theme.borderStrong, bottom: 115 + Math.max(insets.bottom, 10) }]}>
+          <Text style={[styles.syncBadgeText, { color: theme.accent }]}>Salvando...</Text>
         </View>
       )}
       <AppModal

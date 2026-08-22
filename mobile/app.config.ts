@@ -38,7 +38,7 @@ export default {
       package: androidPackage,
       adaptiveIcon: {
         foregroundImage: './assets/images/adaptive-foreground.png',
-        backgroundColor: '#0F172A',
+        backgroundColor: '#0A100D',
       },
     },
     ios: {
@@ -52,12 +52,12 @@ export default {
       [
         'expo-splash-screen',
         {
-          backgroundColor: '#F8FAFC',
+          backgroundColor: '#F8F7F2',
           image: './assets/images/icon-removebg.png',
           imageWidth: 120,
           resizeMode: 'contain',
           dark: {
-            backgroundColor: '#020617',
+            backgroundColor: '#0A100D',
             image: './assets/images/icon-removebg.png',
           },
         },

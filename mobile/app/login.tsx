@@ -361,7 +361,7 @@ export default function LoginScreen() {
                         value={nome}
                         onChangeText={setNome}
                         placeholder='Seu nome'
-                        placeholderTextColor='#8ca08d'
+                        placeholderTextColor='#8C9A90'
                         style={[styles.input, cadastroCompacto && styles.inputCompact]}
                         returnKeyType='next'
                         onFocus={() => {
@@ -380,7 +380,7 @@ export default function LoginScreen() {
                       value={email}
                       onChangeText={setEmail}
                       placeholder='seuemail@gmail.com'
-                      placeholderTextColor='#8ca08d'
+                      placeholderTextColor='#8C9A90'
                       autoCapitalize='none'
                       keyboardType='email-address'
                       style={[styles.input, cadastroCompacto && styles.inputCompact]}
@@ -402,7 +402,7 @@ export default function LoginScreen() {
                           value={senha}
                           onChangeText={setSenha}
                           placeholder='Digite sua senha'
-                          placeholderTextColor='#8ca08d'
+                          placeholderTextColor='#8C9A90'
                           secureTextEntry={!mostrarSenha}
                           autoCapitalize='none'
                           style={[
@@ -484,7 +484,7 @@ export default function LoginScreen() {
                     disabled={carregandoGoogle}
                   >
                     {carregandoGoogle ? (
-                      <ActivityIndicator color='#193b2b' />
+                      <ActivityIndicator color='#1B7A45' />
                     ) : (
                       <>
                         <Text style={styles.googleIcon}>G</Text>
@@ -515,7 +515,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#eef2ec',
+    backgroundColor: '#F8F7F2',
   },
   flex: {
     flex: 1,
@@ -549,16 +549,16 @@ const styles = StyleSheet.create({
     marginTop: -2,
   },
   brandGreen: {
-    color: '#1f4f37',
+    color: '#12251A',
   },
   brandGold: {
-    color: '#b79039',
+    color: '#C89B2C',
   },
   tagline: {
     marginTop: 4,
     fontSize: 15,
     fontWeight: '700',
-    color: '#b79039',
+    color: '#C89B2C',
     textAlign: 'center',
   },
   cardWrap: {
@@ -569,8 +569,8 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#d9e2d8',
-    shadowColor: '#0f172a',
+    borderColor: '#E5E3D7',
+    shadowColor: '#182B20',
     shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
@@ -584,7 +584,7 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: '#f4f7f2',
+    backgroundColor: '#F1F0E7',
     borderRadius: 18,
     padding: 6,
     gap: 6,
@@ -605,12 +605,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   tabButtonActive: {
-    backgroundColor: '#173927',
+    backgroundColor: '#1B7A45',
   },
   tabText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#6a7c6e',
+    color: '#5F7267',
   },
   tabTextActive: {
     color: '#ffffff',
@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: '900',
-    color: '#173927',
+    color: '#12251A',
     marginBottom: 4,
     textAlign: 'center',
   },
@@ -635,7 +635,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 13,
     lineHeight: 18,
-    color: '#6a7c6e',
+    color: '#5F7267',
     textAlign: 'center',
   },
   subtitleCompact: {
@@ -657,18 +657,18 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#617264',
+    color: '#5F7267',
   },
   input: {
     minHeight: 52,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#d4ddd2',
-    backgroundColor: '#fbfcfa',
+    borderColor: '#E5E3D7',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     fontSize: 15,
     fontWeight: '600',
-    color: '#173927',
+    color: '#12251A',
   },
   inputCompact: {
     minHeight: 46,
@@ -693,8 +693,8 @@ const styles = StyleSheet.create({
     minHeight: 36,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e0e7df',
-    backgroundColor: '#f5f7f4',
+    borderColor: '#E5E3D7',
+    backgroundColor: '#F7F6F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -706,7 +706,7 @@ const styles = StyleSheet.create({
   toggleButtonText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#173927',
+    color: '#12251A',
   },
   feedback: {
     borderRadius: 14,
@@ -718,20 +718,20 @@ const styles = StyleSheet.create({
   },
   feedbackError: {
     backgroundColor: 'rgba(220, 38, 38, 0.08)',
-    color: '#dc2626',
+    color: '#D2453F',
     borderWidth: 1,
     borderColor: 'rgba(220, 38, 38, 0.18)',
   },
   feedbackSuccess: {
     backgroundColor: 'rgba(22, 163, 74, 0.08)',
-    color: '#15803d',
+    color: '#159455',
     borderWidth: 1,
     borderColor: 'rgba(22, 163, 74, 0.18)',
   },
   submitButton: {
     minHeight: 54,
     borderRadius: 18,
-    backgroundColor: '#173927',
+    backgroundColor: '#1B7A45',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
@@ -756,7 +756,7 @@ const styles = StyleSheet.create({
   linkButtonText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#b79039',
+    color: '#C89B2C',
   },
   separatorRow: {
     flexDirection: 'row',
@@ -776,15 +776,15 @@ const styles = StyleSheet.create({
   separatorText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#7d8d80',
+    color: '#8C9A90',
     textTransform: 'uppercase',
   },
   googleButton: {
     minHeight: 54,
     borderRadius: 18,
-    backgroundColor: '#f8fbf7',
+    backgroundColor: '#F7F6F0',
     borderWidth: 1,
-    borderColor: '#d6e0d5',
+    borderColor: '#E5E3D7',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -798,11 +798,11 @@ const styles = StyleSheet.create({
   googleIcon: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#173927',
+    color: '#12251A',
   },
   googleButtonText: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#173927',
+    color: '#12251A',
   },
 })

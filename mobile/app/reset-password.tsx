@@ -277,7 +277,7 @@ export default function ResetPasswordScreen() {
                 <View style={styles.form}>
                   {validandoSessao ? (
                     <View style={styles.sessionLoadingBox}>
-                      <ActivityIndicator color='#173927' />
+                      <ActivityIndicator color='#12251A' />
                       <Text style={styles.sessionLoadingText}>Validando link seguro...</Text>
                     </View>
                   ) : (
@@ -290,7 +290,7 @@ export default function ResetPasswordScreen() {
                             value={novaSenha}
                             onChangeText={setNovaSenha}
                             placeholder='Digite a nova senha'
-                            placeholderTextColor='#8ca08d'
+                            placeholderTextColor='#8C9A90'
                             secureTextEntry={!mostrarSenha}
                             autoCapitalize='none'
                             style={[styles.input, styles.passwordInput]}
@@ -322,7 +322,7 @@ export default function ResetPasswordScreen() {
                             value={confirmarSenha}
                             onChangeText={setConfirmarSenha}
                             placeholder='Repita a nova senha'
-                            placeholderTextColor='#8ca08d'
+                            placeholderTextColor='#8C9A90'
                             secureTextEntry={!mostrarConfirmarSenha}
                             autoCapitalize='none'
                             style={[styles.input, styles.passwordInput]}
@@ -394,7 +394,7 @@ export default function ResetPasswordScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#eef2ec',
+    backgroundColor: '#F8F7F2',
   },
   flex: {
     flex: 1,
@@ -433,16 +433,16 @@ const styles = StyleSheet.create({
     marginTop: -2,
   },
   brandGreen: {
-    color: '#1f4f37',
+    color: '#12251A',
   },
   brandGold: {
-    color: '#b79039',
+    color: '#C89B2C',
   },
   tagline: {
     marginTop: 4,
     fontSize: 15,
     fontWeight: '700',
-    color: '#b79039',
+    color: '#C89B2C',
     textAlign: 'center',
   },
   card: {
@@ -450,8 +450,8 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#d9e2d8',
-    shadowColor: '#0f172a',
+    borderColor: '#E5E3D7',
+    shadowColor: '#182B20',
     shadowOpacity: 0.08,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
@@ -463,14 +463,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: '900',
-    color: '#173927',
+    color: '#12251A',
     marginBottom: 4,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 13,
     lineHeight: 18,
-    color: '#6a7c6e',
+    color: '#5F7267',
     textAlign: 'center',
   },
   form: {
@@ -482,18 +482,18 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#617264',
+    color: '#5F7267',
   },
   input: {
     minHeight: 52,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#d4ddd2',
-    backgroundColor: '#fbfcfa',
+    borderColor: '#E5E3D7',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     fontSize: 15,
     fontWeight: '600',
-    color: '#173927',
+    color: '#12251A',
   },
   passwordWrap: {
     position: 'relative',
@@ -509,22 +509,22 @@ const styles = StyleSheet.create({
     minHeight: 36,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e0e7df',
-    backgroundColor: '#f5f7f4',
+    borderColor: '#E5E3D7',
+    backgroundColor: '#F7F6F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
   toggleButtonText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#173927',
+    color: '#12251A',
   },
   sessionLoadingBox: {
     minHeight: 88,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#d9e2d8',
-    backgroundColor: '#f7faf7',
+    borderColor: '#E5E3D7',
+    backgroundColor: '#F7F6F0',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
@@ -532,7 +532,7 @@ const styles = StyleSheet.create({
   sessionLoadingText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#173927',
+    color: '#12251A',
   },
   feedback: {
     borderRadius: 14,
@@ -544,20 +544,20 @@ const styles = StyleSheet.create({
   },
   feedbackError: {
     backgroundColor: 'rgba(220, 38, 38, 0.08)',
-    color: '#dc2626',
+    color: '#D2453F',
     borderWidth: 1,
     borderColor: 'rgba(220, 38, 38, 0.18)',
   },
   feedbackSuccess: {
     backgroundColor: 'rgba(22, 163, 74, 0.08)',
-    color: '#15803d',
+    color: '#159455',
     borderWidth: 1,
     borderColor: 'rgba(22, 163, 74, 0.18)',
   },
   submitButton: {
     minHeight: 54,
     borderRadius: 18,
-    backgroundColor: '#173927',
+    backgroundColor: '#1B7A45',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
@@ -581,6 +581,6 @@ const styles = StyleSheet.create({
   linkButtonText: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#b79039',
+    color: '#C89B2C',
   },
 })

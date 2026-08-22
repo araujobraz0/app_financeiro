@@ -425,7 +425,7 @@ export default function PrimeiroAcessoScreen() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.loadingWrap}>
-          <ActivityIndicator size='large' color='#c7a24b' />
+          <ActivityIndicator size='large' color='#C89B2C' />
           <Text style={styles.loadingText}>Carregando seu setup inicial...</Text>
         </View>
       </SafeAreaView>
@@ -478,7 +478,7 @@ export default function PrimeiroAcessoScreen() {
                     onChangeText={(value) => handleMaskedMoneyInput(value, setSalarioText, { prefix: false, emptyAsBlank: false })}
                     keyboardType='number-pad'
                     placeholder='0,00'
-                    placeholderTextColor='#93a094'
+                    placeholderTextColor='#8C9A90'
                     style={styles.moneyInput}
                     returnKeyType='done'
                     onSubmitEditing={dismissKeyboard}
@@ -499,8 +499,8 @@ export default function PrimeiroAcessoScreen() {
                   <Switch
                     value={isEEARStudent}
                     onValueChange={setIsEEARStudent}
-                    thumbColor={isEEARStudent ? '#ffffff' : '#f4efe4'}
-                    trackColor={{ false: '#c9cfca', true: '#1f5a34' }}
+                    thumbColor={isEEARStudent ? '#ffffff' : '#F1F0E7'}
+                    trackColor={{ false: '#E5E3D7', true: '#1B7A45' }}
                   />
                 </View>
               </View>
@@ -546,7 +546,7 @@ export default function PrimeiroAcessoScreen() {
                               onChangeText={(value) => setFixedPresetValue(item.id, value)}
                               keyboardType='number-pad'
                               placeholder='0,00'
-                              placeholderTextColor='#93a094'
+                              placeholderTextColor='#8C9A90'
                               style={styles.moneyInput}
                               returnKeyType='done'
                               onSubmitEditing={dismissKeyboard}
@@ -570,7 +570,7 @@ export default function PrimeiroAcessoScreen() {
                     value={newCustomFixedName}
                     onChangeText={setNewCustomFixedName}
                     placeholder='Nome do gasto fixo'
-                    placeholderTextColor='#93a094'
+                    placeholderTextColor='#8C9A90'
                     style={styles.inputCompact}
                     returnKeyType='done'
                     onSubmitEditing={dismissKeyboard}
@@ -585,7 +585,7 @@ export default function PrimeiroAcessoScreen() {
                       onChangeText={(value) => handleMaskedMoneyInput(value, setNewCustomFixedValue, { prefix: false, emptyAsBlank: false })}
                       keyboardType='number-pad'
                       placeholder='0,00'
-                      placeholderTextColor='#93a094'
+                      placeholderTextColor='#8C9A90'
                       style={styles.moneyInput}
                       returnKeyType='done'
                       onSubmitEditing={dismissKeyboard}
@@ -616,7 +616,7 @@ export default function PrimeiroAcessoScreen() {
                             onChangeText={(value) => atualizarFixoCustomValor(item.id, value)}
                             keyboardType='number-pad'
                             placeholder='0,00'
-                            placeholderTextColor='#93a094'
+                            placeholderTextColor='#8C9A90'
                             style={styles.moneyInput}
                             returnKeyType='done'
                             onSubmitEditing={dismissKeyboard}
@@ -674,7 +674,7 @@ export default function PrimeiroAcessoScreen() {
                     value={newCustomVariableName}
                     onChangeText={setNewCustomVariableName}
                     placeholder='Adicionar outra categoria'
-                    placeholderTextColor='#93a094'
+                    placeholderTextColor='#8C9A90'
                     style={[styles.inputCompact, styles.inlineInput]}
                     returnKeyType='done'
                     onSubmitEditing={adicionarCategoriaVariavelCustom}
@@ -698,8 +698,8 @@ export default function PrimeiroAcessoScreen() {
                   <Switch
                     value={hasCreditCards}
                     onValueChange={setHasCreditCards}
-                    thumbColor={hasCreditCards ? '#ffffff' : '#f4efe4'}
-                    trackColor={{ false: '#c9cfca', true: '#1f5a34' }}
+                    thumbColor={hasCreditCards ? '#ffffff' : '#F1F0E7'}
+                    trackColor={{ false: '#E5E3D7', true: '#1B7A45' }}
                   />
                 </View>
               </View>
@@ -728,7 +728,7 @@ export default function PrimeiroAcessoScreen() {
                       value={newCardName}
                       onChangeText={setNewCardName}
                       placeholder='Nome do cartão'
-                      placeholderTextColor='#93a094'
+                      placeholderTextColor='#8C9A90'
                       style={styles.inputCompact}
                       returnKeyType='done'
                       onSubmitEditing={dismissKeyboard}
@@ -745,7 +745,7 @@ export default function PrimeiroAcessoScreen() {
                             onChangeText={(value) => setNewCardClosing(formatarInputDiaMes(value))}
                             keyboardType='number-pad'
                             placeholder='DD/MM'
-                            placeholderTextColor='#93a094'
+                            placeholderTextColor='#8C9A90'
                             style={styles.dayInput}
                             returnKeyType='done'
                             onSubmitEditing={dismissKeyboard}
@@ -766,7 +766,7 @@ export default function PrimeiroAcessoScreen() {
                             onChangeText={(value) => setNewCardDue(formatarInputDiaMes(value))}
                             keyboardType='number-pad'
                             placeholder='DD/MM'
-                            placeholderTextColor='#93a094'
+                            placeholderTextColor='#8C9A90'
                             style={styles.dayInput}
                             returnKeyType='done'
                             onSubmitEditing={dismissKeyboard}
@@ -802,7 +802,7 @@ export default function PrimeiroAcessoScreen() {
                             value={item.nome}
                             onChangeText={(value) => atualizarCartaoCampo(item.id, 'nome', value)}
                             placeholder='Nome do cartão'
-                            placeholderTextColor='#93a094'
+                            placeholderTextColor='#8C9A90'
                             style={[styles.inputCompact, styles.cardItemInput]}
                             returnKeyType='done'
                             onSubmitEditing={dismissKeyboard}
@@ -819,7 +819,7 @@ export default function PrimeiroAcessoScreen() {
                                   onChangeText={(value) => atualizarCartaoCampo(item.id, 'fechamentoText', value)}
                                   keyboardType='number-pad'
                                   placeholder='DD/MM'
-                                  placeholderTextColor='#93a094'
+                                  placeholderTextColor='#8C9A90'
                                   style={styles.dayInput}
                                   returnKeyType='done'
                                   onSubmitEditing={dismissKeyboard}
@@ -837,7 +837,7 @@ export default function PrimeiroAcessoScreen() {
                                   onChangeText={(value) => atualizarCartaoCampo(item.id, 'vencimentoText', value)}
                                   keyboardType='number-pad'
                                   placeholder='DD/MM'
-                                  placeholderTextColor='#93a094'
+                                  placeholderTextColor='#8C9A90'
                                   style={styles.dayInput}
                                   returnKeyType='done'
                                   onSubmitEditing={dismissKeyboard}
@@ -949,7 +949,7 @@ export default function PrimeiroAcessoScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f3f5f0',
+    backgroundColor: '#F7F6F0',
   },
   flex: {
     flex: 1,
@@ -962,7 +962,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   loadingText: {
-    color: '#1b3f2a',
+    color: '#1B7A45',
     fontSize: 15,
     fontWeight: '800',
     textAlign: 'center',
@@ -983,7 +983,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
     letterSpacing: 1.1,
-    color: '#b89238',
+    color: '#C89B2C',
     textTransform: 'uppercase',
     marginBottom: 8,
   },
@@ -991,31 +991,31 @@ const styles = StyleSheet.create({
     fontSize: 32,
     lineHeight: 36,
     fontWeight: '900',
-    color: '#1f5a34',
+    color: '#1B7A45',
     marginBottom: 8,
   },
   headerTitle: {
     fontSize: 24,
     lineHeight: 30,
     fontWeight: '900',
-    color: '#17361f',
+    color: '#12251A',
     textAlign: 'center',
   },
   headerSubtitle: {
     marginTop: 8,
     fontSize: 14,
     lineHeight: 20,
-    color: '#6f7c67',
+    color: '#5F7267',
     textAlign: 'center',
     maxWidth: 560,
   },
   card: {
-    backgroundColor: '#fffdf8',
+    backgroundColor: '#FFFFFF',
     borderRadius: 28,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#ddd3be',
-    shadowColor: '#312911',
+    borderColor: '#E5E3D7',
+    shadowColor: '#12251A',
     shadowOpacity: 0.14,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
@@ -1025,11 +1025,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionBlockSoft: {
-    backgroundColor: '#f7f3e8',
+    backgroundColor: '#F1F0E7',
     borderRadius: 20,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#e3d6bb',
+    borderColor: '#CDBE92',
   },
   switchHeaderRow: {
     flexDirection: 'row',
@@ -1053,12 +1053,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: '#f4ead0',
+    backgroundColor: '#F6EBD2',
     borderWidth: 1,
-    borderColor: '#e1c98a',
+    borderColor: '#CDBE92',
   },
   sectionPillText: {
-    color: '#8a6a1a',
+    color: '#9A7A22',
     fontSize: 11,
     fontWeight: '900',
   },
@@ -1066,12 +1066,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: '#e8f3eb',
+    backgroundColor: '#E4F2EA',
     borderWidth: 1,
-    borderColor: '#cae1d0',
+    borderColor: '#C5E4D2',
   },
   sectionPillAltText: {
-    color: '#1f5a34',
+    color: '#1B7A45',
     fontSize: 11,
     fontWeight: '900',
   },
@@ -1079,55 +1079,55 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 22,
     fontWeight: '900',
-    color: '#17361f',
+    color: '#12251A',
     marginBottom: 5,
   },
   sectionTitleCompact: {
     fontSize: 17,
     lineHeight: 21,
     fontWeight: '900',
-    color: '#17361f',
+    color: '#12251A',
     marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 12.5,
     lineHeight: 18,
-    color: '#6f7c67',
+    color: '#5F7267',
     marginBottom: 10,
   },
   sectionSubtitleCompact: {
     fontSize: 12,
     lineHeight: 17,
-    color: '#6f7c67',
+    color: '#5F7267',
   },
   label: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#5f6e64',
+    color: '#5F7267',
     marginBottom: 7,
   },
   helperText: {
     marginTop: 8,
     fontSize: 11.5,
     lineHeight: 16,
-    color: '#6f7c67',
+    color: '#5F7267',
   },
   inputCompact: {
     minHeight: 48,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#d7d4c9',
+    borderColor: '#E5E3D7',
     backgroundColor: '#ffffff',
     paddingHorizontal: 14,
     fontSize: 15,
     fontWeight: '700',
-    color: '#17361f',
+    color: '#12251A',
   },
   moneyInputWrap: {
     minHeight: 50,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#d7d4c9',
+    borderColor: '#E5E3D7',
     backgroundColor: '#ffffff',
     paddingHorizontal: 14,
     flexDirection: 'row',
@@ -1137,20 +1137,20 @@ const styles = StyleSheet.create({
     minHeight: 46,
   },
   moneyInputWrapActive: {
-    borderColor: '#c7a24b',
-    backgroundColor: '#fffaf0',
+    borderColor: '#C89B2C',
+    backgroundColor: '#FBF4E4',
   },
   moneyPrefix: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#1f5a34',
+    color: '#1B7A45',
     marginRight: 8,
   },
   moneyInput: {
     flex: 1,
     fontSize: 15,
     fontWeight: '800',
-    color: '#17361f',
+    color: '#12251A',
     paddingVertical: 0,
   },
   inputSpacingTopSmall: {
@@ -1164,11 +1164,11 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#e1d7c3',
+    borderColor: '#E5E3D7',
     borderRadius: 22,
     padding: 12,
-    backgroundColor: '#fffdf8',
-    shadowColor: '#312911',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#12251A',
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -1181,12 +1181,12 @@ const styles = StyleSheet.create({
     width: 110,
     height: 110,
     borderRadius: 999,
-    backgroundColor: '#f8edd0',
+    backgroundColor: '#F6EBD2',
     opacity: 0.7,
   },
   fixedPremiumCardActive: {
-    borderColor: '#c7a24b',
-    backgroundColor: '#fffcf4',
+    borderColor: '#C89B2C',
+    backgroundColor: '#FFFFFF',
   },
   fixedTopRow: {
     flexDirection: 'row',
@@ -1199,13 +1199,13 @@ const styles = StyleSheet.create({
   fixedPremiumTitle: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#17361f',
+    color: '#12251A',
   },
   fixedPremiumSubtitle: {
     marginTop: 3,
     fontSize: 11.5,
     lineHeight: 16,
-    color: '#6f7c67',
+    color: '#5F7267',
   },
   fixedValueRow: {
     marginTop: 10,
@@ -1215,14 +1215,14 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 8,
     borderWidth: 1.5,
-    borderColor: '#c9b686',
+    borderColor: '#CDBE92',
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxActive: {
-    backgroundColor: '#1f5a34',
-    borderColor: '#1f5a34',
+    backgroundColor: '#1B7A45',
+    borderColor: '#1B7A45',
   },
   checkboxText: {
     fontSize: 13,
@@ -1235,7 +1235,7 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#17361f',
+    color: '#12251A',
   },
   optionStackCompact: {
     gap: 10,
@@ -1244,16 +1244,16 @@ const styles = StyleSheet.create({
   optionValueLabel: {
     fontSize: 11.5,
     fontWeight: '800',
-    color: '#5f6e64',
+    color: '#5F7267',
     marginBottom: 7,
   },
   addBlockPremium: {
     marginTop: 4,
     padding: 12,
     borderRadius: 22,
-    backgroundColor: '#f7f3e8',
+    backgroundColor: '#F1F0E7',
     borderWidth: 1,
-    borderColor: '#e3d6bb',
+    borderColor: '#CDBE92',
   },
   addBlockHeader: {
     marginBottom: 10,
@@ -1261,19 +1261,19 @@ const styles = StyleSheet.create({
   addBlockTitle: {
     fontSize: 15,
     fontWeight: '900',
-    color: '#17361f',
+    color: '#12251A',
     marginBottom: 3,
   },
   addBlockSub: {
     fontSize: 12,
     lineHeight: 17,
-    color: '#6f7c67',
+    color: '#5F7267',
   },
   addButtonPremium: {
     marginTop: 10,
     minHeight: 46,
     borderRadius: 16,
-    backgroundColor: '#b89238',
+    backgroundColor: '#C89B2C',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1284,7 +1284,7 @@ const styles = StyleSheet.create({
   },
   customFixedCard: {
     borderWidth: 1,
-    borderColor: '#ddd3be',
+    borderColor: '#E5E3D7',
     borderRadius: 20,
     padding: 12,
     backgroundColor: '#ffffff',
@@ -1299,7 +1299,7 @@ const styles = StyleSheet.create({
   removeText: {
     fontSize: 12,
     fontWeight: '900',
-    color: '#c24f4f',
+    color: '#D2453F',
   },
   chipGrid: {
     flexDirection: 'row',
@@ -1311,19 +1311,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#ddd3be',
+    borderColor: '#E5E3D7',
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
   },
   chipActive: {
-    backgroundColor: '#1f5a34',
-    borderColor: '#1f5a34',
+    backgroundColor: '#1B7A45',
+    borderColor: '#1B7A45',
   },
   chipText: {
     fontSize: 12.5,
     fontWeight: '900',
-    color: '#17361f',
+    color: '#12251A',
   },
   chipTextActive: {
     color: '#ffffff',
@@ -1332,14 +1332,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ddd3be',
+    borderColor: '#E5E3D7',
     borderRadius: 999,
     backgroundColor: '#ffffff',
     overflow: 'hidden',
   },
   customChipWrapActive: {
-    backgroundColor: '#1f5a34',
-    borderColor: '#1f5a34',
+    backgroundColor: '#1B7A45',
+    borderColor: '#1B7A45',
   },
   customChipPressable: {
     paddingLeft: 12,
@@ -1352,7 +1352,7 @@ const styles = StyleSheet.create({
   customChipRemoveText: {
     fontSize: 15,
     fontWeight: '900',
-    color: '#17361f',
+    color: '#12251A',
   },
   addInlineRow: {
     flexDirection: 'row',
@@ -1367,7 +1367,7 @@ const styles = StyleSheet.create({
     width: 48,
     minHeight: 48,
     borderRadius: 15,
-    backgroundColor: '#b89238',
+    backgroundColor: '#C89B2C',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1389,7 +1389,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#d7d4c9',
+    borderColor: '#E5E3D7',
     backgroundColor: '#ffffff',
     justifyContent: 'center',
     paddingLeft: 14,
@@ -1402,7 +1402,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: '800',
-    color: '#17361f',
+    color: '#12251A',
     paddingVertical: 0,
   },
   calendarBtn: {
@@ -1410,8 +1410,8 @@ const styles = StyleSheet.create({
     minHeight: 38,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#d7d4c9',
-    backgroundColor: '#f7f3e8',
+    borderColor: '#E5E3D7',
+    backgroundColor: '#F1F0E7',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1420,7 +1420,7 @@ const styles = StyleSheet.create({
   },
   cardItemBox: {
     borderWidth: 1,
-    borderColor: '#ddd3be',
+    borderColor: '#E5E3D7',
     borderRadius: 20,
     padding: 12,
     backgroundColor: '#ffffff',
@@ -1435,29 +1435,29 @@ const styles = StyleSheet.create({
   summaryTitle: {
     fontSize: 17,
     fontWeight: '900',
-    color: '#17361f',
+    color: '#12251A',
     marginBottom: 8,
   },
   summaryLine: {
     fontSize: 12.5,
     lineHeight: 19,
-    color: '#526258',
+    color: '#5F7267',
     marginBottom: 4,
   },
   errorText: {
     marginBottom: 12,
     fontSize: 13.5,
     fontWeight: '800',
-    color: '#c24f4f',
+    color: '#D2453F',
     textAlign: 'center',
   },
   submitButton: {
     minHeight: 54,
     borderRadius: 20,
-    backgroundColor: '#1f5a34',
+    backgroundColor: '#1B7A45',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#1f5a34',
+    shadowColor: '#1B7A45',
     shadowOpacity: 0.24,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 5 },
@@ -1482,15 +1482,15 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 420,
     borderRadius: 26,
-    backgroundColor: '#fffdf8',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#ddd3be',
+    borderColor: '#E5E3D7',
     padding: 16,
   },
   calendarModalTitle: {
     fontSize: 20,
     fontWeight: '900',
-    color: '#17361f',
+    color: '#12251A',
     textAlign: 'center',
   },
   calendarModalSubtitle: {
@@ -1498,7 +1498,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontSize: 12.5,
     lineHeight: 18,
-    color: '#6f7c67',
+    color: '#5F7267',
     textAlign: 'center',
   },
   calendarSection: {
@@ -1516,19 +1516,19 @@ const styles = StyleSheet.create({
     minHeight: 40,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ddd3be',
-    backgroundColor: '#f7f3e8',
+    borderColor: '#E5E3D7',
+    backgroundColor: '#F1F0E7',
     alignItems: 'center',
     justifyContent: 'center',
   },
   calendarMonthBtnActive: {
-    backgroundColor: '#1f5a34',
-    borderColor: '#1f5a34',
+    backgroundColor: '#1B7A45',
+    borderColor: '#1B7A45',
   },
   calendarMonthText: {
     fontSize: 13,
     fontWeight: '900',
-    color: '#17361f',
+    color: '#12251A',
   },
   calendarMonthTextActive: {
     color: '#ffffff',
@@ -1545,19 +1545,19 @@ const styles = StyleSheet.create({
     minHeight: 40,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ddd3be',
-    backgroundColor: '#f7f3e8',
+    borderColor: '#E5E3D7',
+    backgroundColor: '#F1F0E7',
     alignItems: 'center',
     justifyContent: 'center',
   },
   calendarDayBtnActive: {
-    backgroundColor: '#1f5a34',
-    borderColor: '#1f5a34',
+    backgroundColor: '#1B7A45',
+    borderColor: '#1B7A45',
   },
   calendarDayText: {
     fontSize: 13,
     fontWeight: '900',
-    color: '#17361f',
+    color: '#12251A',
   },
   calendarDayTextActive: {
     color: '#ffffff',
@@ -1567,7 +1567,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontSize: 12.5,
     fontWeight: '800',
-    color: '#5f6e64',
+    color: '#5F7267',
     textAlign: 'center',
   },
   calendarActions: {
@@ -1579,7 +1579,7 @@ const styles = StyleSheet.create({
     minHeight: 46,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#d7d4c9',
+    borderColor: '#E5E3D7',
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1587,13 +1587,13 @@ const styles = StyleSheet.create({
   calendarSecondaryButtonText: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#17361f',
+    color: '#12251A',
   },
   calendarPrimaryButton: {
     flex: 1,
     minHeight: 46,
     borderRadius: 16,
-    backgroundColor: '#1f5a34',
+    backgroundColor: '#1B7A45',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -601,7 +601,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  exportPremiumIconText: { fontSize: 20, fontWeight: '900', color: '#b08b33' },
+  exportPremiumIconText: { fontSize: 20, fontWeight: '900', color: '#C89B2C' },
   exportPremiumTitle: { fontSize: 15, fontWeight: '900', marginBottom: 2 },
   exportPremiumSub: { fontSize: 12, fontWeight: '700', lineHeight: 16 },
 })

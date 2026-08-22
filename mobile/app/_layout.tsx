@@ -264,7 +264,7 @@ export default function RootLayout() {
   if (loading || !appReady) {
     return (
       <View style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color="#34d399" />
+        <ActivityIndicator size="large" color="#34D77F" />
       </View>
     )
   }
@@ -353,17 +353,17 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0A100D',
   },
   appContainer: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0A100D',
   },
   loadingScreen: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0A100D',
   },
   visualSplash: {
     ...StyleSheet.absoluteFillObject,
@@ -385,9 +385,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 24,
     paddingBottom: 20,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F8F7F2',
     borderWidth: 1,
-    borderColor: 'rgba(15, 23, 42, 0.08)',
+    borderColor: 'rgba(18, 37, 26, 0.08)',
     shadowColor: '#000',
     shadowOpacity: 0.18,
     shadowRadius: 28,
@@ -400,14 +400,14 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   updateTitle: {
-    color: '#0F172A',
+    color: '#12251A',
     fontSize: 20,
     fontWeight: '900',
     textAlign: 'center',
     marginBottom: 8,
   },
   updateText: {
-    color: '#475569',
+    color: '#5F7267',
     fontSize: 14,
     lineHeight: 20,
     fontWeight: '600',
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   versionText: {
-    color: '#64748B',
+    color: '#8C9A90',
     fontSize: 12,
     fontWeight: '700',
     textAlign: 'center',
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0F172A',
+    backgroundColor: '#1B7A45',
     marginTop: 4,
   },
   primaryButtonText: {
@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   secondaryButtonText: {
-    color: '#0F172A',
+    color: '#1B7A45',
     fontSize: 14,
     fontWeight: '900',
   },

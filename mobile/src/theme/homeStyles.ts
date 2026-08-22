@@ -381,7 +381,7 @@ compareMetaText: {
     shadowOffset: { width: 0, height: 6 },
     elevation: 4,
   },
-  premiumLockGlowText: { fontSize: 24, fontWeight: '900', color: '#b08b33' },
+  premiumLockGlowText: { fontSize: 24, fontWeight: '900', color: '#C89B2C' },
   premiumLockDescription: { fontSize: 14, fontWeight: '700', lineHeight: 20, textAlign: 'center', marginBottom: 14 },
   premiumLockInfoCard: { borderWidth: 1, borderRadius: 18, padding: 12, marginBottom: 14 },
   premiumLockInfoTitle: { fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, textAlign: 'center' },
@@ -417,7 +417,7 @@ compareMetaText: {
     fontSize: 11,
     fontWeight: '900',
     letterSpacing: 1.2,
-    color: '#d4a93e',
+    color: '#E8C462',
     marginBottom: 6,
   },
   premiumBlockerTitle: {
