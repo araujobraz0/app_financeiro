@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   molduraAlta: { minHeight: 108, alignItems: 'flex-start', paddingVertical: 12 },
-  input: { flex: 1, fontSize: 15, fontWeight: '600', paddingVertical: 0 },
+  input: { flex: 1, fontSize: 16, fontWeight: '600', paddingVertical: 0 },
   inputAlto: { minHeight: 84, textAlignVertical: 'top', paddingTop: 0 },
   mensagem: { fontSize: 11, fontWeight: '600', marginTop: 6 },
 })

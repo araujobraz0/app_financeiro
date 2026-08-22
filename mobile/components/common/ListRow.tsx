@@ -171,11 +171,11 @@ const styles = StyleSheet.create({
     marginTop: 10,
     width: '100%',
   },
-  titulo: { fontSize: 15, fontWeight: '700', lineHeight: 20, letterSpacing: -0.2 },
+  titulo: { fontSize: 14, fontWeight: '700', lineHeight: 19, letterSpacing: -0.2 },
   rodape: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
   rodapeInfo: { flex: 1, minWidth: 0 },
-  valor: { fontSize: 17, fontWeight: '800', letterSpacing: -0.3 },
-  meta: { fontSize: 12, fontWeight: '500', marginTop: 2 },
+  valor: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
+  meta: { fontSize: 11, fontWeight: '500', marginTop: 2 },
   acoes: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
   status: {
     flexDirection: 'row',
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
   },
-  statusTexto: { fontSize: 11, fontWeight: '800' },
+  statusTexto: { fontSize: 10, fontWeight: '800' },
   iconeBtn: {
     width: 32,
     height: 32,

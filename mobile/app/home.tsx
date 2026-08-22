@@ -28,6 +28,7 @@ import PdfPreview from '../components/PdfPreview'
 import AppModal from '../components/common/AppModal'
 import * as Haptics from 'expo-haptics'
 import BottomTabItem from '../components/home/BottomTabItem'
+import Calendario from '../components/common/Calendario'
 import AppHeader from '../components/home/AppHeader'
 import BuscaGlobal from '../components/home/BuscaGlobal'
 import PeriodoSelector from '../components/home/PeriodoSelector'
@@ -2579,9 +2580,6 @@ function HomeScreenContent() {
               />
             </AppearIn>
 
-            <View style={styles.sectionSpacerLarge} />
-
-            <View style={styles.sectionSpacerLarge} />
 
             <AppearIn index={5}>
               <ComprasDesejoCard
@@ -2597,8 +2595,6 @@ function HomeScreenContent() {
                 onExcluir={(id, nome) => abrirConfirmacaoExclusao('compra_desejo', id, nome)}
               />
             </AppearIn>
-
-            <View style={styles.sectionSpacerLarge} />
 
             <AppearIn index={6}>
               <NotasPixCard
@@ -3004,9 +3000,10 @@ function HomeScreenContent() {
                     ) : previewPdfUri ? (
                       <View style={[styles.exportPreviewPdfCard, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}> 
                         <PdfPreview
-  style={styles.exportPreviewPdfNative}
-  uri={previewPdfUri}
-/>
+                          style={styles.exportPreviewPdfNative}
+                          uri={previewPdfUri}
+                          theme={theme}
+                        />
                       </View>
                     ) : (
                       <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft, flex: 1 }]}> 
@@ -3112,40 +3109,36 @@ function HomeScreenContent() {
         visible={modalCalendarioAberto}
         onClose={() => setModalCalendarioAberto(false)}
       >
-        <View style={[styles.modalCard, styles.modalCardCalendar, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.modalTitle, { color: theme.text }]}>Selecionar data</Text>
-          <View style={styles.calendarSection}>
-            <Text style={[styles.modalLabel, { color: theme.muted }]}>Mês</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-              {meses.map((mes, index) => {
-                const mesNumero = index + 1
-                const ativo = calendarMes === mesNumero
-                return (
-                  <PressableScale key={mes} onPress={() => setCalendarMes(mesNumero)} style={[styles.filterPill, { backgroundColor: ativo ? theme.primary : theme.cardSoft, borderColor: ativo ? theme.primary : theme.border }]}>
-                    <Text style={[styles.filterPillText, { color: ativo ? theme.white : theme.text }]}>{String(mesNumero).padStart(2, '0')}</Text>
-                  </PressableScale>
-                )
-              })}
-            </ScrollView>
-          </View>
-          <View style={styles.calendarSection}>
-            <Text style={[styles.modalLabel, { color: theme.muted }]}>Dia</Text>
-            <View style={styles.calendarDaysGrid}>
-              {Array.from({ length: diasDisponiveisNoCalendario }, (_, index) => {
-                const dia = index + 1
-                const ativo = calendarDia === dia
-                return (
-                  <PressableScale key={dia} onPress={() => setCalendarDia(dia)} style={[styles.calendarDayBtn, { backgroundColor: ativo ? theme.primary : theme.cardSoft, borderColor: ativo ? theme.primary : theme.border }]}>
-                    <Text style={[styles.calendarDayText, { color: ativo ? theme.white : theme.text }]}>{String(dia).padStart(2, '0')}</Text>
-                  </PressableScale>
-                )
-              })}
-            </View>
-          </View>
-          <Text style={[styles.rowItemMeta, { color: theme.muted, textAlign: 'center', marginTop: 6 }]}>Selecionado: {formatarDiaMesInput(calendarDia, calendarMes, anoSelecionado)}</Text>
+        <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.modalTitle, { color: theme.text, textAlign: 'left', marginBottom: 16 }]}>
+            Selecionar data
+          </Text>
+
+          <Calendario
+            theme={theme}
+            mes={calendarMes}
+            ano={anoSelecionado}
+            dia={calendarDia}
+            onSelecionar={(dia, mes) => {
+              setCalendarDia(dia)
+              setCalendarMes(mes)
+            }}
+            onMudarMes={setCalendarMes}
+          />
+
           <View style={styles.modalActions}>
-            <PressableScale onPress={() => setModalCalendarioAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text></PressableScale>
-            <PressableScale onPress={confirmarCalendario} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>Aplicar</Text></PressableScale>
+            <PressableScale
+              onPress={() => setModalCalendarioAberto(false)}
+              style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+            >
+              <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
+            </PressableScale>
+            <PressableScale
+              onPress={confirmarCalendario}
+              style={[styles.modalActionBtn, { backgroundColor: theme.primary, borderColor: theme.primary }]}
+            >
+              <Text style={[styles.modalActionText, { color: theme.textInverse }]}>Aplicar</Text>
+            </PressableScale>
           </View>
         </View>
       </AppModal>

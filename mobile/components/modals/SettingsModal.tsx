@@ -1,7 +1,10 @@
-import { Image, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Image, StyleSheet, Text, View } from 'react-native'
 import type { SettingsThemeMode, Tema } from '../../app/types'
-import AppModal from '../common/AppModal'
+import Campo from '../common/Campo'
+import Icon, { type IconName } from '../common/Icon'
+import ModalSheet from '../common/ModalSheet'
 import PressableScale from '../common/motion/PressableScale'
+import Interruptor from '../common/Interruptor'
 
 type ExportType = 'csv' | 'excel' | 'pdf'
 type ProcessFileType = ExportType | 'importar' | null
@@ -58,6 +61,18 @@ const formatarDataBackup = (isoDate: string) => {
   }
 }
 
+/**
+ * Perfil e configuracoes.
+ *
+ * A edicao de perfil antes era um rotulo, um campo, um botao "Abrir galeria" e
+ * outro "Salvar perfil", enfileirados dentro de um card entre varios outros —
+ * dificil de achar e com duas etapas para trocar a foto. Agora o perfil abre o
+ * modal: o proprio avatar e o botao de trocar a foto, o nome se edita no lugar
+ * e um unico botao confirma.
+ *
+ * O resto virou secoes de linhas com icone, no formato que todo app de
+ * configuracoes usa, em vez de cards empilhados de peso visual igual.
+ */
 export default function SettingsModal({
   visible,
   onClose,
@@ -93,515 +108,343 @@ export default function SettingsModal({
   onRestoreBackup,
 }: SettingsModalProps) {
   const avatar = editableAvatar || currentAvatar
+  const nomeMudou = editableName.trim() !== currentName.trim()
+  const fotoMudou = editableAvatar !== '' && editableAvatar !== currentAvatar
+  const podeSalvarPerfil = (nomeMudou || fotoMudou) && editableName.trim().length > 0
+
+  const secao = (titulo: string, filhos: React.ReactNode) => (
+    <View style={styles.secao}>
+      <Text style={[styles.secaoTitulo, { color: theme.muted }]}>{titulo}</Text>
+      <View style={[styles.grupo, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+        {filhos}
+      </View>
+    </View>
+  )
+
+  const linha = (
+    icone: IconName,
+    titulo: string,
+    descricao: string,
+    direita: React.ReactNode,
+    onPress?: () => void,
+    desabilitada = false
+  ) => {
+    const conteudo = (
+      <>
+        <View style={[styles.linhaIcone, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Icon name={icone} size={16} color={theme.muted} />
+        </View>
+        <View style={styles.linhaTextos}>
+          <Text style={[styles.linhaTitulo, { color: theme.text }]}>{titulo}</Text>
+          {descricao ? (
+            <Text style={[styles.linhaDescricao, { color: theme.muted }]}>{descricao}</Text>
+          ) : null}
+        </View>
+        {direita}
+      </>
+    )
+
+    if (!onPress) {
+      return <View style={styles.linha}>{conteudo}</View>
+    }
+
+    return (
+      <PressableScale
+        onPress={onPress}
+        disabled={desabilitada}
+        scaleTo={0.985}
+        style={[styles.linha, { opacity: desabilitada ? 0.55 : 1 }]}
+      >
+        {conteudo}
+      </PressableScale>
+    )
+  }
+
+  const seta = <Icon name="seta_direita" size={16} color={theme.faint} />
 
   return (
-    <AppModal visible={visible} onClose={onClose}>
-      <View style={[styles.modalCard, styles.modalCardSettings, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-        <ScrollView
-          style={styles.modalSettingsScroll}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps='handled'
-        >
-          <Text style={[styles.modalTitle, { color: theme.text }]}>Perfil e configurações</Text>
-
-          <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
-            <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Premium Brazllet</Text>
-            <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 10 }]}>{premiumStatusText}</Text>
-            <View style={styles.settingsStack}>
-              <PressableScale
-                onPress={onPremiumPress}
-                style={[
-                  styles.settingsActionBtn,
-                  {
-                    backgroundColor: premiumValid ? theme.card : theme.primary,
-                    borderColor: premiumValid ? theme.border : theme.primary,
-                  },
-                ]}
-              >
-                <Text style={[styles.settingsActionBtnText, { color: premiumValid ? theme.text : theme.white }]}> 
-                  {premiumValid ? 'Gerenciar Premium' : 'Virar Premium'}
-                </Text>
-              </PressableScale>
-            </View>
-          </View>
-
-          <View style={[styles.settingsCard, styles.profileSettingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
-            <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Perfil</Text>
-
-            <View style={styles.profilePreviewWrap}>
-              <View style={[styles.profileBadgeLarge, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-                {avatarIsImage(avatar) ? (
-                  <Image source={{ uri: avatar }} style={styles.profileBadgeImage} />
-                ) : (
-                  <Text style={[styles.profileBadgeLargeText, { color: theme.text }]}>{initials || 'U'}</Text>
-                )}
-              </View>
-              <View style={styles.profilePreviewTextWrap}>
-                <Text style={[styles.profilePreviewTitle, { color: theme.text }]}> 
-                  {editableName.trim() || currentName || 'Seu perfil'}
-                </Text>
-                <Text style={[styles.profilePreviewSub, { color: theme.muted }]}>{email || 'Sem e-mail'}</Text>
-                <Text style={[styles.profilePreviewHint, { color: theme.muted }]}> 
-                  Ao escolher pela galeria, ajuste o recorte antes de confirmar.
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.profileFormBlock}>
-              <Text style={[styles.profileLabel, { color: theme.muted }]}>Nome</Text>
-              <TextInput
-                value={editableName}
-                onChangeText={onEditableNameChange}
-                placeholder='Seu nome'
-                placeholderTextColor={theme.muted}
-                style={[
-                  styles.modalInput,
-                  {
-                    backgroundColor: theme.card,
-                    borderColor: theme.borderStrong,
-                    color: theme.text,
-                    minHeight: 40,
-                  },
-                ]}
-              />
-
-              <Text style={[styles.profileLabel, { color: theme.muted, marginTop: 10 }]}>Foto de perfil</Text>
-              <View style={styles.profilePhotoActions}>
-                <PressableScale
-                  onPress={onChooseProfileImage}
-                  style={[
-                    styles.settingsActionBtn,
-                    styles.profilePhotoButton,
-                    { backgroundColor: theme.card, borderColor: theme.border },
-                  ]}
-                >
-                  <Text style={[styles.settingsActionBtnText, { color: theme.text }]}>Abrir galeria</Text>
-                </PressableScale>
-              </View>
-
-              <PressableScale
-                onPress={onSaveProfile}
-                style={[
-                  styles.settingsActionBtn,
-                  { backgroundColor: theme.primary, borderColor: theme.primary, marginTop: 12 },
-                ]}
-              >
-                <Text style={[styles.settingsActionBtnText, { color: theme.white }]}>Salvar perfil</Text>
-              </PressableScale>
-
-              <View style={[styles.profileInfoLine, { borderColor: theme.border }]}> 
-                <Text style={[styles.profileLabel, { color: theme.muted, marginBottom: 0 }]}>Competência atual</Text>
-                <Text style={[styles.profileValue, { color: theme.text }]}>{selectedMonth} de {selectedYear}</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
-            <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Tema</Text>
-            <View style={styles.settingsRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.rowItemTitle, { color: theme.text }]}>Seguir tema do celular</Text>
-                <Text style={[styles.rowItemMeta, { color: theme.muted }]}> 
-                  Quando ativo, o app alterna sozinho entre claro e escuro.
-                </Text>
-              </View>
-              <PressableScale
-                onPress={onToggleSystemTheme}
-                style={[
-                  styles.switchTrack,
-                  {
-                    backgroundColor: themeMode === 'system' ? theme.primary : theme.card,
-                    borderColor: themeMode === 'system' ? theme.primary : theme.borderStrong,
-                  },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.switchThumb,
-                    { backgroundColor: themeMode === 'system' ? theme.white : theme.muted },
-                    themeMode === 'system' ? styles.switchThumbActive : null,
-                  ]}
-                />
-              </PressableScale>
-            </View>
-          </View>
-
-          <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
-            <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Resumo</Text>
-            <View style={styles.settingsInfoGrid}>
-              {[
-                ['Pix', pixCount],
-                ['Notas', notesCount],
-                ['Cartões', cardsCount],
-                ['Categorias', categoriesCount],
-              ].map(([label, count]) => (
-                <View key={String(label)} style={[styles.settingsInfoPill, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-                  <Text style={[styles.settingsInfoLabel, { color: theme.muted }]}>{label}</Text>
-                  <Text style={[styles.settingsInfoValue, { color: theme.text }]}>{count}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
-            <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Backup e exportação</Text>
-            <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 12 }]}> 
-              Exportações com identidade Brazllet, estrutura mais elegante e apresentação mais limpa.
-            </Text>
-            <View style={styles.exportGrid}>
-              <ExportButton
-                label={processingFile === 'csv' ? 'Gerando CSV...' : 'Exportar CSV'}
-                description='Resumo estruturado com assinatura Brazllet.'
-                icon='◫'
-                onPress={() => onOpenExportPreview('csv')}
-                theme={theme}
-              />
-              <ExportButton
-                label={processingFile === 'excel' ? 'Gerando Excel...' : 'Exportar Excel'}
-                description='Planilha organizada em abas por área.'
-                icon='▦'
-                onPress={() => onOpenExportPreview('excel')}
-                theme={theme}
-              />
-              <ExportButton
-                label={processingFile === 'pdf' ? 'Gerando PDF...' : 'Exportar PDF'}
-                description='Relatório visual completo para compartilhar.'
-                icon='▤'
-                onPress={() => onOpenExportPreview('pdf')}
-                theme={theme}
-              />
-            </View>
-          </View>
-
-          <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
-            <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Importação</Text>
-            <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 10 }]}> 
-              Importe arquivos CSV, Excel (.xlsx) ou OFX. PDF aparece na seleção, mas ainda não possui leitura automática nesta versão.
-            </Text>
-            <View style={styles.settingsStack}>
-              <ExportButton
-                label={processingFile === 'importar' ? 'Importando...' : 'Importar dados'}
-                description='PDF, CSV, Excel ou OFX com pré-visualização.'
-                icon='⇪'
-                onPress={onImportData}
-                theme={theme}
-              />
-            </View>
-          </View>
-
-          <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
-            <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Atualizações</Text>
-            <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 12 }]}> 
-              Verifique se existe uma atualização rápida do app ou uma nova versão do APK disponível.
-            </Text>
-            <PressableScale
-              onPress={onCheckUpdates}
-              disabled={checkingUpdates}
-              style={[
-                styles.updateCheckBoxBtn,
-                {
-                  backgroundColor: theme.card,
-                  borderColor: theme.border,
-                  shadowColor: theme.shadow,
-                  opacity: checkingUpdates ? 0.65 : 1,
-                },
-              ]}
-            >
-              <Text style={[styles.updateCheckBoxText, { color: theme.text }]}> 
-                {checkingUpdates ? 'Checando...' : 'Checar atualizações'}
-              </Text>
-            </PressableScale>
-          </View>
-
-          <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
-            <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Backups automáticos</Text>
-            <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 12 }]}> 
-              Uma cópia dos seus dados é salva automaticamente na nuvem uma vez por dia. Você pode voltar para uma versão anterior se precisar.
-            </Text>
-
-            {loadingBackups ? (
-              <Text style={[styles.rowItemMeta, { color: theme.muted }]}>Carregando backups...</Text>
-            ) : backups.length === 0 ? (
-              <Text style={[styles.rowItemMeta, { color: theme.muted }]}>Nenhum backup automático ainda. O primeiro é criado no próximo dia de uso.</Text>
+    <ModalSheet
+      theme={theme}
+      visible={visible}
+      onClose={onClose}
+      titulo="Perfil e configurações"
+      alto
+      acoes={
+        podeSalvarPerfil
+          ? [
+              { label: 'Fechar', onPress: onClose },
+              { label: 'Salvar perfil', onPress: onSaveProfile, primaria: true },
+            ]
+          : [{ label: 'Concluir', onPress: onClose, primaria: true }]
+      }
+    >
+      {/* ---------- Perfil ---------- */}
+      <View style={[styles.perfil, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+        <PressableScale onPress={onChooseProfileImage} scaleTo={0.94} style={styles.avatarToque}>
+          <View style={[styles.avatar, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            {avatarIsImage(avatar) ? (
+              <Image source={{ uri: avatar }} style={styles.avatarImagem} />
             ) : (
-              <View style={styles.settingsStack}>
-                {backups.map((backup) => {
-                  const dataFormatada = formatarDataBackup(backup.created_at)
-                  const restaurando = restoringBackupId === backup.id
-                  return (
-                    <View key={backup.id} style={[styles.backupRow, { borderColor: theme.border, backgroundColor: theme.card }]}> 
-                      <Text style={[styles.rowItemMeta, { color: theme.text, flex: 1 }]}>{dataFormatada}</Text>
-                      <PressableScale
-                        onPress={() => onRestoreBackup(backup.id, dataFormatada)}
-                        disabled={restaurando}
-                        style={[styles.backupRestoreBtn, { backgroundColor: theme.primary, opacity: restaurando ? 0.6 : 1 }]}
-                      >
-                        <Text style={[styles.backupRestoreBtnText, { color: theme.white }]}> 
-                          {restaurando ? 'Restaurando...' : 'Restaurar'}
-                        </Text>
-                      </PressableScale>
-                    </View>
-                  )
-                })}
-              </View>
+              <Text style={[styles.avatarIniciais, { color: theme.text }]}>{initials || 'U'}</Text>
             )}
           </View>
-        </ScrollView>
+          <View style={[styles.selo, { backgroundColor: theme.primary, borderColor: theme.cardSoft }]}>
+            <Icon name="camera" size={13} color={theme.textInverse} />
+          </View>
+        </PressableScale>
 
-        <View style={styles.modalActions}>
-          <PressableScale
-            onPress={onClose}
-            style={[styles.modalActionBtn, { backgroundColor: theme.primary, borderColor: theme.primary }]}
-          >
-            <Text style={[styles.modalActionText, { color: theme.white }]}>Fechar</Text>
-          </PressableScale>
+        <Text style={[styles.email, { color: theme.muted }]} numberOfLines={1}>
+          {email || 'Sem e-mail'}
+        </Text>
+        <Text style={[styles.dica, { color: theme.faint }]}>Toque na foto para trocar</Text>
+
+        <View style={styles.campoNome}>
+          <Campo
+            theme={theme}
+            rotulo="Nome"
+            value={editableName}
+            onChangeText={onEditableNameChange}
+            placeholder="Seu nome"
+          />
         </View>
       </View>
-    </AppModal>
-  )
-}
 
-type ExportButtonProps = {
-  label: string
-  description: string
-  icon: string
-  onPress: () => void
-  theme: Tema
-}
+      {/* ---------- Premium ---------- */}
+      {secao(
+        'Assinatura',
+        linha(
+          'premium',
+          premiumValid ? 'Premium ativo' : 'Brazllet Premium',
+          premiumStatusText,
+          seta,
+          onPremiumPress
+        )
+      )}
 
-function ExportButton({ label, description, icon, onPress, theme }: ExportButtonProps) {
-  return (
-    <PressableScale
-      onPress={onPress}
-      style={[
-        styles.exportPremiumBtn,
-        { backgroundColor: theme.card, borderColor: theme.border, shadowColor: theme.shadow },
-      ]}
-    >
-      <View style={[styles.exportPremiumIcon, { backgroundColor: theme.backgroundSoft, borderColor: theme.border }]}> 
-        <Text style={styles.exportPremiumIconText}>{icon}</Text>
+      {/* ---------- Aparencia ---------- */}
+      {secao(
+        'Aparência',
+        linha(
+          'sol',
+          'Seguir o tema do celular',
+          'Alterna claro e escuro sozinho',
+          <Interruptor theme={theme} ativo={themeMode === 'system'} onAlternar={onToggleSystemTheme} />
+        )
+      )}
+
+      {/* ---------- Resumo ---------- */}
+      <View style={styles.secao}>
+        <Text style={[styles.secaoTitulo, { color: theme.muted }]}>Seus dados</Text>
+        <View style={styles.resumoGrade}>
+          {([
+            ['Pix', pixCount, 'pix'],
+            ['Notas', notesCount, 'nota'],
+            ['Cartões', cardsCount, 'cartao'],
+            ['Categorias', categoriesCount, 'grafico'],
+          ] as [string, number, IconName][]).map(([rotulo, total, icone]) => (
+            <View
+              key={rotulo}
+              style={[styles.resumoItem, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+            >
+              <Icon name={icone} size={15} color={theme.muted} />
+              <Text style={[styles.resumoValor, { color: theme.text }]}>{total}</Text>
+              <Text style={[styles.resumoRotulo, { color: theme.muted }]}>{rotulo}</Text>
+            </View>
+          ))}
+        </View>
+        <Text style={[styles.competencia, { color: theme.faint }]}>
+          Competência atual: {selectedMonth} de {selectedYear}
+        </Text>
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.exportPremiumTitle, { color: theme.text }]}>{label}</Text>
-        <Text style={[styles.exportPremiumSub, { color: theme.muted }]}>{description}</Text>
+
+      {/* ---------- Exportar e importar ---------- */}
+      {secao(
+        'Exportar e importar',
+        <>
+          {linha(
+            'documento',
+            processingFile === 'pdf' ? 'Gerando PDF...' : 'Exportar PDF',
+            'Relatório visual para compartilhar',
+            seta,
+            () => onOpenExportPreview('pdf'),
+            processingFile === 'pdf'
+          )}
+          <View style={[styles.divisor, { backgroundColor: theme.border }]} />
+          {linha(
+            'planilha',
+            processingFile === 'excel' ? 'Gerando Excel...' : 'Exportar Excel',
+            'Planilha organizada em abas',
+            seta,
+            () => onOpenExportPreview('excel'),
+            processingFile === 'excel'
+          )}
+          <View style={[styles.divisor, { backgroundColor: theme.border }]} />
+          {linha(
+            'exportar',
+            processingFile === 'csv' ? 'Gerando CSV...' : 'Exportar CSV',
+            'Resumo estruturado',
+            seta,
+            () => onOpenExportPreview('csv'),
+            processingFile === 'csv'
+          )}
+          <View style={[styles.divisor, { backgroundColor: theme.border }]} />
+          {linha(
+            'importar',
+            processingFile === 'importar' ? 'Importando...' : 'Importar dados',
+            'CSV, Excel ou OFX do seu banco',
+            seta,
+            onImportData,
+            processingFile === 'importar'
+          )}
+        </>
+      )}
+
+      {/* ---------- Atualizacoes ---------- */}
+      {secao(
+        'Aplicativo',
+        linha(
+          'atualizar',
+          checkingUpdates ? 'Checando...' : 'Checar atualizações',
+          'Procura uma versão mais nova',
+          seta,
+          onCheckUpdates,
+          checkingUpdates
+        )
+      )}
+
+      {/* ---------- Backups ---------- */}
+      <View style={styles.secao}>
+        <Text style={[styles.secaoTitulo, { color: theme.muted }]}>Backups automáticos</Text>
+        <Text style={[styles.secaoExplicacao, { color: theme.faint }]}>
+          Uma cópia dos seus dados é salva na nuvem uma vez por dia.
+        </Text>
+
+        <View style={[styles.grupo, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+          {loadingBackups ? (
+            <Text style={[styles.vazio, { color: theme.muted }]}>Carregando backups...</Text>
+          ) : backups.length === 0 ? (
+            <Text style={[styles.vazio, { color: theme.muted }]}>
+              Nenhum backup ainda. O primeiro é criado no próximo dia de uso.
+            </Text>
+          ) : (
+            backups.map((backup, indice) => {
+              const dataFormatada = formatarDataBackup(backup.created_at)
+              const restaurando = restoringBackupId === backup.id
+              return (
+                <View key={backup.id}>
+                  {indice > 0 ? <View style={[styles.divisor, { backgroundColor: theme.border }]} /> : null}
+                  <View style={styles.linha}>
+                    <View style={[styles.linhaIcone, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                      <Icon name="backup" size={16} color={theme.muted} />
+                    </View>
+                    <View style={styles.linhaTextos}>
+                      <Text style={[styles.linhaTitulo, { color: theme.text }]}>{dataFormatada}</Text>
+                    </View>
+                    <PressableScale
+                      onPress={() => onRestoreBackup(backup.id, dataFormatada)}
+                      disabled={restaurando}
+                      style={[
+                        styles.restaurar,
+                        { backgroundColor: theme.card, borderColor: theme.border, opacity: restaurando ? 0.6 : 1 },
+                      ]}
+                    >
+                      <Text style={[styles.restaurarTexto, { color: theme.text }]}>
+                        {restaurando ? '...' : 'Restaurar'}
+                      </Text>
+                    </PressableScale>
+                  </View>
+                </View>
+              )
+            })
+          )}
+        </View>
       </View>
-    </PressableScale>
+    </ModalSheet>
   )
 }
 
 const styles = StyleSheet.create({
-  modalCard: {
-    width: '84%',
-    maxWidth: 420,
-    maxHeight: '94%',
-    alignSelf: 'center',
-    borderRadius: 28,
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 30,
+  perfil: {
     borderWidth: 1,
+    borderRadius: 22,
+    padding: 18,
+    alignItems: 'center',
+    marginBottom: 22,
+  },
+  avatarToque: { marginBottom: 12 },
+  avatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
     overflow: 'hidden',
-    shadowColor: '#000000',
-    shadowOpacity: 0.18,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 14,
   },
-  modalCardSettings: {
-    paddingBottom: 24,
-    minHeight: Platform.OS === 'web' ? 0 : 520,
-    maxHeight: '86%',
+  avatarImagem: { width: '100%', height: '100%' },
+  avatarIniciais: { fontSize: 28, fontWeight: '800' },
+  selo: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    borderWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  modalSettingsScroll: { flex: 1, width: '100%', minHeight: 0 },
-  modalTitle: { fontSize: 18, fontWeight: '900', textAlign: 'center', marginBottom: 14 },
-  modalInput: {
-    minHeight: 46,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    fontSize: 15,
+  email: { fontSize: 13, fontWeight: '600' },
+  dica: { fontSize: 11, fontWeight: '500', marginTop: 3 },
+  campoNome: { width: '100%', marginTop: 16 },
+
+  secao: { marginBottom: 22 },
+  secaoTitulo: {
+    fontSize: 11,
     fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
+    paddingHorizontal: 4,
   },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginTop: 12,
-    width: '100%',
-  },
-  modalActionBtn: {
-    flex: 1,
-    minHeight: 42,
-    paddingHorizontal: 14,
-    borderRadius: 14,
+  secaoExplicacao: { fontSize: 11, fontWeight: '500', lineHeight: 16, marginBottom: 8, paddingHorizontal: 4 },
+  grupo: { borderWidth: 1, borderRadius: 18, overflow: 'hidden' },
+
+  linha: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 14 },
+  linhaIcone: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalActionText: { fontSize: 13, fontWeight: '900' },
-  settingsSectionTitle: {
-    fontSize: 13,
-    fontWeight: '900',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  settingsCard: {
-    position: 'relative',
-    overflow: 'hidden',
+  linhaTextos: { flex: 1, minWidth: 0 },
+  linhaTitulo: { fontSize: 14, fontWeight: '700', letterSpacing: -0.2 },
+  linhaDescricao: { fontSize: 11, fontWeight: '500', marginTop: 2 },
+  divisor: { height: 1, marginLeft: 60 },
+
+  resumoGrade: { flexDirection: 'row', gap: 8 },
+  resumoItem: {
+    flex: 1,
     borderWidth: 1,
-    borderRadius: 18,
-    padding: 14,
-    marginTop: 10,
-  },
-  settingsStack: { gap: 10 },
-  backupRow: {
-    flexDirection: 'row',
+    borderRadius: 16,
+    paddingVertical: 12,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    gap: 3,
   },
-  backupRestoreBtn: {
+  resumoValor: { fontSize: 18, fontWeight: '800', letterSpacing: -0.4 },
+  resumoRotulo: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6 },
+  competencia: { fontSize: 11, fontWeight: '500', marginTop: 10, paddingHorizontal: 4 },
+
+  vazio: { fontSize: 12, fontWeight: '500', padding: 16, lineHeight: 17 },
+  restaurar: {
     minHeight: 34,
     paddingHorizontal: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backupRestoreBtnText: { fontSize: 12, fontWeight: '900' },
-  profileSettingsCard: { padding: 16 },
-  profileBadgeImage: { width: '100%', height: '100%', borderRadius: 999 },
-  profileBadgeLarge: {
-    width: 78,
-    height: 78,
     borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  profileBadgeLargeText: { fontSize: 24, fontWeight: '900' },
-  profilePreviewWrap: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  profilePreviewTextWrap: { flex: 1 },
-  profilePreviewTitle: { fontSize: 16, fontWeight: '900', marginBottom: 2 },
-  profilePreviewSub: { fontSize: 12, fontWeight: '700', marginBottom: 4 },
-  profilePreviewHint: { fontSize: 11, fontWeight: '700', lineHeight: 15 },
-  profileFormBlock: { marginTop: 14 },
-  profilePhotoActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 6,
-    flexWrap: 'wrap',
-  },
-  profilePhotoButton: { flex: 1, minWidth: 132, borderRadius: 12 },
-  profileInfoLine: {
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    alignItems: 'center',
-  },
-  profileLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 3,
-  },
-  profileValue: { fontSize: 14, fontWeight: '800' },
-  settingsInfoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  settingsInfoPill: {
-    width: '48%',
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-  },
-  settingsInfoLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.7,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  settingsInfoValue: { fontSize: 14, fontWeight: '900', textAlign: 'center' },
-  settingsActionBtn: {
-    minHeight: 42,
-    borderWidth: 1,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-  },
-  settingsActionBtnText: { fontSize: 13, fontWeight: '900' },
-  rowItemTitle: { fontSize: 14, fontWeight: '800', lineHeight: 18 },
-  rowItemMeta: { fontSize: 11, fontWeight: '700', marginTop: 3 },
-  settingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginTop: 4,
-    borderRadius: 16,
-    borderWidth: 0,
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-  },
-  switchTrack: {
-    width: 58,
-    height: 34,
-    borderRadius: 999,
-    padding: 3,
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-  switchThumb: { width: 26, height: 26, borderRadius: 999 },
-  switchThumbActive: { alignSelf: 'flex-end' },
-  updateCheckBoxBtn: {
-    minHeight: 46,
-    borderWidth: 1,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
-  },
-  updateCheckBoxText: { fontSize: 13, fontWeight: '900' },
-  exportGrid: { gap: 10 },
-  exportPremiumBtn: {
-    minHeight: 76,
-    borderRadius: 20,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 4,
-  },
-  exportPremiumIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  exportPremiumIconText: { fontSize: 20, fontWeight: '900', color: '#C89B2C' },
-  exportPremiumTitle: { fontSize: 15, fontWeight: '900', marginBottom: 2 },
-  exportPremiumSub: { fontSize: 12, fontWeight: '700', lineHeight: 16 },
+  restaurarTexto: { fontSize: 12, fontWeight: '800' },
 })

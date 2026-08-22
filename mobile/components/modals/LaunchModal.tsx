@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { CardItem, ModoModal, QuickAddType, Tema, TipoFormularioLancamento } from '../../app/types'
+import { corDoCartao } from '../../src/utils/cardColor'
 import { handleMaskedMoneyInput } from '../../src/utils/currency'
 import Campo from '../common/Campo'
 import Icon from '../common/Icon'
@@ -181,17 +182,44 @@ export default function LaunchModal({
 
       {ehParcela ? (
         <>
-          <Text style={[styles.rotuloFaixa, { color: theme.muted }]}>Cartão</Text>
+          <Text style={[styles.rotuloFaixa, { color: theme.muted }]}>Em qual cartão</Text>
           {cards.length === 0 ? (
-            <Text style={[styles.aviso, { color: theme.red }]}>
-              Cadastre um cartão antes de lançar uma compra parcelada.
-            </Text>
+            <View style={[styles.aviso, { backgroundColor: theme.redSoft, borderColor: theme.red }]}>
+              <Icon name="cartao" size={16} color={theme.red} />
+              <Text style={[styles.avisoTexto, { color: theme.red }]}>
+                Cadastre um cartão antes de lançar uma compra parcelada.
+              </Text>
+            </View>
           ) : (
-            faixa(
-              cards.map((card) => ({ chave: card.id, label: card.nome })),
-              selectedCardId,
-              onSelectedCardIdChange
-            )
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.faixa}>
+              {cards.map((card) => {
+                const ativo = selectedCardId === card.id
+                const cor = corDoCartao(card.id)
+                return (
+                  <PressableScale
+                    key={card.id}
+                    onPress={() => onSelectedCardIdChange(card.id)}
+                    scaleTo={0.95}
+                    style={[
+                      styles.miniCartao,
+                      {
+                        backgroundColor: cor.base,
+                        borderColor: ativo ? theme.accent : 'transparent',
+                        opacity: ativo ? 1 : 0.55,
+                      },
+                    ]}
+                  >
+                    <View style={styles.miniChip} />
+                    <Text style={styles.miniNome} numberOfLines={1}>{card.nome}</Text>
+                    {ativo ? (
+                      <View style={[styles.miniSelo, { backgroundColor: theme.accent }]}>
+                        <Icon name="confirmar" size={11} color={theme.textInverse} />
+                      </View>
+                    ) : null}
+                  </PressableScale>
+                )
+              })}
+            </ScrollView>
           )}
 
           <Campo
@@ -296,5 +324,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pilulaTexto: { fontSize: 12, fontWeight: '700' },
-  aviso: { fontSize: 12, fontWeight: '600', marginBottom: 16, lineHeight: 17 },
+  aviso: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+  },
+  avisoTexto: { flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 17 },
+
+  miniCartao: {
+    width: 122,
+    height: 74,
+    borderRadius: 14,
+    borderWidth: 2,
+    padding: 10,
+    justifyContent: 'space-between',
+  },
+  miniChip: {
+    width: 20,
+    height: 15,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+  },
+  miniNome: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  miniSelo: {
+    position: 'absolute',
+    top: 7,
+    right: 7,
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 })

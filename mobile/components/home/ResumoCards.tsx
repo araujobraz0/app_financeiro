@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     borderWidth: 1,
     padding: 18,
-    marginBottom: 14,
+    marginBottom: 12,
     shadowOpacity: 0.1,
     shadowRadius: 26,
     shadowOffset: { width: 0, height: 12 },

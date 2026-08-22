@@ -15,8 +15,8 @@ const GLYPHS = {
   editar: 'pencil',
   excluir: 'close',
   adicionar: 'add',
-  filtrar: 'filter',
-  ordenar: 'swap-vertical',
+  filtrar: 'options-outline',
+  ordenar: 'funnel-outline',
   confirmar: 'checkmark',
   copiar: 'copy-outline',
   link: 'link-outline',
@@ -45,6 +45,15 @@ const GLYPHS = {
   sol: 'sunny',
   lua: 'moon',
   busca: 'search',
+  // Configuracoes
+  camera: 'camera',
+  premium: 'star',
+  exportar: 'download-outline',
+  importar: 'cloud-upload-outline',
+  atualizar: 'refresh',
+  backup: 'time-outline',
+  planilha: 'grid-outline',
+  documento: 'document-outline',
 } satisfies Record<string, IoniconName>
 
 export type IconName = keyof typeof GLYPHS

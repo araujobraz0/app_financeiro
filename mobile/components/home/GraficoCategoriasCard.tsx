@@ -125,6 +125,7 @@ function GraficoCategoriasCard({ theme, dadosPizza, formatarValorVisivel }: Graf
                 style={[local.centroValor, { color: theme.text }]}
                 numberOfLines={1}
                 adjustsFontSizeToFit
+                minimumFontScale={0.6}
               >
                 {formatarValorVisivel(totalCategorias)}
               </Text>
@@ -170,9 +171,9 @@ function GraficoCategoriasCard({ theme, dadosPizza, formatarValorVisivel }: Graf
 
 const local = StyleSheet.create({
   donutWrap: { alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  centro: { position: 'absolute', alignItems: 'center', justifyContent: 'center', width: 92 },
+  centro: { position: 'absolute', alignItems: 'center', justifyContent: 'center', width: 96, paddingHorizontal: 2 },
   centroRotulo: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 },
-  centroValor: { fontSize: 16, fontWeight: '800', letterSpacing: -0.4, textAlign: 'center' },
+  centroValor: { fontSize: 15, fontWeight: '800', letterSpacing: -0.5, textAlign: 'center' },
 
   lista: { marginTop: 12, gap: 14 },
   item: { gap: 7 },

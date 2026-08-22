@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { StyleSheet, Text, TextInput, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import type { Tema } from '../../app/types'
-import { handleMaskedMoneyInput } from '../../src/utils/currency'
-import AppModal from '../common/AppModal'
+import { handleMaskedMoneyInput, moneyStringToNumber } from '../../src/utils/currency'
+import Campo from '../common/Campo'
+import Icon from '../common/Icon'
+import ModalSheet from '../common/ModalSheet'
 import PressableScale from '../common/motion/PressableScale'
 
 /**
@@ -43,6 +45,12 @@ const formatarInputDiaMes = (rawValue: string) => {
   return `${digits.slice(0, 2)}/${digits.slice(2)}`
 }
 
+/** Dia extraido de "DD/MM"; 0 quando ainda nao ha data valida. */
+function diaDe(texto: string) {
+  const n = Number(String(texto || '').slice(0, 2))
+  return Number.isNaN(n) ? 0 : n
+}
+
 export default function CardEditorModal({
   visible,
   onClose,
@@ -60,119 +68,140 @@ export default function CardEditorModal({
   const [name, setName] = useState(initialValues.name)
   const [limit, setLimit] = useState(initialValues.limit)
 
-  const handleSave = () => {
-    onSave({ name, limit })
-  }
+  const diaFechamento = diaDe(closing)
+  const diaVencimento = diaDe(due)
+
+  // Quantos dias o usuario tem entre a compra fechar e a fatura vencer. Se o
+  // vencimento cai antes do fechamento, ele pertence ao mes seguinte.
+  const diasParaPagar =
+    diaFechamento > 0 && diaVencimento > 0
+      ? diaVencimento > diaFechamento
+        ? diaVencimento - diaFechamento
+        : 30 - diaFechamento + diaVencimento
+      : null
+
+  const podeSalvar = name.trim().length > 0
 
   return (
-    <AppModal visible={visible} onClose={onClose}>
-      <View style={[styles.modalCard, styles.modalCardNewCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <Text style={[styles.modalTitle, { color: theme.text }]}>{editing ? 'Editar cartão' : 'Novo cartão'}</Text>
+    <ModalSheet
+      theme={theme}
+      visible={visible}
+      onClose={onClose}
+      titulo={editing ? 'Editar cartão' : 'Novo cartão'}
+      subtitulo="As datas definem em qual fatura cada compra entra."
+      acoes={[
+        { label: 'Cancelar', onPress: onClose },
+        {
+          label: 'Salvar',
+          onPress: () => onSave({ name, limit }),
+          primaria: true,
+          desabilitada: !podeSalvar,
+        },
+      ]}
+    >
+      {/* Previa: o cartao vai se parecer com isto na aba */}
+      <View style={[styles.previa, { backgroundColor: theme.backgroundSoft, borderColor: theme.border }]}>
+        <View style={[styles.chip, { backgroundColor: theme.borderStrong }]} />
+        <Text style={[styles.previaNome, { color: theme.text }]} numberOfLines={1}>
+          {name.trim() || 'Nome do cartão'}
+        </Text>
+        <Text style={[styles.previaLimite, { color: theme.muted }]}>
+          Limite {moneyStringToNumber(limit) > 0 ? limit : 'não informado'}
+        </Text>
+      </View>
 
-        <View style={styles.modalField}>
-          <Text style={[styles.modalLabel, { color: theme.muted }]}>Nome do cartão</Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder='Ex.: Nubank, Inter...'
-            placeholderTextColor={theme.muted}
-            style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
+      <Campo
+        theme={theme}
+        rotulo="Nome do cartão"
+        value={name}
+        onChangeText={setName}
+        placeholder="Ex.: Nubank, Inter Gold"
+        autoFocus={!editing}
+      />
+
+      <Campo
+        theme={theme}
+        rotulo="Limite"
+        value={limit}
+        onChangeText={(bruto) => handleMaskedMoneyInput(bruto, setLimit)}
+        keyboardType="number-pad"
+        inputMode="numeric"
+        placeholder="R$ 0,00"
+        dica="Opcional. Serve para calcular quanto do limite já foi usado."
+      />
+
+      <View style={styles.duplo}>
+        <View style={styles.metade}>
+          <Campo
+            theme={theme}
+            rotulo="Fecha dia"
+            value={closing}
+            onChangeText={(valor) => onClosingChange(formatarInputDiaMes(valor))}
+            placeholder="DD/MM"
+            keyboardType="number-pad"
+            inputMode="numeric"
+            maxLength={5}
+            sufixo={
+              <PressableScale onPress={onOpenClosingCalendar} hitSlop={8}>
+                <Icon name="calendario" size={18} color={theme.muted} />
+              </PressableScale>
+            }
           />
         </View>
-
-        <View style={styles.modalField}>
-          <Text style={[styles.modalLabel, { color: theme.muted }]}>Limite</Text>
-          <TextInput
-            value={limit}
-            onChangeText={(rawValue) => handleMaskedMoneyInput(rawValue, setLimit)}
-            placeholder='R$ 0,00'
-            placeholderTextColor={theme.muted}
-            keyboardType='number-pad'
-            inputMode='numeric'
-            style={[styles.modalInput, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
+        <View style={styles.metade}>
+          <Campo
+            theme={theme}
+            rotulo="Vence dia"
+            value={due}
+            onChangeText={(valor) => onDueChange(formatarInputDiaMes(valor))}
+            placeholder="DD/MM"
+            keyboardType="number-pad"
+            inputMode="numeric"
+            maxLength={5}
+            sufixo={
+              <PressableScale onPress={onOpenDueCalendar} hitSlop={8}>
+                <Icon name="calendario" size={18} color={theme.muted} />
+              </PressableScale>
+            }
           />
-        </View>
-
-        <View style={styles.dualFieldRow}>
-          <View style={[styles.modalField, styles.dualFieldItem]}>
-            <Text style={[styles.modalLabel, { color: theme.muted }]}>Fechamento (dia/mês)</Text>
-            <View style={styles.dateInputRow}>
-              <TextInput
-                value={closing}
-                onChangeText={(rawValue) => onClosingChange(formatarInputDiaMes(rawValue))}
-                placeholder='DD/MM'
-                placeholderTextColor={theme.muted}
-                keyboardType='number-pad'
-                inputMode='numeric'
-                style={[styles.modalInput, styles.dateInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
-              />
-              <PressableScale onPress={onOpenClosingCalendar} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                <Text style={[styles.calendarBtnText, { color: theme.text }]}>📅</Text>
-              </PressableScale>
-            </View>
-          </View>
-          <View style={[styles.modalField, styles.dualFieldItem]}>
-            <Text style={[styles.modalLabel, { color: theme.muted }]}>Vencimento (dia/mês)</Text>
-            <View style={styles.dateInputRow}>
-              <TextInput
-                value={due}
-                onChangeText={(rawValue) => onDueChange(formatarInputDiaMes(rawValue))}
-                placeholder='DD/MM'
-                placeholderTextColor={theme.muted}
-                keyboardType='number-pad'
-                inputMode='numeric'
-                style={[styles.modalInput, styles.dateInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
-              />
-              <PressableScale onPress={onOpenDueCalendar} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                <Text style={[styles.calendarBtnText, { color: theme.text }]}>📅</Text>
-              </PressableScale>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.modalActions}>
-          <PressableScale onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-            <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-          </PressableScale>
-          <PressableScale onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
-            <Text style={[styles.modalActionText, { color: theme.white }]}>{editing ? 'Salvar' : 'Adicionar'}</Text>
-          </PressableScale>
         </View>
       </View>
-    </AppModal>
+
+      {diasParaPagar !== null ? (
+        <View style={[styles.explicacao, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}>
+          <Icon name="calendario" size={15} color={theme.accent} />
+          <Text style={[styles.explicacaoTexto, { color: theme.accent }]}>
+            Compras feitas depois do dia {diaFechamento} entram na fatura seguinte. Você tem{' '}
+            {diasParaPagar} dias entre o fechamento e o vencimento.
+          </Text>
+        </View>
+      ) : null}
+    </ModalSheet>
   )
 }
 
 const styles = StyleSheet.create({
-  modalCard: {
-    width: '84%',
-    maxWidth: 420,
-    maxHeight: '94%',
-    alignSelf: 'center',
-    borderRadius: 28,
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 30,
+  previa: {
     borderWidth: 1,
-    overflow: 'hidden',
-    shadowColor: '#000000',
-    shadowOpacity: 0.18,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 14,
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 18,
   },
-  modalCardNewCard: { paddingBottom: 30, minHeight: 225 },
-  modalTitle: { fontSize: 18, fontWeight: '900', textAlign: 'center', marginBottom: 14 },
-  modalField: { marginBottom: 10 },
-  modalLabel: { fontSize: 12, fontWeight: '800', marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.8 },
-  modalInput: { minHeight: 46, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, fontSize: 15, fontWeight: '700' },
-  dualFieldRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  dualFieldItem: { flex: 1 },
-  dateInputRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dateInputField: { flex: 1, minWidth: 0 },
-  calendarBtn: { width: 42, minHeight: 46, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  calendarBtnText: { fontSize: 18 },
-  modalActions: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginTop: 12, width: '100%' },
-  modalActionBtn: { flex: 1, minHeight: 42, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  modalActionText: { fontSize: 13, fontWeight: '900' },
+  chip: { width: 26, height: 19, borderRadius: 4, marginBottom: 10 },
+  previaNome: { fontSize: 15, fontWeight: '800', letterSpacing: -0.2 },
+  previaLimite: { fontSize: 11, fontWeight: '600', marginTop: 3 },
+
+  duplo: { flexDirection: 'row', gap: 12 },
+  metade: { flex: 1, minWidth: 0 },
+
+  explicacao: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 13,
+    marginTop: 2,
+  },
+  explicacaoTexto: { flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 17 },
 })

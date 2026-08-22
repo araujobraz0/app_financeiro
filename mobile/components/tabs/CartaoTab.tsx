@@ -309,7 +309,7 @@ const local = StyleSheet.create({
   anteciparTexto: { fontSize: 13, fontWeight: '800' },
 
   linhaValor: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
-  parcelaValor: { fontSize: 17, fontWeight: '800', letterSpacing: -0.3 },
+  parcelaValor: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
   acoes: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   acaoBtn: { width: 32, height: 32, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 

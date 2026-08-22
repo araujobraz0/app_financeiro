@@ -1,8 +1,9 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import type { CardItem, Tema } from '../../app/types'
-import AppModal from '../common/AppModal'
-import PressableScale from '../common/motion/PressableScale'
+import { formatarMoeda } from '../../src/utils/currency'
 import Icon from '../common/Icon'
+import ModalSheet from '../common/ModalSheet'
+import PressableScale from '../common/motion/PressableScale'
 
 type ManageCardsModalProps = {
   visible: boolean
@@ -11,6 +12,14 @@ type ManageCardsModalProps = {
   cards: CardItem[]
   onEdit: (card: CardItem) => void
   onDelete: (card: CardItem) => void
+}
+
+/** Formata "fecha dia X · vence dia Y" a partir dos campos do cartao. */
+function datasDe(card: CardItem) {
+  const partes: string[] = []
+  if (card.fechamento) partes.push(`fecha ${card.fechamento}`)
+  if (card.vencimento) partes.push(`vence ${card.vencimento}`)
+  return partes.length > 0 ? partes.join(' · ') : 'Datas não definidas'
 }
 
 export default function ManageCardsModal({
@@ -22,73 +31,88 @@ export default function ManageCardsModal({
   onDelete,
 }: ManageCardsModalProps) {
   return (
-    <AppModal visible={visible} onClose={onClose}>
-      <View style={[styles.modalCard, styles.modalCardManageCards, styles.modalCardScrollHint, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <Text style={[styles.modalTitle, { color: theme.text }]}>Gerenciar cartões</Text>
-        <Text style={[styles.modalHintText, { color: theme.muted }]}>Edite ou exclua um cartão ↓</Text>
-        <ScrollView showsVerticalScrollIndicator={false} style={styles.categoryScroll} contentContainerStyle={{ paddingBottom: 8, marginTop: 6 }}>
-          {cards.map((card) => (
-            <View key={card.id} style={[styles.categoryManageRow, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}>
-              <Text style={[styles.categoryManageText, { color: theme.text }]} numberOfLines={1}>{card.nome}</Text>
-              <View style={styles.categoryManageActions}>
-                <PressableScale onPress={() => onEdit(card)} style={[styles.manageMiniBtn, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  <Icon name="editar" size={16} color={theme.text} />
-                </PressableScale>
-                <PressableScale onPress={() => onDelete(card)} style={[styles.manageMiniBtn, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  <Icon name="excluir" size={18} color={theme.red} />
-                </PressableScale>
-              </View>
+    <ModalSheet
+      theme={theme}
+      visible={visible}
+      onClose={onClose}
+      titulo="Meus cartões"
+      subtitulo={
+        cards.length === 0
+          ? 'Nenhum cartão cadastrado.'
+          : `${cards.length} ${cards.length === 1 ? 'cartão' : 'cartões'}. Toque para editar limite e datas.`
+      }
+      acoes={[{ label: 'Concluir', onPress: onClose, primaria: true }]}
+    >
+      <View style={styles.lista}>
+        {cards.map((card) => (
+          <View
+            key={card.id}
+            style={[styles.linha, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+          >
+            <View style={[styles.icone, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <Icon name="cartao" size={17} color={theme.muted} />
             </View>
-          ))}
-        </ScrollView>
-        <View style={[styles.modalActions, styles.modalActionsLower]}>
-          <PressableScale onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
-            <Text style={[styles.modalActionText, { color: theme.white }]}>Fechar</Text>
-          </PressableScale>
-        </View>
+
+            <View style={styles.textos}>
+              <Text style={[styles.nome, { color: theme.text }]} numberOfLines={1}>
+                {card.nome}
+              </Text>
+              <Text style={[styles.meta, { color: theme.muted }]} numberOfLines={1}>
+                {card.limite ? `${formatarMoeda(card.limite)} · ` : ''}
+                {datasDe(card)}
+              </Text>
+            </View>
+
+            <View style={styles.acoes}>
+              <PressableScale
+                onPress={() => onEdit(card)}
+                style={[styles.botao, { backgroundColor: theme.card, borderColor: theme.border }]}
+              >
+                <Icon name="editar" size={14} color={theme.muted} />
+              </PressableScale>
+              <PressableScale
+                onPress={() => onDelete(card)}
+                style={[styles.botao, { backgroundColor: theme.card, borderColor: theme.border }]}
+              >
+                <Icon name="excluir" size={16} color={theme.red} />
+              </PressableScale>
+            </View>
+          </View>
+        ))}
       </View>
-    </AppModal>
+    </ModalSheet>
   )
 }
 
 const styles = StyleSheet.create({
-  modalCard: {
-    width: '84%',
-    maxWidth: 420,
-    maxHeight: '94%',
-    alignSelf: 'center',
-    borderRadius: 28,
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 30,
-    borderWidth: 1,
-    overflow: 'hidden',
-    shadowColor: '#000000',
-    shadowOpacity: 0.18,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 14,
-  },
-  modalCardManageCards: { paddingBottom: 24, minHeight: 360 },
-  modalCardScrollHint: { paddingBottom: 30 },
-  modalTitle: { fontSize: 18, fontWeight: '900', textAlign: 'center', marginBottom: 14 },
-  modalHintText: { fontSize: 11, fontWeight: '700', textAlign: 'center' },
-  categoryScroll: { maxHeight: 340 },
-  categoryManageRow: {
-    borderRadius: 14,
-    padding: 10,
-    borderWidth: 1,
-    marginBottom: 8,
+  lista: { gap: 8 },
+  linha: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 11,
+    paddingVertical: 12,
+    paddingHorizontal: 13,
+    borderRadius: 16,
+    borderWidth: 1,
   },
-  categoryManageText: { fontSize: 14, fontWeight: '800', flex: 1, marginRight: 10 },
-  categoryManageActions: { flexDirection: 'row', gap: 8 },
-  manageMiniBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  manageMiniBtnText: { fontSize: 14, fontWeight: '900' },
-  modalActions: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginTop: 12, width: '100%' },
-  modalActionsLower: { marginTop: 16 },
-  modalActionBtn: { flex: 1, minHeight: 42, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  modalActionText: { fontSize: 13, fontWeight: '900' },
+  icone: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textos: { flex: 1, minWidth: 0 },
+  nome: { fontSize: 14, fontWeight: '800', letterSpacing: -0.2 },
+  meta: { fontSize: 11, fontWeight: '500', marginTop: 2 },
+  acoes: { flexDirection: 'row', gap: 7 },
+  botao: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 })

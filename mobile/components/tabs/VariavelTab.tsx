@@ -1,12 +1,13 @@
 import { memo } from 'react'
 import type { ReactNode } from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { EntradaItem, SaidaItem, Tema, TipoVariavelTab } from '../../app/types'
 import { formatarMoeda } from '../../src/utils/currency'
 import { formatarDiaMes } from '../../src/utils/dates'
 import { styles } from '../../src/theme/homeStyles'
 import PressableScale from '../common/motion/PressableScale'
 import ListRow from '../common/ListRow'
+import Segmentado from '../common/Segmentado'
 import Icon from '../common/Icon'
 
 type VariavelTabProps = {
@@ -80,18 +81,33 @@ function VariavelTab({
           </View>
           <View style={styles.categoryToolbar}>
             {tipoVariavelTab === 'saida' && (
-              <>
-                <PressableScale onPress={onNovaCategoria} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}>
-                  <Text style={[styles.smallActionBtnText, { color: theme.white }]}>+ Categoria</Text>
-                </PressableScale>
-                <PressableScale
-                  onPress={onGerenciarCategorias}
-                  style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
-                >
-                  <Text style={[styles.smallActionBtnText, { color: theme.text }]}>Gerenciar</Text>
-                </PressableScale>
-              </>
-            )}
+          <View style={local.categorias}>
+            <Text style={[local.categoriasRotulo, { color: theme.muted }]}>Filtrar por categoria</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={local.faixa}>
+              {['Todas', ...categoriasSaidas].map((categoria) => {
+                const ativo = filtroCategoria === categoria
+                return (
+                  <PressableScale
+                    key={categoria}
+                    onPress={() => onFiltroCategoriaChange(categoria)}
+                    style={[
+                      local.chip,
+                      {
+                        backgroundColor: ativo ? theme.accentSoft : 'transparent',
+                        borderColor: ativo ? theme.accent : theme.border,
+                      },
+                    ]}
+                  >
+                    {ativo ? <Icon name="confirmar" size={13} color={theme.accent} /> : null}
+                    <Text style={[local.chipTexto, { color: ativo ? theme.accent : theme.muted }]}>
+                      {categoria}
+                    </Text>
+                  </PressableScale>
+                )
+              })}
+            </ScrollView>
+          </View>
+        )}
             <PressableScale
               onPress={() => onAbrirFiltro(tipoVariavelTab === 'entrada' ? 'entradas' : 'saidas')}
               style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
@@ -101,36 +117,15 @@ function VariavelTab({
           </View>
         </View>
 
-        <View style={styles.variableSwitchRow}>
-          <PressableScale
-            onPress={() => onTipoChange('entrada')}
-            style={[
-              styles.variableSwitchBtn,
-              {
-                backgroundColor: tipoVariavelTab === 'entrada' ? theme.primary : theme.cardSoft,
-                borderColor: tipoVariavelTab === 'entrada' ? theme.primary : theme.border,
-              },
-            ]}
-          >
-            <Text style={[styles.variableSwitchBtnText, { color: tipoVariavelTab === 'entrada' ? theme.white : theme.text }]}>
-              Entradas
-            </Text>
-          </PressableScale>
-          <PressableScale
-            onPress={() => onTipoChange('saida')}
-            style={[
-              styles.variableSwitchBtn,
-              {
-                backgroundColor: tipoVariavelTab === 'saida' ? theme.primary : theme.cardSoft,
-                borderColor: tipoVariavelTab === 'saida' ? theme.primary : theme.border,
-              },
-            ]}
-          >
-            <Text style={[styles.variableSwitchBtnText, { color: tipoVariavelTab === 'saida' ? theme.white : theme.text }]}>
-              Saídas
-            </Text>
-          </PressableScale>
-        </View>
+        <Segmentado
+          theme={theme}
+          selecionado={tipoVariavelTab}
+          onSelecionar={onTipoChange}
+          opcoes={[
+            { valor: 'entrada', label: 'Entradas', icone: 'seta_cima', cor: theme.green },
+            { valor: 'saida', label: 'Saídas', icone: 'seta_baixo', cor: theme.red },
+          ]}
+        />
 
         {tipoVariavelTab === 'saida' && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
@@ -215,5 +210,27 @@ function VariavelTab({
     </>
   )
 }
+
+const local = StyleSheet.create({
+  categorias: { marginTop: 14 },
+  categoriasRotulo: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  faixa: { gap: 8, paddingRight: 8 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  chipTexto: { fontSize: 12, fontWeight: '700' },
+})
 
 export default memo(VariavelTab)

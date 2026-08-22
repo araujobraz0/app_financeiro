@@ -47,7 +47,7 @@ function ComprasDesejoCard({
     <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
       <View style={styles.manageHeaderRow}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.manageTitle, { color: theme.text }]}>Quero comprar</Text>
+          <Text style={[styles.manageTitle, { color: theme.text }]}>Lista de desejos</Text>
           <Text style={[styles.manageSub, { color: theme.muted }]}>
             {itens.length === 0
               ? 'Nada na lista'
