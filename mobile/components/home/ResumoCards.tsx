@@ -7,6 +7,7 @@ import { styles } from '../../src/theme/homeStyles'
 import AnimatedValue from '../common/motion/AnimatedValue'
 import AppearIn from '../common/motion/AppearIn'
 import PressableScale from '../common/motion/PressableScale'
+import Icon from '../common/Icon'
 
 type ResumoCardsProps = {
   theme: Tema
@@ -74,7 +75,7 @@ function ResumoCards({
                   style={[styles.salaryValueCentered, { color: theme.green }]}
                 />
                 <PressableScale style={styles.salaryEditButton} onPress={onIniciarEdicaoSalario}>
-                  <Text style={[styles.salaryEditText, { color: theme.muted }]}>✎</Text>
+                  <Icon name="editar" size={16} color={theme.muted} />
                 </PressableScale>
               </>
             )}

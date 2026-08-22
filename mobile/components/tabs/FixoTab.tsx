@@ -5,6 +5,7 @@ import type { FixoItem, Tema } from '../../app/types'
 import { formatarDiaMes } from '../../src/utils/dates'
 import { styles } from '../../src/theme/homeStyles'
 import PressableScale from '../common/motion/PressableScale'
+import Icon from '../common/Icon'
 
 type FixoTabProps = {
   theme: Tema
@@ -56,7 +57,7 @@ function FixoTab({
           onPress={onAbrirFiltro}
           style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
         >
-          <Text style={[styles.smallActionBtnIcon, { color: theme.text }]}>☷</Text>
+          <Icon name="filtrar" size={15} color={theme.text} />
         </PressableScale>
       </View>
 
@@ -85,10 +86,10 @@ function FixoTab({
                 <Text style={styles.statusBtnText}>{item.pago ? 'Pago' : 'Não pago'}</Text>
               </PressableScale>
               <PressableScale onPress={() => onEditar(item)} style={styles.iconBtn}>
-                <Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text>
+                <Icon name="editar" size={16} color={theme.text} />
               </PressableScale>
               <PressableScale onPress={() => onExcluir(item.id, item.nome)} style={styles.iconBtn}>
-                <Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text>
+                <Icon name="excluir" size={18} color={theme.red} />
               </PressableScale>
             </View>
           </View>

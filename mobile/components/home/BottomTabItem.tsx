@@ -1,8 +1,12 @@
-// Item da barra inferior com pilula animada por tras do rotulo ativo.
+// Item da barra inferior: icone, rotulo curto e pilula animada quando ativo.
 //
 // A barra e cortada ao meio pelo botao "+", entao um unico indicador
 // deslizante atravessando as quatro abas nao teria por onde passar. Cada item
 // anima a propria pilula — mesmo efeito, geometria correta.
+//
+// O rotulo e pequeno e sem caixa alta de proposito: em tela de 390px sobram
+// cerca de 68px por aba, e "VARIAVEL" em maiusculas com espacamento passava
+// disso e era cortado. O icone carrega o reconhecimento, o texto so confirma.
 
 import { useEffect } from 'react'
 import { StyleSheet } from 'react-native'
@@ -16,17 +20,18 @@ import Animated, {
 
 import type { Tema } from '../../app/types'
 import { duration, easing, spring } from '../../src/theme/motion'
-import { styles as homeStyles } from '../../src/theme/homeStyles'
+import Icon, { type IconName } from '../common/Icon'
 import PressableScale from '../common/motion/PressableScale'
 
 type Props = {
   label: string
+  icon: IconName
   active: boolean
   theme: Tema
   onPress: () => void
 }
 
-export default function BottomTabItem({ label, active, theme, onPress }: Props) {
+export default function BottomTabItem({ label, icon, active, theme, onPress }: Props) {
   const progress = useSharedValue(active ? 1 : 0)
 
   useEffect(() => {
@@ -37,7 +42,7 @@ export default function BottomTabItem({ label, active, theme, onPress }: Props) 
 
   const pillStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
-    transform: [{ scale: 0.82 + progress.value * 0.18 }],
+    transform: [{ scale: 0.86 + progress.value * 0.14 }],
   }))
 
   const textStyle = useAnimatedStyle(() => ({
@@ -47,34 +52,41 @@ export default function BottomTabItem({ label, active, theme, onPress }: Props) 
   return (
     <PressableScale
       onPress={onPress}
-      scaleTo={0.94}
-      style={[homeStyles.bottomItem, localStyles.item]}
-      accessibilityRole='tab'
+      scaleTo={0.93}
+      style={styles.item}
+      accessibilityRole="tab"
       accessibilityState={{ selected: active }}
     >
       <Animated.View
-        pointerEvents='none'
-        style={[
-          localStyles.pill,
-          { backgroundColor: theme.accentSoft, borderColor: theme.primary },
-          pillStyle,
-        ]}
+        pointerEvents="none"
+        style={[styles.pill, { backgroundColor: theme.accentSoft }, pillStyle]}
       />
-      <Animated.Text style={[homeStyles.bottomItemText, textStyle]} numberOfLines={1}>
+      <Icon name={icon} size={19} color={active ? theme.primary : theme.muted} />
+      <Animated.Text style={[styles.label, textStyle]} numberOfLines={1}>
         {label}
       </Animated.Text>
     </PressableScale>
   )
 }
 
-const localStyles = StyleSheet.create({
+const styles = StyleSheet.create({
   item: {
-    paddingVertical: 9,
-    paddingHorizontal: 6,
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    paddingVertical: 7,
+    paddingHorizontal: 2,
   },
   pill: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 999,
-    borderWidth: 1,
+    borderRadius: 16,
+  },
+  label: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.1,
+    lineHeight: 13,
   },
 })

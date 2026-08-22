@@ -2,6 +2,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { CardItem, Tema } from '../../app/types'
 import AppModal from '../common/AppModal'
 import PressableScale from '../common/motion/PressableScale'
+import Icon from '../common/Icon'
 
 type ManageCardsModalProps = {
   visible: boolean
@@ -31,10 +32,10 @@ export default function ManageCardsModal({
               <Text style={[styles.categoryManageText, { color: theme.text }]} numberOfLines={1}>{card.nome}</Text>
               <View style={styles.categoryManageActions}>
                 <PressableScale onPress={() => onEdit(card)} style={[styles.manageMiniBtn, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  <Text style={[styles.manageMiniBtnText, { color: theme.text }]}>✎</Text>
+                  <Icon name="editar" size={16} color={theme.text} />
                 </PressableScale>
                 <PressableScale onPress={() => onDelete(card)} style={[styles.manageMiniBtn, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                  <Text style={[styles.manageMiniBtnText, { color: theme.red }]}>×</Text>
+                  <Icon name="excluir" size={18} color={theme.red} />
                 </PressableScale>
               </View>
             </View>

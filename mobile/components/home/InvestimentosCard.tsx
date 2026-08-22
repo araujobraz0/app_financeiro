@@ -1,7 +1,8 @@
 import { memo } from 'react'
-import { Platform, Text, TextInput, View } from 'react-native'
+import { StyleSheet, Text, TextInput, View } from 'react-native'
 import type { GlobalData, InvestmentBaseMode, Tema } from '../../app/types'
 import { styles } from '../../src/theme/homeStyles'
+import Icon from '../common/Icon'
 import PressableScale from '../common/motion/PressableScale'
 
 type InvestimentosCardProps = {
@@ -22,11 +23,16 @@ type InvestimentosCardProps = {
   formatarPercentualVisivel: (valor: number) => string
 }
 
-const ATALHOS_PERCENTUAL = [5, 10, 15, 20]
+const ATALHOS_PERCENTUAL = [5, 10, 15, 20, 30]
 
 /**
- * Card de investimentos: escolhe a base de calculo (salario ou salario mais
- * entradas) e o percentual, e mostra o aporte sugerido.
+ * Card de investimentos.
+ *
+ * A versao anterior tinha uma trilha arrastavel, uma escala de pilulas, um
+ * campo manual e varios blocos de apoio disputando a mesma area — muita
+ * mecanica para uma decisao simples. Aqui a pergunta vem primeiro ("quanto
+ * guardar por mes"), a resposta aparece grande, e os controles ficam abaixo:
+ * atalhos para os percentuais comuns e um campo para ajuste fino.
  */
 function InvestimentosCard({
   theme,
@@ -54,117 +60,161 @@ function InvestimentosCard({
     }
   }
 
-  const chipBase = (modo: InvestmentBaseMode, label: string) => (
-    <PressableScale
-      onPress={() => onPreferenciasChange({ investmentBaseMode: modo })}
-      style={[
-        styles.investmentBaseChip,
-        {
-          backgroundColor: baseModo === modo ? theme.primary : theme.cardSoft,
-          borderColor: baseModo === modo ? theme.primary : theme.border,
-        },
-      ]}
-    >
-      <Text style={[styles.investmentBaseChipText, { color: baseModo === modo ? theme.white : theme.text }]}>
-        {label}
-      </Text>
-    </PressableScale>
-  )
+  const baseRotulo = baseModo === 'salary' ? 'salário' : 'salário + entradas'
 
   return (
-    <View style={[styles.investmentCard, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: theme.shadow }]}>
-      <View style={styles.investmentHeaderRow}>
+    <View
+      style={[
+        styles.investmentCard,
+        { backgroundColor: theme.card, borderColor: theme.border, shadowColor: theme.shadow },
+      ]}
+    >
+      {/* Cabecalho */}
+      <View style={local.cabecalho}>
+        <View style={[local.icone, { backgroundColor: theme.greenSoft }]}>
+          <Icon name="investir" size={19} color={theme.green} />
+        </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.investmentTitle, { color: theme.text }]}>Investimentos do mês</Text>
-          <Text style={[styles.investmentSub, { color: theme.muted }]}>
-            Defina um percentual para separar automaticamente.
-          </Text>
-        </View>
-        <View style={[styles.investmentBadge, { backgroundColor: theme.backgroundSoft, borderColor: theme.border }]}>
-          <Text style={[styles.investmentBadgeText, { color: theme.text }]}>
-            {formatarPercentualVisivel(percentualExibicao)}
+          <Text style={[styles.investmentTitle, { color: theme.text }]}>Investimentos</Text>
+          <Text style={[local.subtitulo, { color: theme.muted }]}>
+            Quanto guardar por mês
           </Text>
         </View>
       </View>
 
-      <View style={styles.investmentBaseRow}>
-        {chipBase('salary', 'Salário')}
-        {chipBase('salary_plus_entries', 'Salário + entradas')}
-      </View>
-
-      <View style={[styles.investmentHighlightCard, { backgroundColor: theme.cardSoft, borderColor: theme.borderStrong }]}>
-        <View style={styles.investmentHighlightTopRow}>
-          <View>
-            <Text style={[styles.investmentHighlightLabel, { color: theme.muted }]}>Aporte sugerido</Text>
-            <Text style={[styles.investmentHighlightValue, { color: theme.text }]}>
-              {formatarValorVisivel(valorSugerido)}
-            </Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={[styles.investmentMiniLabel, { color: theme.muted }]}>Base usada</Text>
-            <Text style={[styles.investmentMiniValue, { color: theme.text }]}>{formatarValorVisivel(baseValor)}</Text>
-          </View>
-        </View>
-        <Text style={[styles.investmentHelperText, { color: theme.muted }]}>
-          Padrão Brazllet para construir constância sem perder flexibilidade.
+      {/* A resposta, em destaque */}
+      <View style={[local.destaque, { backgroundColor: theme.greenSoft, borderColor: theme.border }]}>
+        <Text style={[local.destaqueValor, { color: theme.green }]} numberOfLines={1}>
+          {formatarValorVisivel(valorSugerido)}
+        </Text>
+        <Text style={[local.destaqueMeta, { color: theme.muted }]}>
+          {formatarPercentualVisivel(percentualExibicao)} de {formatarValorVisivel(baseValor)} ({baseRotulo})
         </Text>
       </View>
 
-      <View style={styles.investmentSliderBlock}>
-        <View style={styles.investmentSliderHeader}>
-          <Text style={[styles.investmentSliderLabel, { color: theme.text }]}>Percentual desejado</Text>
-        </View>
-
-        <View style={styles.investmentSliderScale}>
-          {ATALHOS_PERCENTUAL.map((step) => (
+      {/* Base de calculo */}
+      <Text style={[local.rotuloSecao, { color: theme.muted }]}>Calcular sobre</Text>
+      <View style={local.linhaBase}>
+        {([
+          ['salary', 'Salário'],
+          ['salary_plus_entries', 'Salário + entradas'],
+        ] as [InvestmentBaseMode, string][]).map(([modo, label]) => {
+          const ativo = baseModo === modo
+          return (
             <PressableScale
-              key={step}
-              onPress={() => {
-                onManualInputChange(String(step))
-                onPercentualChange(step)
-              }}
+              key={modo}
+              onPress={() => onPreferenciasChange({ investmentBaseMode: modo })}
               style={[
-                styles.investmentScalePill,
+                local.chipBase,
                 {
-                  backgroundColor: percentualExibicao === step ? theme.primary : theme.cardSoft,
-                  borderColor: percentualExibicao === step ? theme.primary : theme.border,
+                  backgroundColor: ativo ? theme.primary : theme.cardSoft,
+                  borderColor: ativo ? theme.primary : theme.border,
                 },
               ]}
             >
-              <Text style={[styles.investmentScalePillText, { color: percentualExibicao === step ? theme.white : theme.text }]}>
-                {step}%
+              <Text
+                style={[local.chipBaseTexto, { color: ativo ? theme.textInverse : theme.text }]}
+                numberOfLines={1}
+              >
+                {label}
               </Text>
             </PressableScale>
-          ))}
-        </View>
+          )
+        })}
+      </View>
 
-        <View
-          style={[styles.modalField, styles.investmentManualField]}
-          onLayout={(event) => onManualFieldLayout(event.nativeEvent.layout.y + 26)}
-        >
-          <Text style={[styles.modalLabel, { color: theme.muted }]}>Percentual manual</Text>
-          <View style={styles.investmentManualField}>
-            <View style={styles.investmentManualInputRow}>
-              <TextInput
-                value={manualInput}
-                onChangeText={aplicarPercentualManual}
-                onFocus={onManualFieldFocus}
-                keyboardType={Platform.OS === 'ios' ? 'decimal-pad' : 'numeric'}
-                placeholder='12,5'
-                placeholderTextColor={theme.muted}
-                style={[
-                  styles.modalInput,
-                  styles.investmentManualInput,
-                  { backgroundColor: theme.card, borderColor: theme.border, color: theme.text },
-                ]}
-              />
-              <Text style={[styles.investmentManualSuffix, { color: theme.text }]}>%</Text>
-            </View>
-          </View>
+      {/* Percentual */}
+      <Text style={[local.rotuloSecao, { color: theme.muted }]}>Percentual</Text>
+      <View style={local.linhaPercentual}>
+        {ATALHOS_PERCENTUAL.map((valor) => {
+          const ativo = Math.abs(percentualExibicao - valor) < 0.01
+          return (
+            <PressableScale
+              key={valor}
+              onPress={() => {
+                onPercentualChange(valor)
+                onManualInputChange(String(valor))
+              }}
+              style={[
+                local.chipPercentual,
+                {
+                  backgroundColor: ativo ? theme.accentSoft : theme.cardSoft,
+                  borderColor: ativo ? theme.accent : theme.border,
+                },
+              ]}
+            >
+              <Text style={[local.chipPercentualTexto, { color: ativo ? theme.accent : theme.text }]}>
+                {valor}%
+              </Text>
+            </PressableScale>
+          )
+        })}
+      </View>
+
+      <View
+        style={local.campoManualWrap}
+        onLayout={(event) => onManualFieldLayout(event.nativeEvent.layout.y)}
+      >
+        <Text style={[local.campoManualRotulo, { color: theme.muted }]}>Outro valor</Text>
+        <View style={[local.campoManual, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+          <TextInput
+            value={manualInput}
+            onChangeText={aplicarPercentualManual}
+            onFocus={onManualFieldFocus}
+            keyboardType="decimal-pad"
+            inputMode="decimal"
+            placeholder="0"
+            placeholderTextColor={theme.faint}
+            style={[local.campoManualInput, { color: theme.text }]}
+            maxLength={5}
+          />
+          <Text style={[local.campoManualSufixo, { color: theme.muted }]}>%</Text>
         </View>
       </View>
     </View>
   )
 }
+
+const local = StyleSheet.create({
+  cabecalho: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  icone: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  subtitulo: { fontSize: 12, fontWeight: '500', marginTop: 2 },
+
+  destaque: { borderRadius: 20, borderWidth: 1, paddingVertical: 16, paddingHorizontal: 16, alignItems: 'center' },
+  destaqueValor: { fontSize: 30, fontWeight: '800', letterSpacing: -1 },
+  destaqueMeta: { fontSize: 12, fontWeight: '600', marginTop: 5, textAlign: 'center', lineHeight: 17 },
+
+  rotuloSecao: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: 18,
+    marginBottom: 8,
+  },
+
+  linhaBase: { flexDirection: 'row', gap: 8 },
+  chipBase: { flex: 1, minHeight: 44, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  chipBaseTexto: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
+
+  linhaPercentual: { flexDirection: 'row', gap: 8 },
+  chipPercentual: { flex: 1, minHeight: 42, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  chipPercentualTexto: { fontSize: 13, fontWeight: '800' },
+
+  campoManualWrap: { marginTop: 14 },
+  campoManualRotulo: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
+  campoManual: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    minHeight: 46,
+    gap: 4,
+  },
+  campoManualInput: { width: 58, fontSize: 16, fontWeight: '800', paddingVertical: 0, textAlign: 'right' },
+  campoManualSufixo: { fontSize: 15, fontWeight: '800' },
+})
 
 export default memo(InvestimentosCard)

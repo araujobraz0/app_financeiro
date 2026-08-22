@@ -4,6 +4,7 @@ import { Text, View } from 'react-native'
 import type { NoteItem, NoteModalMode, PixItem, Tema } from '../../app/types'
 import { styles } from '../../src/theme/homeStyles'
 import PressableScale from '../common/motion/PressableScale'
+import Icon from '../common/Icon'
 
 type NotasPixCardProps = {
   theme: Tema
@@ -68,7 +69,7 @@ function NotasPixCard({
             onPress={onAbrirFiltro}
             style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
           >
-            <Text style={[styles.smallActionBtnIcon, { color: theme.text }]}>☷</Text>
+            <Icon name="filtrar" size={15} color={theme.text} />
           </PressableScale>
         </View>
       </View>
@@ -104,10 +105,10 @@ function NotasPixCard({
                   </Text>
                 </PressableScale>
                 <PressableScale onPress={() => onEditarPix(item)} style={styles.iconBtn}>
-                  <Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text>
+                  <Icon name="editar" size={16} color={theme.text} />
                 </PressableScale>
                 <PressableScale onPress={() => onExcluirPix(item.id, item.nome)} style={styles.iconBtn}>
-                  <Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text>
+                  <Icon name="excluir" size={18} color={theme.red} />
                 </PressableScale>
               </View>
             </View>
@@ -140,10 +141,10 @@ function NotasPixCard({
               </View>
               <View style={styles.inlineActions}>
                 <PressableScale onPress={() => onEditarNota(item)} style={styles.iconBtn}>
-                  <Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text>
+                  <Icon name="editar" size={16} color={theme.text} />
                 </PressableScale>
                 <PressableScale onPress={() => onExcluirNota(item.id, item.titulo)} style={styles.iconBtn}>
-                  <Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text>
+                  <Icon name="excluir" size={18} color={theme.red} />
                 </PressableScale>
               </View>
             </View>

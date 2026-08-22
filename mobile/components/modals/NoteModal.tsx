@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import type { NoteModalMode, Tema } from '../../app/types'
 import AppModal from '../common/AppModal'
 import PressableScale from '../common/motion/PressableScale'
+import Icon from '../common/Icon'
 
 /**
  * Campos do formulario de Pix / anotacao. O modal e dono deles: recebe os
@@ -89,7 +90,7 @@ export default function NoteModal({
           onPress={() => adicionarCampoLink(setter)}
           style={[styles.smallActionBtn, styles.linkAddBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
         >
-          <Text style={[styles.smallActionBtnIcon, { color: theme.text }]}>＋</Text>
+          <Icon name="adicionar" size={18} color={theme.text} />
         </PressableScale>
       </View>
       {links.map((link, index) => (
@@ -108,7 +109,7 @@ export default function NoteModal({
             onPress={() => removerCampoLink(setter, index)}
             style={[styles.linkRemoveBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
           >
-            <Text style={[styles.linkRemoveBtnText, { color: theme.red }]}>×</Text>
+            <Icon name="excluir" size={18} color={theme.red} />
           </PressableScale>
         </View>
       ))}

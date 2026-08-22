@@ -35,8 +35,6 @@ import PressableScale from '../components/common/motion/PressableScale'
 import AppearIn from '../components/common/motion/AppearIn'
 import SelectionModal from '../components/modals/SelectionModal'
 import CategoryNameModal from '../components/modals/CategoryNameModal'
-import GoalModal, { emptyGoalFormValues } from '../components/modals/GoalModal'
-import type { GoalFormValues } from '../components/modals/GoalModal'
 import NoteModal, { emptyNoteFormValues } from '../components/modals/NoteModal'
 import type { NoteFormValues } from '../components/modals/NoteModal'
 import ShoppingWishModal, { emptyShoppingWishValues } from '../components/modals/ShoppingWishModal'
@@ -71,9 +69,7 @@ import CartaoTab from '../components/tabs/CartaoTab'
 import ResumoCards from '../components/home/ResumoCards'
 import GraficoCategoriasCard from '../components/home/GraficoCategoriasCard'
 import InvestimentosCard from '../components/home/InvestimentosCard'
-import ComparacaoCard from '../components/home/ComparacaoCard'
 import ComprasDesejoCard from '../components/home/ComprasDesejoCard'
-import ObjetivosCard from '../components/home/ObjetivosCard'
 import NotasPixCard from '../components/home/NotasPixCard'
 import {
   categoriaEhImportado,
@@ -111,9 +107,10 @@ import {
   montarNomeArquivoExportacao,
 } from '../src/utils/export'
 import type { ExportData } from '../src/utils/export'
+import Icon from '../components/common/Icon'
 import type {
   EntradaItem, SaidaItem, FixoItem, NoteItem, PixItem, CardInstallment, CardItem,
-  GoalItem, ShoppingWishItem, DadosMes, BancoDeDados, InvestmentBaseMode, GlobalData,
+  ShoppingWishItem, DadosMes, BancoDeDados, InvestmentBaseMode, GlobalData,
   AppData, PremiumEntitlement, AbaInferior, SortMode, SettingsThemeMode,
   TipoVariavelTab, TipoFormularioLancamento, QuickAddType, ModoModal, ModoCategoria,
   NoteModalMode, SearchResult, CardModalMode, SortTarget, DeleteTarget, CalendarTarget,
@@ -215,7 +212,6 @@ function ordenarLista<T extends { id?: string; nome?: string; valor?: number }>(
   if (modo === 'alfabetica') return base.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'))
   return base.sort((a, b) => getItemTimestamp(b) - getItemTimestamp(a))
 }
-
 
 function EyeToggleIcon({ closed, color }: { closed: boolean; color: string }) {
   if (closed) {
@@ -345,10 +341,6 @@ function HomeScreenContent() {
   const [cartaoEditandoId, setCartaoEditandoId] = useState<string | null>(null)
   const [modalFiltroAberto, setModalFiltroAberto] = useState(false)
   const [alvoFiltro, setAlvoFiltro] = useState<SortTarget>('fixo')
-  const [modalAnoComparacaoAberto, setModalAnoComparacaoAberto] = useState(false)
-  const [modalMesComparacaoAberto, setModalMesComparacaoAberto] = useState(false)
-  const [anoComparacao, setAnoComparacao] = useState(mesAtualIndex === 0 ? anoAtual - 1 : anoAtual)
-  const [mesComparacao, setMesComparacao] = useState(meses[mesAtualIndex === 0 ? 11 : mesAtualIndex - 1])
   const [confirmacaoExclusao, setConfirmacaoExclusao] = useState<{ type: DeleteTarget; id: string; label: string } | null>(null)
   const [processandoArquivo, setProcessandoArquivo] = useState<'csv' | 'excel' | 'pdf' | 'importar' | null>(null)
   const [modalPreviewExportacaoAberto, setModalPreviewExportacaoAberto] = useState(false)
@@ -356,11 +348,6 @@ function HomeScreenContent() {
   const [previewPdfUri, setPreviewPdfUri] = useState('')
   const [previewPdfGerando, setPreviewPdfGerando] = useState(false)
   const [buscaGlobal, setBuscaGlobal] = useState('')
-  const [modalObjetivoAberto, setModalObjetivoAberto] = useState(false)
-  // Campos do objetivo vivem dentro do GoalModal.
-  const [goalFormKey, setGoalFormKey] = useState(0)
-  const [goalInitialValues, setGoalInitialValues] = useState<GoalFormValues>(() => emptyGoalFormValues())
-  const [objetivoEditandoId, setObjetivoEditandoId] = useState<string | null>(null)
   const [modalCompraDesejoAberto, setModalCompraDesejoAberto] = useState(false)
   const [compraDesejoEditandoId, setCompraDesejoEditandoId] = useState<string | null>(null)
   // Campos da compra desejada vivem dentro do ShoppingWishModal.
@@ -482,7 +469,6 @@ function HomeScreenContent() {
     })
   }
 
-
   const renderHighlightOverlay = (id: string) => {
     if (highlightedItemId !== id) return null
 
@@ -549,7 +535,6 @@ function HomeScreenContent() {
     }, 1650)
   }
 
-
   const premiumStatusTexto = useMemo(() => {
     if (premiumLoading) return 'Verificando seu acesso premium...'
     if (!premiumExpiresAt || !premiumValido) return 'Plano premium inativo. Toque para desbloquear todas as ações do app.'
@@ -593,7 +578,6 @@ function HomeScreenContent() {
       modalCartaoAberto ||
       modalNovoCartaoAberto ||
       modalGerenciarCartoesAberto ||
-      modalObjetivoAberto ||
       modalCompraDesejoAberto ||
       modalPreviewImportacaoAberto ||
       modalPreviewExportacaoAberto ||
@@ -610,7 +594,6 @@ function HomeScreenContent() {
     if (modalCartaoAberto) setModalCartaoAberto(false)
     if (modalNovoCartaoAberto) setModalNovoCartaoAberto(false)
     if (modalGerenciarCartoesAberto) setModalGerenciarCartoesAberto(false)
-    if (modalObjetivoAberto) setModalObjetivoAberto(false)
     if (modalCompraDesejoAberto) setModalCompraDesejoAberto(false)
     if (modalPreviewImportacaoAberto) setModalPreviewImportacaoAberto(false)
     if (modalPreviewExportacaoAberto) setModalPreviewExportacaoAberto(false)
@@ -629,7 +612,6 @@ function HomeScreenContent() {
     modalCartaoAberto,
     modalNovoCartaoAberto,
     modalGerenciarCartoesAberto,
-    modalObjetivoAberto,
     modalCompraDesejoAberto,
     modalPreviewImportacaoAberto,
     modalPreviewExportacaoAberto,
@@ -662,9 +644,6 @@ function HomeScreenContent() {
     return () => subscription.remove()
   }, [premiumLoading, premiumValido])
 
-
-
-
   useEffect(() => {
     const salarioAtual = bancoDeDados[chaveAtual]?.salario || 0
     setSalarioTexto(formatarNumeroBR(salarioAtual))
@@ -689,7 +668,6 @@ function HomeScreenContent() {
       router.replace('/premium')
     }
   }, [globalData.firstAccessCompleted, carregando, temDadosExistentes])
-
 
   useEffect(() => {
     if (modalConfiguracoesAberto) {
@@ -725,23 +703,8 @@ function HomeScreenContent() {
     if (!carregando) {
       setAnoSelecionado(anoAtual)
       setMesSelecionado(meses[mesAtualIndex])
-      setAnoComparacao(mesAtualIndex === 0 ? anoAtual - 1 : anoAtual)
-      setMesComparacao(meses[mesAtualIndex === 0 ? 11 : mesAtualIndex - 1])
     }
   }, [carregando, anoAtual, mesAtualIndex])
-
-
-  useEffect(() => {
-    const mesIndexAtual = meses.indexOf(mesSelecionado)
-    if (mesIndexAtual <= 0) {
-      setAnoComparacao(anoSelecionado - 1)
-      setMesComparacao(meses[11])
-    } else {
-      setAnoComparacao(anoSelecionado)
-      setMesComparacao(meses[mesIndexAtual - 1])
-    }
-  }, [anoSelecionado, mesSelecionado])
-
 
   useEffect(() => {
     setAvatarPerfil(globalData.profileAvatar || '💼')
@@ -760,7 +723,6 @@ function HomeScreenContent() {
       setSelectedCardId(globalData.cards[0]?.id || null)
     }
   }, [globalData.cards, selectedCardId])
-
 
   useEffect(() => {
     setNomeEditavel(nome)
@@ -787,7 +749,6 @@ function HomeScreenContent() {
   const pixContacts = globalData.pixContacts || []
   const notes = globalData.notes || []
   const cards = globalData.cards || []
-
 
   const totalEntradas = useMemo(() => entradas.reduce((acc, item) => acc + Number(item.valor || 0), 0), [entradas])
   const totalFixoPago = useMemo(
@@ -914,7 +875,6 @@ function HomeScreenContent() {
     return results.slice(0, 18)
   }, [termoBuscaGlobal, termoBuscaGlobalNumerico, termoBuscaGlobalDigits, entradas, saidas, fixos, cards, chaveAtual, notes, pixContacts, anoSelecionado, ocultarValores])
 
-  const objetivos = globalData.goals || []
   const comprasDesejo = globalData.shoppingWishes || []
   const comprasDesejoVisiveis = comprasDesejo.filter(
     (item) => !item.comprado || item.compradoEmCompetencia === chaveAtual
@@ -973,21 +933,6 @@ function HomeScreenContent() {
       sortCartao
     )
   }, [parcelasMesAtualCartao, sortCartao])
-
-  const chaveComparacao = `${anoComparacao}-${mesComparacao}`
-  const dadosComparacao = bancoDeDados[chaveComparacao] || { salario: 0, entradas: [], fixo: [], saidas: [], categoriasSaidas: [...categoriasPadrao] }
-  const entradasComparacao = (dadosComparacao.entradas || []).reduce((acc, item) => acc + Number(item.valor || 0), 0)
-  const saidasComparacao = (dadosComparacao.saidas || []).reduce((acc, item) => acc + Number(item.valor || 0), 0)
-  const saldoComparacao = Number(dadosComparacao.salario || 0) +
-    entradasComparacao -
-    (dadosComparacao.fixo || []).filter((item) => item.pago).reduce((acc, item) => acc + Number(item.valor || 0), 0) -
-    saidasComparacao
-  const totalAcumuladoComparacao = saldoAtual + saldoComparacao
-  const comparativosResumo = [
-    { label: 'Saldo', atual: saldoAtual, comparado: saldoComparacao, melhorQuandoMaior: true },
-    { label: 'Entradas', atual: totalEntradas, comparado: entradasComparacao, melhorQuandoMaior: true },
-    { label: 'Saídas', atual: totalSaidas, comparado: saidasComparacao, melhorQuandoMaior: false },
-  ]
 
   const abrirFiltro = (alvo: SortTarget) => {
     setAlvoFiltro(alvo)
@@ -1412,7 +1357,6 @@ function HomeScreenContent() {
     )
   }
 
-
   const irParaResultadoBuscaGlobal = (resultado: SearchResult) => {
     setBuscaGlobal('')
 
@@ -1469,40 +1413,6 @@ function HomeScreenContent() {
       navegarComFoco(() => setAbaInferior('home'), resultado.id)
     }
   }
-
-
-  const abrirNovoObjetivo = (goal?: GoalItem) => {
-    setObjetivoEditandoId(goal?.id || null)
-    setGoalInitialValues({
-      titulo: goal?.titulo || '',
-      alvo: formatarValorInput(goal?.alvo || 0),
-      atual: formatarValorInput(goal?.atual || 0),
-    })
-    setGoalFormKey((prev) => prev + 1)
-    setModalObjetivoAberto(true)
-  }
-
-  const salvarObjetivo = (values: GoalFormValues) => {
-    if (!values.titulo.trim()) return
-    const alvo = moneyStringToNumber(values.alvo)
-    const atual = moneyStringToNumber(values.atual)
-    setAppData((prev) => ({
-      ...prev,
-      global: {
-        ...prev.global,
-        goals: objetivoEditandoId
-          ? prev.global.goals.map((goal) => goal.id === objetivoEditandoId ? { ...goal, titulo: values.titulo.trim(), alvo, atual } : goal)
-          : [...prev.global.goals, { id: `goal-${Date.now()}`, titulo: values.titulo.trim(), alvo, atual }],
-      },
-    }))
-    setModalObjetivoAberto(false)
-    setObjetivoEditandoId(null)
-  }
-
-  const excluirObjetivo = (id: string) => {
-    setAppData((prev) => ({ ...prev, global: { ...prev.global, goals: prev.global.goals.filter((goal) => goal.id !== id) } }))
-  }
-
 
   const limparModalCompraDesejo = () => {
     setModalCompraDesejoAberto(false)
@@ -1594,7 +1504,6 @@ function HomeScreenContent() {
     router.replace('/login')
   }
 
-
   const parcelasExportacaoMes = useMemo(
     () =>
       cards.flatMap((card) =>
@@ -1682,12 +1591,10 @@ function HomeScreenContent() {
     }
   }
 
-
   const gerarArquivoPdf = async () => {
     const html = buildPdfHtml(dadosExportacao)
     return gerarArquivoPdfWeb(html)
   }
-
 
   const exportarPdf = async () => {
     try {
@@ -2216,7 +2123,6 @@ function HomeScreenContent() {
     else if (type === 'parcela') excluirParcela(id)
     else if (type === 'categoria') excluirCategoria(id)
     else if (type === 'compra_desejo') excluirCompraDesejo(id)
-    else if (type === 'objetivo') excluirObjetivo(id)
 
     setConfirmacaoExclusao(null)
   }
@@ -2595,7 +2501,6 @@ function HomeScreenContent() {
     }))
   }
 
-
   const atualizarPreferenciasInvestimento = (payload: Partial<Pick<GlobalData, 'investmentPercentage' | 'investmentBaseMode' | 'hideValues'>>) => {
     setAppData((prev) => ({
       ...prev,
@@ -2611,11 +2516,10 @@ function HomeScreenContent() {
     atualizarPreferenciasInvestimento({ investmentPercentage: percentualNormalizado })
   }
 
-
   const isParcelaFormulario = String(tipoFormularioLancamento) === 'parcela'
   const isEntradaFormulario = String(tipoFormularioLancamento) === 'entrada'
   const isSaidaFormulario = String(tipoFormularioLancamento) === 'saida'
-  const algumModalAberto = anoModalAberto || mesModalAberto || modalLancamentoAberto || modalAcaoRapidaAberto || modalCategoriasAberto || modalCategoriaNomeAberto || modalAnotacaoAberto || modalCartaoAberto || modalAnoComparacaoAberto || modalMesComparacaoAberto || modalFiltroAberto || modalGerenciarCartoesAberto || modalNovoCartaoAberto || modalConfiguracoesAberto || modalObjetivoAberto || modalCompraDesejoAberto || modalPreviewImportacaoAberto || modalPreviewExportacaoAberto || !!confirmacaoExclusao
+  const algumModalAberto = anoModalAberto || mesModalAberto || modalLancamentoAberto || modalAcaoRapidaAberto || modalCategoriasAberto || modalCategoriaNomeAberto || modalAnotacaoAberto || modalCartaoAberto || modalFiltroAberto || modalGerenciarCartoesAberto || modalNovoCartaoAberto || modalConfiguracoesAberto || modalCompraDesejoAberto || modalPreviewImportacaoAberto || modalPreviewExportacaoAberto || !!confirmacaoExclusao
 
   const tituloModalLancamento =
     modoModalLancamento === 'novo'
@@ -2804,22 +2708,9 @@ function HomeScreenContent() {
 
             <View style={styles.sectionSpacerLarge} />
 
-            <AppearIn index={5}>
-              <ComparacaoCard
-                theme={theme}
-                anoComparacao={anoComparacao}
-                mesComparacao={mesComparacao}
-                onAbrirSeletorAno={() => setModalAnoComparacaoAberto(true)}
-                onAbrirSeletorMes={() => setModalMesComparacaoAberto(true)}
-                comparativos={comparativosResumo}
-                totalAcumulado={totalAcumuladoComparacao}
-                formatarValorVisivel={formatarValorVisivel}
-              />
-            </AppearIn>
-
             <View style={styles.sectionSpacerLarge} />
 
-            <AppearIn index={6}>
+            <AppearIn index={5}>
               <ComprasDesejoCard
                 theme={theme}
                 itens={comprasDesejoVisiveis}
@@ -2836,18 +2727,7 @@ function HomeScreenContent() {
 
             <View style={styles.sectionSpacerLarge} />
 
-            <AppearIn index={7}>
-              <ObjetivosCard
-                theme={theme}
-                objetivos={objetivos}
-                formatarValorVisivel={formatarValorVisivel}
-                onNovo={() => abrirNovoObjetivo()}
-                onEditar={abrirNovoObjetivo}
-                onExcluir={(id, titulo) => abrirConfirmacaoExclusao('objetivo', id, titulo)}
-              />
-            </AppearIn>
-
-            <AppearIn index={8}>
+            <AppearIn index={6}>
               <NotasPixCard
                 theme={theme}
                 pixOrdenados={pixOrdenados}
@@ -2948,9 +2828,8 @@ function HomeScreenContent() {
 
       {!algumModalAberto && <View style={[styles.bottomBar, { backgroundColor: theme.card, borderColor: theme.border, bottom: Math.max(insets.bottom, 10) }]}>
         <View style={styles.bottomHalf}>
-          <BottomTabItem label="HOME" active={abaInferior === 'home'} theme={theme} onPress={() => setAbaInferior('home')} />
-          <View style={[styles.bottomDivider, { backgroundColor: theme.border }]} />
-          <BottomTabItem label="CARTÃO" active={abaInferior === 'cartao'} theme={theme} onPress={() => setAbaInferior('cartao')} />
+          <BottomTabItem label="Home" icon="aba_home" active={abaInferior === 'home'} theme={theme} onPress={() => setAbaInferior('home')} />
+          <BottomTabItem label="Cartões" icon="aba_cartao" active={abaInferior === 'cartao'} theme={theme} onPress={() => setAbaInferior('cartao')} />
         </View>
         <PressableScale
           onPress={abrirAcaoRapida}
@@ -2958,12 +2837,11 @@ function HomeScreenContent() {
           hapticStyle={Haptics.ImpactFeedbackStyle.Medium}
           style={[styles.plusButton, { backgroundColor: theme.primary, shadowColor: theme.primary }]}
         >
-          <Text style={[styles.plusButtonText, { color: theme.textInverse }]}>＋</Text>
+          <Icon name="adicionar" size={26} color={theme.textInverse} />
         </PressableScale>
         <View style={styles.bottomHalf}>
-          <BottomTabItem label="FIXO" active={abaInferior === 'fixo'} theme={theme} onPress={() => setAbaInferior('fixo')} />
-          <View style={[styles.bottomDivider, { backgroundColor: theme.border }]} />
-          <BottomTabItem label="VARIÁVEL" active={abaInferior === 'variavel'} theme={theme} onPress={() => setAbaInferior('variavel')} />
+          <BottomTabItem label="Fixos" icon="aba_fixo" active={abaInferior === 'fixo'} theme={theme} onPress={() => setAbaInferior('fixo')} />
+          <BottomTabItem label="Variáveis" icon="aba_variavel" active={abaInferior === 'variavel'} theme={theme} onPress={() => setAbaInferior('variavel')} />
         </View>
       </View>}
 
@@ -3101,34 +2979,6 @@ function HomeScreenContent() {
         onDayChange={setDiaEdicao}
         onOpenDayCalendar={() => abrirCalendario('dia_edicao', diaEdicao, meses.indexOf(mesSelecionado) + 1)}
         onSave={salvarCartaoOuParcela}
-      />
-
-      <SelectionModal
-        visible={modalAnoComparacaoAberto}
-        onClose={() => setModalAnoComparacaoAberto(false)}
-        title='Selecionar ano'
-        options={listaAnos.map((ano) => ({ value: ano, label: String(ano) }))}
-        selectedValue={anoComparacao}
-        onSelect={(value) => {
-          setAnoComparacao(Number(value))
-          setModalAnoComparacaoAberto(false)
-        }}
-        theme={theme}
-      />
-
-      <SelectionModal
-        visible={modalMesComparacaoAberto}
-        onClose={() => setModalMesComparacaoAberto(false)}
-        title='Selecionar mês'
-        options={meses.map((mes) => ({ value: mes, label: mes }))}
-        selectedValue={mesComparacao}
-        onSelect={(value) => {
-          setMesComparacao(String(value))
-          setModalMesComparacaoAberto(false)
-        }}
-        theme={theme}
-        scrollable
-        hint='Deslize para ver mais ↓'
       />
 
       <SelectionModal
@@ -3343,7 +3193,6 @@ function HomeScreenContent() {
         </View>
       </AppModal>
 
-
       <ShoppingWishModal
         key={`wish-${wishFormKey}`}
         visible={modalCompraDesejoAberto}
@@ -3355,16 +3204,6 @@ function HomeScreenContent() {
         onDataChange={setCompraDesejoData}
         onOpenCalendar={() => abrirCalendario('wish_data', compraDesejoData, meses.indexOf(mesSelecionado) + 1)}
         onSave={salvarCompraDesejo}
-      />
-
-      <GoalModal
-        key={`goal-${goalFormKey}`}
-        visible={modalObjetivoAberto}
-        onClose={() => setModalObjetivoAberto(false)}
-        theme={theme}
-        editing={!!objetivoEditandoId}
-        initialValues={goalInitialValues}
-        onSave={salvarObjetivo}
       />
 
       <AppModal visible={modalPremiumBloqueioAberto} onClose={() => setModalPremiumBloqueioAberto(false)}>
@@ -3441,7 +3280,6 @@ function HomeScreenContent() {
     </SafeAreaView>
   )
 }
-
 
 /**
  * A tela e embrulhada pelo FinanceProvider. Como o Provider e dono do estado

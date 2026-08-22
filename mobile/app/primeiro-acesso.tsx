@@ -32,6 +32,7 @@ import {
 } from '../src/utils/dates'
 import type { AppData, BancoDeDados, CardItem } from './types'
 import PressableScale from '../components/common/motion/PressableScale'
+import Icon from '../components/common/Icon'
 
 type FixedPreset = {
   id: string
@@ -662,7 +663,7 @@ export default function PrimeiroAcessoScreen() {
                           <Text style={[styles.chipText, ativo && styles.chipTextActive]}>{categoria}</Text>
                         </PressableScale>
                         <PressableScale onPress={() => removerCategoriaVariavelCustom(categoria)} style={styles.customChipRemoveBtn}>
-                          <Text style={[styles.customChipRemoveText, ativo && styles.chipTextActive]}>×</Text>
+                          <Icon name="excluir" size={14} color={ativo ? '#FFFFFF' : '#5F7267'} />
                         </PressableScale>
                       </View>
                     )
