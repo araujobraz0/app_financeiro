@@ -5,8 +5,16 @@
 import type { AppData, BancoDeDados, DadosMes, FixoRecorrente, GlobalData } from '../../app/types'
 import { listaAnosAtual } from '../utils/competency'
 import { meses } from '../utils/dates'
-import { migrarFixosLegado } from '../utils/fixos'
+import { consolidarFixosPorNome, migrarFixosLegado } from '../utils/fixos'
 
+
+/**
+ * Versao da conversao dos gastos fixos.
+ *   1 — formato antigo (uma copia por mes) vira definicoes.
+ *   2 — junta as definicoes fatiadas mes a mes, que apareciam quando o dado
+ *       gravado nao tinha `recorrenteId`.
+ */
+export const VERSAO_MIGRACAO_FIXOS = 2
 
 export const STORAGE_KEY = 'controle-financeiro-v16'
 export const BACKUP_LAST_KEY = 'controle-financeiro-ultimo-backup-mobile'
@@ -124,6 +132,15 @@ export function criarAppDataInicial(): AppData {
   return { bancoDeDados, global }
 }
 
+/** {id: dia} com os dias dentro de 1..31; undefined quando nao ha nada. */
+function normalizarDias(valor: unknown): Record<string, number> | undefined {
+  if (!valor || typeof valor !== 'object') return undefined
+  const entradas = Object.entries(valor as Record<string, unknown>)
+    .map(([id, dia]) => [id, Math.min(31, Math.max(1, Number(dia) || 1))] as const)
+    .filter(([, dia]) => Number.isFinite(dia))
+  return entradas.length ? Object.fromEntries(entradas) : undefined
+}
+
 export function normalizarAppData(dataOriginal: unknown): AppData {
   const anos = listaAnosAtual()
   const root = dataOriginal && typeof dataOriginal === 'object' ? (dataOriginal as Record<string, any>) : {}
@@ -181,14 +198,8 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
             recorrenteId: item.recorrenteId || undefined,
           })
         ),
-        fixoPagos:
-          bloco.fixoPagos && typeof bloco.fixoPagos === 'object'
-            ? Object.fromEntries(
-                Object.entries(bloco.fixoPagos)
-                  .map(([id, dia]) => [id, Math.min(31, Math.max(1, Number(dia) || 1))])
-                  .filter(([, dia]) => Number.isFinite(dia as number))
-              )
-            : undefined,
+        fixoPagos: normalizarDias(bloco.fixoPagos),
+        faturasPagas: normalizarDias(bloco.faturasPagas),
         saidas: (Array.isArray(bloco.saidas) ? bloco.saidas : []).map((item: any, index: number) => ({
           id: item.id || `saida-${chave}-${index}`,
           nome: item.nome || '',
@@ -210,6 +221,7 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
   // antigo (uma copia por mes) uma unica vez e leva junto os dias de pagamento.
   let fixosRecorrentes: FixoRecorrente[]
   const jaMigrou = Boolean(globalBase.fixosMigrados) && Array.isArray(globalBase.fixosRecorrentes)
+  const versaoAplicada = Number(globalBase.fixosMigracaoVersao || (jaMigrou ? 1 : 0))
   if (jaMigrou) {
     fixosRecorrentes = globalBase.fixosRecorrentes
       .filter((fixo: any) => fixo && fixo.id && Array.isArray(fixo.versoes) && fixo.versoes.length)
@@ -226,6 +238,9 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
           })),
       }))
       .filter((fixo) => fixo.criadoEm && fixo.versoes.length)
+
+    // Conversao antiga: os gastos vieram picados em um bloco por mes.
+    if (versaoAplicada < 2) fixosRecorrentes = consolidarFixosPorNome(fixosRecorrentes)
   } else {
     // So os meses realmente gravados entram na conversao. Se os meses criados
     // agora (vazios, por padrao) entrassem, o primeiro deles seria lido como
@@ -236,7 +251,7 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
     })
 
     const migrado = migrarFixosLegado(bancoGravado)
-    fixosRecorrentes = migrado.recorrentes
+    fixosRecorrentes = consolidarFixosPorNome(migrado.recorrentes)
     Object.entries(migrado.pagosPorMes).forEach(([chave, pagos]) => {
       if (bancoDeDados[chave]) bancoDeDados[chave].fixoPagos = pagos
     })
@@ -328,6 +343,7 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
       hideValues: Boolean(globalBase.hideValues),
       fixosRecorrentes,
       fixosMigrados: true,
+      fixosMigracaoVersao: VERSAO_MIGRACAO_FIXOS,
     },
   }
 }

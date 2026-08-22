@@ -120,6 +120,8 @@ export type DadosMes = {
   fixo: FixoItem[]
   /** Dia em que cada gasto fixo foi marcado como pago neste mes. */
   fixoPagos?: Record<string, number>
+  /** Dia em que a fatura de cada cartao foi paga nesta competencia. */
+  faturasPagas?: Record<string, number>
   saidas: SaidaItem[]
   categoriasSaidas: string[]
 }
@@ -151,6 +153,12 @@ export type GlobalData = {
    * apagou todos" — e o segundo caso reviveria os gastos a cada carga.
    */
   fixosMigrados: boolean
+  /**
+   * Versao da conversao ja aplicada. Sobe quando um defeito da conversao
+   * precisa ser corrigido em quem ja migrou — a copia antiga continua gravada
+   * justamente para isso.
+   */
+  fixosMigracaoVersao?: number
 }
 
 export type AppData = {

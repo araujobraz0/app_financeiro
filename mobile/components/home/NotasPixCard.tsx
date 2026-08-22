@@ -12,7 +12,7 @@ type NotasPixCardProps = {
   notasOrdenadas: NoteItem[]
   copiedPixId: string | null
   highlightedItemId: string | null
-  registrarLayoutItem: (id: string, y: number, height?: number) => void
+  registrarItem: (id: string) => (node: View | null) => void
   renderHighlightOverlay: (id: string) => ReactNode
   renderTextoSecundario: (texto: string | undefined, fallback: string, color: string) => ReactNode
   renderListaLinks: (links?: string[]) => ReactNode
@@ -59,7 +59,7 @@ function NotasPixCard({
   notasOrdenadas,
   copiedPixId,
   highlightedItemId,
-  registrarLayoutItem,
+  registrarItem,
   renderHighlightOverlay,
   onNovaNota,
   onAbrirFiltro,
@@ -103,7 +103,8 @@ function NotasPixCard({
             return (
               <View
                 key={item.id}
-                onLayout={(e) => registrarLayoutItem(item.id, e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
+                ref={registrarItem(item.id)}
+              collapsable={false}
                 style={[
                   local.contato,
                   {
@@ -199,7 +200,8 @@ function NotasPixCard({
           {notasOrdenadas.map((item) => (
             <View
               key={item.id}
-              onLayout={(e) => registrarLayoutItem(item.id, e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
+              ref={registrarItem(item.id)}
+              collapsable={false}
               style={[
                 local.nota,
                 {

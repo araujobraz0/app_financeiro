@@ -36,7 +36,8 @@ type Props = {
   progressoCor?: string
   destacado?: boolean
   overlay?: ReactNode
-  onLayout?: (y: number, height: number) => void
+  /** Referencia do card, para a busca medir onde ele esta na rolagem. */
+  refItem?: (node: View | null) => void
   /** Conteudo extra abaixo do titulo (links, observacoes). */
   children?: ReactNode
   /** Botoes adicionais, exibidos antes de editar/excluir. */
@@ -62,7 +63,7 @@ export default function ListRow({
   progressoCor,
   destacado = false,
   overlay,
-  onLayout,
+  refItem,
   children,
   acoesExtras,
   compacto = false,
@@ -134,15 +135,12 @@ export default function ListRow({
       </View>
     ) : null
 
-  const aoMedir = onLayout
-    ? (event: { nativeEvent: { layout: { y: number; height: number } } }) =>
-        onLayout(event.nativeEvent.layout.y, event.nativeEvent.layout.height)
-    : undefined
 
   if (compacto) {
     return (
       <View
-        onLayout={aoMedir}
+        ref={refItem}
+        collapsable={false}
         style={[
           styles.card,
           styles.cardCompacto,
@@ -182,7 +180,8 @@ export default function ListRow({
 
   return (
     <View
-      onLayout={aoMedir}
+      ref={refItem}
+      collapsable={false}
       style={[
         styles.card,
         { backgroundColor: theme.cardSoft, borderColor: destacado ? theme.accent : theme.border },

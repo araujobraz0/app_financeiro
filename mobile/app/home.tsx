@@ -4,7 +4,6 @@ import {
   AppState,
   InteractionManager,
   Alert,
-  Animated,
   Linking,
   Keyboard,
   Platform,
@@ -26,7 +25,7 @@ import { StatusBar } from 'expo-status-bar'
 import PdfPreview from '../components/PdfPreview'
 import AppModal from '../components/common/AppModal'
 import * as Haptics from 'expo-haptics'
-import BarraDesfazer from '../components/home/BarraDesfazer'
+import DestaqueBusca from '../components/common/motion/DestaqueBusca'
 import BottomTabItem from '../components/home/BottomTabItem'
 import Calendario from '../components/common/Calendario'
 import SeletorCompetencia from '../components/common/SeletorCompetencia'
@@ -100,7 +99,7 @@ import {
   meses,
   parseDiaMesInput,
 } from '../src/utils/dates'
-import { addMonthsToCompetencia, competenciaMaiorOuIgual } from '../src/utils/competency'
+import { addMonthsToCompetencia } from '../src/utils/competency'
 import {
   alternarPago as alternarPagoRecorrente,
   criarFixo as criarFixoRecorrente,
@@ -213,9 +212,6 @@ function HomeScreenContent() {
     podeRefazer,
     desfazer,
     refazer,
-    ultimaAcao,
-    rotularProximaAcao,
-    dispensarUltimaAcao,
   } = useFinance()
   const [modalPremiumBloqueioAberto, setModalPremiumBloqueioAberto] = useState(false)
   const [premiumBloqueioTitulo, setPremiumBloqueioTitulo] = useState('Modo somente leitura')
@@ -349,9 +345,13 @@ function HomeScreenContent() {
   const [calendarMes, setCalendarMes] = useState(mesAtualIndex + 1)
 
   const mainScrollRef = useRef<ScrollView | null>(null)
-  const itemLayoutsRef = useRef<Record<string, { y: number; height: number }>>({})
+  /** Nos dos itens alcancaveis pela busca, para medir onde parar a rolagem. */
+  const itemRefsRef = useRef<Record<string, View | null>>({})
+  /** Conteudo do ScrollView: a referencia contra a qual os itens sao medidos. */
+  const conteudoRolagemRef = useRef<View | null>(null)
+  /** Altura visivel da rolagem, medida pelo proprio ScrollView. */
+  const alturaVisivelRef = useRef(0)
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const highlightFadeAnim = useRef(new Animated.Value(0)).current
   const salaryInputRef = useRef<TextInput | null>(null)
   const mainScrollYRef = useRef(0)
   const appStateRef = useRef(AppState.currentState)
@@ -385,9 +385,21 @@ function HomeScreenContent() {
     }
   }
 
-  const registrarLayoutItem = (id: string, y: number, height = 0) => {
-    itemLayoutsRef.current[id] = { y, height }
-  }
+  /**
+   * Guarda o no de cada item que a busca pode alcancar.
+   *
+   * Antes o app anotava o `y` que o onLayout devolve — mas esse `y` e relativo
+   * ao card que envolve o item, nao a rolagem inteira. Para compensar havia um
+   * "+550" chutado no calculo, e a tela parava em qualquer lugar. Guardando o
+   * no da para medir a posicao de verdade na hora de rolar.
+   */
+  const registrarItem = useCallback(
+    (id: string) => (node: View | null) => {
+      if (node) itemRefsRef.current[id] = node
+      else delete itemRefsRef.current[id]
+    },
+    []
+  )
 
   const scrollToSalaryEditField = () => {
     requestAnimationFrame(() => {
@@ -400,70 +412,46 @@ function HomeScreenContent() {
     })
   }
 
-  const renderHighlightOverlay = (id: string) => {
-    if (highlightedItemId !== id) return null
-
-    return (
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.searchHighlightOverlay,
-          {
-            opacity: highlightFadeAnim,
-            backgroundColor: 'transparent',
-            borderColor: theme.primary,
-          },
-        ]}
-      />
-    )
-  }
+  const renderHighlightOverlay = (id: string) => (
+    <DestaqueBusca theme={theme} ativo={highlightedItemId === id} />
+  )
 
   const destacarEIrParaItem = (id: string) => {
     setHighlightedItemId(id)
-    highlightFadeAnim.stopAnimation()
-    highlightFadeAnim.setValue(1)
-
     if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current)
 
-    const centralizarItemNaTela = (tentativa = 0) => {
-      const layout = itemLayoutsRef.current[id]
+    // O item pode ainda nao estar montado (troca de aba, mes recem-aberto),
+    // por isso as tentativas.
+    const centralizar = (tentativa = 0) => {
+      const no = itemRefsRef.current[id]
+      const conteudo = conteudoRolagemRef.current
 
-      if (!layout) {
-        if (tentativa < 4) {
-          setTimeout(() => centralizarItemNaTela(tentativa + 1), 80)
-        }
+      if (!no || !conteudo) {
+        if (tentativa < 8) setTimeout(() => centralizar(tentativa + 1), 90)
         return
       }
 
-      const alturaBarraInferior = 112 + Math.max(insets.bottom, 10)
-      const alturaUtilTela = Math.max(screenHeight - alturaBarraInferior, 220)
-      const centroVisivel = alturaUtilTela / 2
-      const ajusteVisual = 550
-      const alvoCentralizado = layout.y - centroVisivel + layout.height / 2 + ajusteVisual
-
-      mainScrollRef.current?.scrollTo({
-        y: Math.max(alvoCentralizado, 0),
-        animated: true,
-      })
-
-      if (tentativa < 1) {
-        setTimeout(() => centralizarItemNaTela(tentativa + 1), 90)
-      }
+      no.measureLayout(
+        conteudo as never,
+        (_x, y, _largura, altura) => {
+          // A altura visivel vem do proprio ScrollView, medida de verdade: e o
+          // que sobra entre o cabecalho fixo e a barra de baixo.
+          const visivel = alturaVisivelRef.current || screenHeight
+          const folgaInferior = 96
+          const destino = y + altura / 2 - (visivel - folgaInferior) / 2
+          mainScrollRef.current?.scrollTo({ y: Math.max(destino, 0), animated: true })
+        },
+        () => {
+          if (tentativa < 8) setTimeout(() => centralizar(tentativa + 1), 90)
+        }
+      )
     }
 
-    setTimeout(() => centralizarItemNaTela(), 35)
+    setTimeout(() => centralizar(), 60)
+
     highlightTimeoutRef.current = setTimeout(() => {
-      Animated.timing(highlightFadeAnim, {
-        toValue: 0,
-        duration: 430,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) {
-          setHighlightedItemId((prev) => (prev === id ? null : prev))
-          highlightFadeAnim.setValue(0)
-        }
-      })
-    }, 1650)
+      setHighlightedItemId((anterior) => (anterior === id ? null : anterior))
+    }, 3600)
   }
 
   const premiumStatusTexto = useMemo(() => {
@@ -909,19 +897,47 @@ function HomeScreenContent() {
     return Math.round((alvo.getTime() - hoje.getTime()) / 86400000)
   }, [datasFaturaCartao.vencimentoAtual, chaveAtual])
 
-  /** Soma das faturas do mes de TODOS os cartoes, nao so o selecionado. */
-  const totalTodosCartoesMes = useMemo(
-    () =>
-      cards.reduce(
-        (acc, card) =>
-          acc +
-          (card.parcelas || [])
-            .filter((item) => item.competencia === chaveAtual)
-            .reduce((soma, item) => soma + Number(item.valorParcela || 0), 0),
-        0
-      ),
-    [cards, chaveAtual]
-  )
+  /** Dia em que a fatura do cartao selecionado foi paga nesta competencia. */
+  const faturaPagaNoDia = selectedCard
+    ? dadosAtual.faturasPagas?.[selectedCard.id] ?? null
+    : null
+
+  /**
+   * Marca ou reabre a fatura do mes em exibicao.
+   *
+   * O pagamento pertence a competencia, nao ao cartao: a fatura de agosto pode
+   * estar quitada enquanto a de setembro segue em aberto.
+   */
+  const alternarFaturaPaga = () => {
+    if (!selectedCard) return
+    if (
+      bloquearAcaoSemPremium(
+        'Marcar a fatura do cartão como paga é um recurso premium. Ative o Brazllet Premium para modificar seus lançamentos.'
+      )
+    ) {
+      return
+    }
+
+    const hoje = new Date().getDate()
+    const cartaoId = selectedCard.id
+
+    setAppData((prev) => {
+      const mes = prev.bancoDeDados[chaveAtual]
+      if (!mes) return prev
+
+      const pagas = { ...(mes.faturasPagas || {}) }
+      if (typeof pagas[cartaoId] === 'number') delete pagas[cartaoId]
+      else pagas[cartaoId] = Math.min(31, Math.max(1, hoje))
+
+      return {
+        ...prev,
+        bancoDeDados: {
+          ...prev.bancoDeDados,
+          [chaveAtual]: { ...mes, faturasPagas: Object.keys(pagas).length ? pagas : undefined },
+        },
+      }
+    })
+  }
   const fixosOrdenados = useMemo(() => ordenarLista(fixos, sortFixo), [fixos, sortFixo])
   const entradasOrdenadas = useMemo(() => ordenarLista(entradas, sortEntradas), [entradas, sortEntradas])
   const saidasOrdenadas = useMemo(() => ordenarLista(saidasFiltradas, sortSaidas), [saidasFiltradas, sortSaidas])
@@ -1899,20 +1915,6 @@ function HomeScreenContent() {
   }
 
   const salvarLancamento = (values: LaunchFormValues) => {
-    const [nomeDoTipo, genero] =
-      tipoFormularioLancamento === 'fixo'
-        ? (['Gasto fixo', 'o'] as const)
-        : tipoFormularioLancamento === 'entrada'
-          ? (['Entrada', 'a'] as const)
-          : tipoFormularioLancamento === 'parcela'
-            ? (['Compra parcelada', 'a'] as const)
-            : (['Saída', 'a'] as const)
-    rotularProximaAcao(
-      modoModalLancamento === 'novo'
-        ? `${nomeDoTipo} adicionad${genero}`
-        : `${nomeDoTipo} editad${genero}`
-    )
-
     if (tipoFormularioLancamento === 'parcela') {
       salvarNovaParcelaDentroDoLancamento(values)
       return
@@ -2015,23 +2017,7 @@ function HomeScreenContent() {
   const confirmarExclusao = () => {
     if (!confirmacaoExclusao) return
 
-    const { type, id, label } = confirmacaoExclusao
-
-    // Nome e genero juntos: sem isso saia "Entrada excluido".
-    const nomesDoTipo: Record<DeleteTarget, [string, 'o' | 'a']> = {
-      fixo: ['Gasto fixo', 'o'],
-      entrada: ['Entrada', 'a'],
-      saida: ['Saída', 'a'],
-      pix: ['Chave Pix', 'a'],
-      nota: ['Anotação', 'a'],
-      cartao: ['Cartão', 'o'],
-      parcela: ['Compra parcelada', 'a'],
-      categoria: ['Categoria', 'a'],
-      compra_desejo: ['Item da lista', 'o'],
-      objetivo: ['Objetivo', 'o'],
-    }
-    const [nomeDoTipoExcluido, generoExcluido] = nomesDoTipo[type] || ['Item', 'o']
-    rotularProximaAcao(`${nomeDoTipoExcluido} "${label}" excluíd${generoExcluido}`)
+    const { type, id } = confirmacaoExclusao
 
     if (type === 'fixo') excluirFixo(id)
     else if (type === 'entrada') excluirEntrada(id)
@@ -2057,8 +2043,6 @@ function HomeScreenContent() {
 
     // O dia fica guardado junto: a lista mostra quando a conta foi quitada.
     const hoje = new Date().getDate()
-    const jaPago = Boolean(fixos.find((item) => item.id === id)?.pago)
-    rotularProximaAcao(jaPago ? 'Gasto fixo reaberto' : 'Gasto fixo marcado como pago')
 
     setAppData((prev) => {
       const mes = prev.bancoDeDados[chaveAtual]
@@ -2529,6 +2513,9 @@ function HomeScreenContent() {
         onScroll={(event) => {
           mainScrollYRef.current = event.nativeEvent.contentOffset.y
         }}
+        onLayout={(event) => {
+          alturaVisivelRef.current = event.nativeEvent.layout.height
+        }}
         scrollEventThrottle={16}
         contentContainerStyle={[
           styles.scrollContent,
@@ -2537,6 +2524,7 @@ function HomeScreenContent() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps='handled'
       >
+        <View ref={conteudoRolagemRef} collapsable={false}>
         <BuscaGlobal theme={theme} valor={buscaGlobal} onChange={setBuscaGlobal} />
         {resultadosBuscaGlobal.length > 0 && (
           <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 0, marginBottom: 8 }]}>
@@ -2597,7 +2585,7 @@ function HomeScreenContent() {
                 itens={comprasDesejoVisiveis}
                 highlightedItemId={highlightedItemId}
                 formatarValorVisivel={formatarValorVisivel}
-                registrarLayoutItem={registrarLayoutItem}
+                registrarItem={registrarItem}
                 renderHighlightOverlay={renderHighlightOverlay}
                 onNovo={() => abrirNovaCompraDesejo()}
                 onEditar={abrirNovaCompraDesejo}
@@ -2613,7 +2601,7 @@ function HomeScreenContent() {
                 notasOrdenadas={notasOrdenadas}
                 copiedPixId={copiedPixId}
                 highlightedItemId={highlightedItemId}
-                registrarLayoutItem={registrarLayoutItem}
+                registrarItem={registrarItem}
                 renderHighlightOverlay={renderHighlightOverlay}
                 renderTextoSecundario={renderTextoSecundario}
                 renderListaLinks={renderListaLinks}
@@ -2638,7 +2626,7 @@ function HomeScreenContent() {
             totalFixoNaoPago={totalFixoNaoPago}
             highlightedItemId={highlightedItemId}
             formatarValorVisivel={formatarValorVisivel}
-            registrarLayoutItem={registrarLayoutItem}
+            registrarItem={registrarItem}
             renderHighlightOverlay={renderHighlightOverlay}
             onAbrirFiltro={() => abrirFiltro('fixo')}
             onAlternarPago={alternarPagoFixo}
@@ -2663,7 +2651,7 @@ function HomeScreenContent() {
             saidasOrdenadas={saidasOrdenadas}
             highlightedItemId={highlightedItemId}
             formatarValorVisivel={formatarValorVisivel}
-            registrarLayoutItem={registrarLayoutItem}
+            registrarItem={registrarItem}
             renderHighlightOverlay={renderHighlightOverlay}
             onNovaCategoria={abrirModalNovaCategoria}
             onGerenciarCategorias={() => setModalCategoriasAberto(true)}
@@ -2692,10 +2680,11 @@ function HomeScreenContent() {
             datasFaturaCartao={datasFaturaCartao}
             melhorDiaCompraCartao={melhorDiaCompraCartao}
             diasAteVencimentoCartao={diasAteVencimentoCartao}
-            totalTodosCartoesMes={totalTodosCartoesMes}
+            faturaPagaNoDia={faturaPagaNoDia}
+            onAlternarFaturaPaga={alternarFaturaPaga}
             highlightedItemId={highlightedItemId}
             formatarValorVisivel={formatarValorVisivel}
-            registrarLayoutItem={registrarLayoutItem}
+            registrarItem={registrarItem}
             renderHighlightOverlay={renderHighlightOverlay}
             onNovoCartao={abrirModalNovoCartao}
             onGerenciarCartoes={abrirGerenciarCartoes}
@@ -2705,19 +2694,9 @@ function HomeScreenContent() {
             onExcluirParcela={(id, descricao) => abrirConfirmacaoExclusao('parcela', id, descricao)}
           />
         )}
+        </View>
       </ScrollView>
       </View>
-
-      {!algumModalAberto ? (
-        <BarraDesfazer
-          theme={theme}
-          acao={ultimaAcao}
-          podeDesfazer={podeDesfazer}
-          onDesfazer={desfazer}
-          onDispensar={dispensarUltimaAcao}
-          margemInferior={Math.max(insets.bottom, 10) + 78}
-        />
-      ) : null}
 
       {!algumModalAberto && <View style={[styles.bottomBar, { backgroundColor: theme.card, borderColor: theme.border, bottom: Math.max(insets.bottom, 10) }]}>
         <View style={styles.bottomHalf}>
@@ -2978,11 +2957,8 @@ function HomeScreenContent() {
         processingFile={processandoArquivo}
         onOpenExportPreview={abrirPreviewExportacao}
         onImportData={importarDadosBanco}
-        temaEscuro={temaEscuro}
         seguirTemaDoSistema={themeMode === 'system'}
-        onAlternarTema={alternarTema}
         onAlternarModoTemaSistema={alternarModoTemaSistema}
-        onSair={handleSair}
         backups={backupsDisponiveis}
         loadingBackups={carregandoBackups}
         restoringBackupId={restaurandoBackupId}

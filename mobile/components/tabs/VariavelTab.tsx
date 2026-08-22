@@ -25,7 +25,7 @@ type VariavelTabProps = {
   saidasOrdenadas: SaidaItem[]
   highlightedItemId: string | null
   formatarValorVisivel: (valor: number) => string
-  registrarLayoutItem: (id: string, y: number, height?: number) => void
+  registrarItem: (id: string) => (node: View | null) => void
   renderHighlightOverlay: (id: string) => ReactNode
   onNovaCategoria: () => void
   onGerenciarCategorias: () => void
@@ -57,7 +57,7 @@ function VariavelTab({
   saidasOrdenadas,
   highlightedItemId,
   formatarValorVisivel,
-  registrarLayoutItem,
+  registrarItem,
   renderHighlightOverlay,
   onNovaCategoria,
   onGerenciarCategorias,
@@ -179,7 +179,7 @@ function VariavelTab({
                 onExcluir={() => onExcluirEntrada(item.id, item.nome)}
                 destacado={highlightedItemId === item.id}
                 overlay={renderHighlightOverlay(item.id)}
-                onLayout={(y, height) => registrarLayoutItem(item.id, y, height)}
+                refItem={registrarItem(item.id)}
               />
             ))
           )
@@ -201,7 +201,7 @@ function VariavelTab({
               onExcluir={() => onExcluirSaida(item.id, item.nome)}
               destacado={highlightedItemId === item.id}
               overlay={renderHighlightOverlay(item.id)}
-              onLayout={(y, height) => registrarLayoutItem(item.id, y, height)}
+              refItem={registrarItem(item.id)}
             />
           ))
         )}

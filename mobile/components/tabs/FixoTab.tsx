@@ -15,7 +15,7 @@ type FixoTabProps = {
   totalFixoNaoPago: number
   highlightedItemId: string | null
   formatarValorVisivel: (valor: number) => string
-  registrarLayoutItem: (id: string, y: number, height?: number) => void
+  registrarItem: (id: string) => (node: View | null) => void
   renderHighlightOverlay: (id: string) => ReactNode
   onAbrirFiltro: () => void
   onAlternarPago: (id: string) => void
@@ -36,7 +36,7 @@ function FixoTab({
   totalFixoNaoPago,
   highlightedItemId,
   formatarValorVisivel,
-  registrarLayoutItem,
+  registrarItem,
   renderHighlightOverlay,
   onAbrirFiltro,
   onAlternarPago,
@@ -134,7 +134,7 @@ function FixoTab({
             onExcluir={() => onExcluir(item.id, item.nome)}
             destacado={highlightedItemId === item.id}
             overlay={renderHighlightOverlay(item.id)}
-            onLayout={(y, height) => registrarLayoutItem(item.id, y, height)}
+            refItem={registrarItem(item.id)}
           />
         ))
       )}

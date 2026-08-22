@@ -11,7 +11,7 @@
 // porque ninguem precisa passar por eles.
 
 import type { FixoItem, FixoRecorrente, FixoVersao } from '../../app/types'
-import { addMonthsToCompetencia, competenciaToNumber } from './competency'
+import { competenciaToNumber } from './competency'
 
 /** Versao que vale numa competencia: a mais recente que ja comecou. */
 export function versaoVigente(fixo: FixoRecorrente, chave: string): FixoVersao | null {
@@ -186,9 +186,10 @@ export function migrarFixosLegado(banco: Record<string, { fixo?: FixoItem[] }>):
         definicoes.set(id, {
           id,
           criadoEm: chave,
-          // Um gasto sem recorrenteId nunca se repetiu: valia so o proprio mes,
-          // entao encerra ja na competencia seguinte.
-          encerradoEm: item.recorrenteId ? null : addMonthsToCompetencia(chave, 1),
+          // O fim e decidido no final, pela evidencia: so encerra se existir um
+          // mes gravado depois sem o gasto. Chutar aqui encerrava tudo no
+          // ultimo mes gravado, e o gasto sumia do futuro.
+          encerradoEm: null,
           versoes: [{ desde: chave, nome, valor }],
         })
       } else {
@@ -196,7 +197,6 @@ export function migrarFixosLegado(banco: Record<string, { fixo?: FixoItem[] }>):
         if (ultima.nome !== nome || ultima.valor !== valor) {
           existente.versoes.push({ desde: chave, nome, valor })
         }
-        existente.encerradoEm = null
       }
 
       ultimaAparicao.set(id, chave)
@@ -208,11 +208,10 @@ export function migrarFixosLegado(banco: Record<string, { fixo?: FixoItem[] }>):
     })
   })
 
-  // Um gasto que aparece e depois some ate o fim dos meses gravados foi
-  // excluido: encerra na competencia seguinte a ultima em que apareceu.
+  // O gasto so acaba se houver um mes GRAVADO depois da ultima aparicao dele:
+  // ai da para afirmar que ele sumiu. Se a ultima aparicao e tambem o ultimo
+  // mes gravado, nao ha evidencia de fim — ele segue valendo.
   const recorrentes = [...definicoes.values()].map((fixo) => {
-    if (fixo.encerradoEm) return fixo
-
     const ultima = ultimaAparicao.get(fixo.id)
     if (!ultima) return fixo
 
@@ -223,4 +222,92 @@ export function migrarFixosLegado(banco: Record<string, { fixo?: FixoItem[] }>):
   })
 
   return { recorrentes, pagosPorMes }
+}
+
+/**
+ * Junta definicoes que sao, na verdade, o mesmo gasto fatiado mes a mes.
+ *
+ * Ate a versao 9 o app descartava o `recorrenteId` a cada carga, entao os
+ * dados gravados so tinham o id da copia daquele mes — um id diferente por
+ * competencia. A conversao para definicoes, sem nada que ligasse uma copia a
+ * outra, produzia um "Aluguel" por mes, cada um valendo um mes so: era por
+ * isso que editar deste mes em diante nao pegava nos gastos ja cadastrados,
+ * apenas nos criados depois.
+ *
+ * Aqui os pedacos voltam a ser um gasto. Agrupa pelo nome, ordena e emenda os
+ * blocos que se encostam. Um buraco de verdade — o gasto sumiu por alguns
+ * meses e voltou — continua sendo dois blocos, porque foi isso que aconteceu.
+ */
+export function consolidarFixosPorNome(recorrentes: FixoRecorrente[]): FixoRecorrente[] {
+  const grupos = new Map<string, FixoRecorrente[]>()
+
+  recorrentes.forEach((fixo) => {
+    const chave = String(fixo.versoes[0]?.nome || fixo.id).trim().toLowerCase()
+    const grupo = grupos.get(chave)
+    if (grupo) grupo.push(fixo)
+    else grupos.set(chave, [fixo])
+  })
+
+  const consolidados: FixoRecorrente[] = []
+
+  grupos.forEach((grupo) => {
+    const ordenado = [...grupo].sort(
+      (a, b) => competenciaToNumber(a.criadoEm) - competenciaToNumber(b.criadoEm)
+    )
+
+    let atual: FixoRecorrente | null = null
+    let sufixo = 0
+
+    ordenado.forEach((fixo) => {
+      if (!atual) {
+        atual = { ...fixo, versoes: [...fixo.versoes] }
+        return
+      }
+
+      // Encosta no anterior? Entao e continuacao dele, nao um gasto novo.
+      const encosta =
+        atual.encerradoEm === null ||
+        competenciaToNumber(fixo.criadoEm) <= competenciaToNumber(atual.encerradoEm)
+
+      if (encosta) {
+        atual = {
+          ...atual,
+          encerradoEm:
+            atual.encerradoEm === null || fixo.encerradoEm === null
+              ? null
+              : competenciaToNumber(fixo.encerradoEm) > competenciaToNumber(atual.encerradoEm)
+                ? fixo.encerradoEm
+                : atual.encerradoEm,
+          versoes: juntarVersoes(atual.versoes, fixo.versoes),
+        }
+        return
+      }
+
+      consolidados.push(atual)
+      sufixo += 1
+      atual = { ...fixo, id: `${fixo.id}-b${sufixo}`, versoes: [...fixo.versoes] }
+    })
+
+    if (atual) consolidados.push(atual)
+  })
+
+  return consolidados
+}
+
+/** Emenda duas listas de versoes, sem repetir valores que nao mudaram. */
+function juntarVersoes(atuais: FixoVersao[], novas: FixoVersao[]) {
+  const todas = ordenar([...atuais, ...novas])
+  const enxutas: FixoVersao[] = []
+
+  todas.forEach((versao) => {
+    const ultima = enxutas[enxutas.length - 1]
+    if (ultima && ultima.nome === versao.nome && ultima.valor === versao.valor) return
+    if (ultima && ultima.desde === versao.desde) {
+      enxutas[enxutas.length - 1] = versao
+      return
+    }
+    enxutas.push(versao)
+  })
+
+  return enxutas
 }

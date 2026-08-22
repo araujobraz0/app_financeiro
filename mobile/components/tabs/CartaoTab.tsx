@@ -26,11 +26,12 @@ type CartaoTabProps = {
   melhorDiaCompraCartao: number | null
   /** Dias que faltam para a fatura vencer. Negativo quando ja venceu. */
   diasAteVencimentoCartao: number | null
-  /** Soma das faturas do mes somando todos os cartoes. */
-  totalTodosCartoesMes: number
+  /** Dia em que a fatura deste mes foi paga. Null enquanto estiver em aberto. */
+  faturaPagaNoDia: number | null
+  onAlternarFaturaPaga: () => void
   highlightedItemId: string | null
   formatarValorVisivel: (valor: number) => string
-  registrarLayoutItem: (id: string, y: number, height?: number) => void
+  registrarItem: (id: string) => (node: View | null) => void
   renderHighlightOverlay: (id: string) => ReactNode
   onNovoCartao: () => void
   onGerenciarCartoes: () => void
@@ -64,10 +65,11 @@ function CartaoTab({
   datasFaturaCartao,
   melhorDiaCompraCartao,
   diasAteVencimentoCartao,
-  totalTodosCartoesMes,
+  faturaPagaNoDia,
+  onAlternarFaturaPaga,
   highlightedItemId,
   formatarValorVisivel,
-  registrarLayoutItem,
+  registrarItem,
   renderHighlightOverlay,
   onNovoCartao,
   onGerenciarCartoes,
@@ -76,19 +78,22 @@ function CartaoTab({
   onEditarParcela,
   onExcluirParcela,
 }: CartaoTabProps) {
+  const faturaPaga = typeof faturaPagaNoDia === 'number'
   const usoAlto = percentualUsoCartao >= 85
   const corUso = usoAlto ? theme.red : percentualUsoCartao >= 60 ? theme.accent : theme.green
 
-  const prazoTexto =
-    diasAteVencimentoCartao === null
+  const prazoTexto = faturaPaga
+    ? 'Quitada'
+    : diasAteVencimentoCartao === null
       ? '—'
       : diasAteVencimentoCartao === 0
         ? 'Vence hoje'
         : diasAteVencimentoCartao > 0
           ? `${diasAteVencimentoCartao} ${diasAteVencimentoCartao === 1 ? 'dia' : 'dias'}`
           : `Venceu há ${Math.abs(diasAteVencimentoCartao)}`
-  const prazoCor =
-    diasAteVencimentoCartao === null
+  const prazoCor = faturaPaga
+    ? theme.green
+    : diasAteVencimentoCartao === null
       ? theme.text
       : diasAteVencimentoCartao < 0
         ? theme.red
@@ -171,7 +176,8 @@ function CartaoTab({
       {/* ---------- 2. A fatura do cartao selecionado ---------- */}
       {selectedCard && (
         <View
-          onLayout={(event) => registrarLayoutItem(selectedCard.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)}
+          ref={registrarItem(selectedCard.id)}
+          collapsable={false}
           style={[
             styles.manageCard,
             highlightedItemId === selectedCard.id && styles.searchHighlightCard,
@@ -183,11 +189,21 @@ function CartaoTab({
           <Text style={[styles.smallLabel, { color: theme.muted, textAlign: 'left' }]}>
             Fatura de {selectedCard.nome}
           </Text>
-          <Text style={[local.faturaValor, { color: theme.text }]}>
-            {formatarValorVisivel(totalFaturaAtual)}
-          </Text>
+          <View style={local.faturaLinha}>
+            <Text style={[local.faturaValor, { color: faturaPaga ? theme.muted : theme.text }]}>
+              {formatarValorVisivel(totalFaturaAtual)}
+            </Text>
+            {faturaPaga ? (
+              <View style={[local.seloPaga, { backgroundColor: theme.greenSoft, borderColor: theme.green }]}>
+                <Icon name="confirmar" size={12} color={theme.green} />
+                <Text style={[local.seloPagaTexto, { color: theme.green }]}>Paga</Text>
+              </View>
+            ) : null}
+          </View>
           <Text style={[styles.rowItemMeta, { color: theme.muted, marginTop: 2 }]}>
-            Fecha em {datasFaturaCartao.fechamentoAtual} · vence em {datasFaturaCartao.vencimentoAtual}
+            {faturaPaga
+              ? `Paga no dia ${faturaPagaNoDia} · vencia em ${datasFaturaCartao.vencimentoAtual}`
+              : `Fecha em ${datasFaturaCartao.fechamentoAtual} · vence em ${datasFaturaCartao.vencimentoAtual}`}
           </Text>
 
           {/* Uso do limite */}
@@ -216,6 +232,34 @@ function CartaoTab({
             </View>
           </View>
 
+          {/* Pagar a fatura e uma acao do mes, nao do cartao: cada competencia
+              guarda o proprio dia de pagamento. */}
+          {totalFaturaAtual > 0 || faturaPaga ? (
+            <PressableScale
+              onPress={onAlternarFaturaPaga}
+              scaleTo={0.97}
+              accessibilityRole="button"
+              accessibilityLabel={faturaPaga ? 'Reabrir a fatura' : 'Marcar a fatura como paga'}
+              style={[
+                local.pagar,
+                faturaPaga
+                  ? { backgroundColor: theme.cardSoft, borderColor: theme.border }
+                  : { backgroundColor: theme.primary, borderColor: theme.primary },
+              ]}
+            >
+              <Icon
+                name={faturaPaga ? 'desfazer' : 'confirmar'}
+                size={16}
+                color={faturaPaga ? theme.muted : theme.textInverse}
+              />
+              <Text
+                style={[local.pagarTexto, { color: faturaPaga ? theme.muted : theme.textInverse }]}
+              >
+                {faturaPaga ? 'Reabrir fatura' : 'Marcar fatura como paga'}
+              </Text>
+            </PressableScale>
+          ) : null}
+
           {/* O que antes so dava para saber fazendo conta na mao: prazo,
               melhor dia de compra, quanto ja esta comprometido la na frente e
               o total somando os outros cartoes. */}
@@ -226,12 +270,6 @@ function CartaoTab({
               melhorDiaCompraCartao ? `Dia ${melhorDiaCompraCartao}` : '—',
               theme.text,
               melhorDiaCompraCartao ? 'Maior prazo para pagar' : 'Defina o fechamento'
-            )}
-            {dado(
-              'Todos os cartões',
-              formatarValorVisivel(totalTodosCartoesMes),
-              theme.text,
-              `${cards.length} ${cards.length === 1 ? 'cartão' : 'cartões'} neste mês`
             )}
           </View>
 
@@ -295,9 +333,8 @@ function CartaoTab({
               return (
                 <View
                   key={item.id}
-                  onLayout={(event) =>
-                    registrarLayoutItem(item.id, event.nativeEvent.layout.y, event.nativeEvent.layout.height)
-                  }
+                  ref={registrarItem(item.id)}
+                  collapsable={false}
                   style={[
                     local.compra,
                     {
@@ -396,6 +433,28 @@ function CartaoTab({
 }
 
 const local = StyleSheet.create({
+  faturaLinha: { flexDirection: 'row', alignItems: 'center', gap: 9, flexWrap: 'wrap' },
+  seloPaga: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    minHeight: 26,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  seloPagaTexto: { fontSize: 11, fontWeight: '800' },
+  pagar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 16,
+  },
+  pagarTexto: { fontSize: 13.5, fontWeight: '800', letterSpacing: -0.2 },
   grade: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   dado: {
     flexGrow: 1,

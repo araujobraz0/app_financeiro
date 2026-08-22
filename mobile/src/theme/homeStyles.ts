@@ -99,7 +99,6 @@ export const styles = StyleSheet.create({
   modalCardWithFixedFooter: { overflow: 'hidden' },
   modalActionsSticky: { borderTopWidth: 1, paddingTop: 1, paddingHorizontal: 2, paddingBottom: 10 },
   searchHighlightCard: { overflow: 'visible' },
-  searchHighlightOverlay: { position: 'absolute', top: -1, right: -1, bottom: -1, left: -1, borderWidth: 2, borderRadius: 18, opacity: 0, backgroundColor: 'transparent' },
 
   modalCardSettings: {
     paddingBottom: 24,

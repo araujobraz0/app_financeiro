@@ -29,11 +29,8 @@ type SettingsModalProps = {
   processingFile: ProcessFileType
   onOpenExportPreview: (type: ExportType) => void
   onImportData: () => void
-  temaEscuro: boolean
   seguirTemaDoSistema: boolean
-  onAlternarTema: () => void
   onAlternarModoTemaSistema: () => void
-  onSair: () => void
   backups: { id: string; created_at: string }[]
   loadingBackups: boolean
   restoringBackupId: string | null
@@ -88,11 +85,8 @@ export default function SettingsModal({
   processingFile,
   onOpenExportPreview,
   onImportData,
-  temaEscuro,
   seguirTemaDoSistema,
-  onAlternarTema,
   onAlternarModoTemaSistema,
-  onSair,
   backups,
   loadingBackups,
   restoringBackupId,
@@ -215,32 +209,19 @@ export default function SettingsModal({
         )
       )}
 
-      {/* ---------- Aparencia e conta ---------- */}
+      {/* ---------- Aparencia ----------
+          Ligar/desligar o tema e sair da conta ficam na barra de cima, a um
+          toque. Aqui sobra o que nao cabe la: de quem o app segue o tema. */}
       {secao(
-        'Aparência e conta',
-        <>
-          {linha(
-            'lua',
-            'Tema escuro',
-            seguirTemaDoSistema ? `Quem manda é o ${origemDoTema}` : 'Fundo escuro em todo o app',
-            <Interruptor
-              theme={theme}
-              ativo={temaEscuro}
-              onAlternar={seguirTemaDoSistema ? onAlternarModoTemaSistema : onAlternarTema}
-            />
-          )}
-          <View style={[styles.divisor, { backgroundColor: theme.border }]} />
-          {linha(
-            'atualizar',
-            `Seguir o tema do ${origemDoTema}`,
-            origemDoTema === 'navegador'
-              ? 'Acompanha o modo claro ou escuro do navegador, na hora em que ele mudar'
-              : 'Acompanha o modo claro ou escuro do aparelho',
-            <Interruptor theme={theme} ativo={seguirTemaDoSistema} onAlternar={onAlternarModoTemaSistema} />
-          )}
-          <View style={[styles.divisor, { backgroundColor: theme.border }]} />
-          {linha('sair', 'Sair da conta', 'Encerra a sessão neste aparelho', seta, onSair)}
-        </>
+        'Aparência',
+        linha(
+          'atualizar',
+          `Seguir o tema do ${origemDoTema}`,
+          origemDoTema === 'navegador'
+            ? 'Acompanha o modo claro ou escuro do navegador, na hora em que ele mudar'
+            : 'Acompanha o modo claro ou escuro do aparelho',
+          <Interruptor theme={theme} ativo={seguirTemaDoSistema} onAlternar={onAlternarModoTemaSistema} />
+        )
       )}
 
       {/* ---------- Exportar e importar ---------- */}

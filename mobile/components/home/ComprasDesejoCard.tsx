@@ -11,7 +11,7 @@ type ComprasDesejoCardProps = {
   itens: ShoppingWishItem[]
   highlightedItemId: string | null
   formatarValorVisivel: (valor: number) => string
-  registrarLayoutItem: (id: string, y: number, height?: number) => void
+  registrarItem: (id: string) => (node: View | null) => void
   renderHighlightOverlay: (id: string) => ReactNode
   onNovo: () => void
   onEditar: (item: ShoppingWishItem) => void
@@ -31,7 +31,7 @@ function ComprasDesejoCard({
   itens,
   highlightedItemId,
   formatarValorVisivel,
-  registrarLayoutItem,
+  registrarItem,
   renderHighlightOverlay,
   onNovo,
   onEditar,
@@ -77,7 +77,8 @@ function ComprasDesejoCard({
           {itens.map((item) => (
             <View
               key={item.id}
-              onLayout={(e) => registrarLayoutItem(item.id, e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
+              ref={registrarItem(item.id)}
+              collapsable={false}
               style={[
                 local.item,
                 {

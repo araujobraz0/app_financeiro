@@ -44,12 +44,6 @@ type FinanceContextValue = {
   podeRefazer: boolean
   desfazer: () => void
   refazer: () => void
-  /** Ultima acao registrada, para a barra de desfazer. */
-  ultimaAcao: { rotulo: string; id: number } | null
-  /** Nomeia a proxima alteracao ("Gasto fixo excluido"). */
-  rotularProximaAcao: (rotulo: string) => void
-  /** Esconde a barra de desfazer. */
-  dispensarUltimaAcao: () => void
 
   sincronizando: boolean
   dadosRemotosCarregados: boolean
@@ -79,6 +73,26 @@ type FinanceContextValue = {
 
 /** Quantas edicoes o app lembra para tras (e para frente). */
 const LIMITE_HISTORICO = 50
+
+/**
+ * Mudou algo que o usuario queira poder desfazer?
+ *
+ * Compara so as partes que guardam lancamentos. Como todas sao substituidas
+ * por copias novas a cada alteracao, comparar a referencia basta e e barato.
+ */
+function mudouAlgumLancamento(anterior: AppData, atual: AppData) {
+  if (anterior.bancoDeDados !== atual.bancoDeDados) return true
+  const a = anterior.global
+  const b = atual.global
+  return (
+    a.fixosRecorrentes !== b.fixosRecorrentes ||
+    a.cards !== b.cards ||
+    a.pixContacts !== b.pixContacts ||
+    a.notes !== b.notes ||
+    a.shoppingWishes !== b.shoppingWishes ||
+    a.goals !== b.goals
+  )
+}
 
 const FinanceContext = createContext<FinanceContextValue | null>(null)
 
@@ -114,17 +128,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const ignorarNoHistoricoRef = useRef(true)
   const [tamanhoHistorico, setTamanhoHistorico] = useState({ passado: 0, futuro: 0 })
 
-  // A barra de desfazer precisa saber o QUE mudou. Quem altera os dados avisa
-  // antes pelo rotulo; sem aviso, fica um texto generico.
-  const rotuloPendenteRef = useRef<string | null>(null)
-  const contadorAcaoRef = useRef(0)
-  const [ultimaAcao, setUltimaAcao] = useState<{ rotulo: string; id: number } | null>(null)
-
-  const rotularProximaAcao = useCallback((rotulo: string) => {
-    rotuloPendenteRef.current = rotulo
-  }, [])
-
-  const dispensarUltimaAcao = useCallback(() => setUltimaAcao(null), [])
 
   const sincronizarTamanhoHistorico = useCallback(() => {
     setTamanhoHistorico((anterior) => {
@@ -144,17 +147,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       return
     }
     if (anterior === null || anterior === appData) return
+    // Desfazer serve para criar, editar e excluir. Ocultar valores, trocar de
+    // tema ou renomear o perfil mudam `appData`, mas nao ha nada a recuperar
+    // ali — e entulhavam o historico com passos que nao interessam.
+    if (!mudouAlgumLancamento(anterior, appData)) return
 
     passadoRef.current = [...passadoRef.current, anterior].slice(-LIMITE_HISTORICO)
     futuroRef.current = []
     sincronizarTamanhoHistorico()
-
-    contadorAcaoRef.current += 1
-    setUltimaAcao({
-      rotulo: rotuloPendenteRef.current || 'Alteração salva',
-      id: contadorAcaoRef.current,
-    })
-    rotuloPendenteRef.current = null
   }, [appData, sincronizarTamanhoHistorico])
 
   const atualizarSemHistorico = useCallback<Dispatch<SetStateAction<AppData>>>((acao) => {
@@ -171,7 +171,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     ignorarNoHistoricoRef.current = true
     setAppData(anterior)
     sincronizarTamanhoHistorico()
-    setUltimaAcao(null)
   }, [sincronizarTamanhoHistorico])
 
   const refazer = useCallback(() => {
@@ -183,7 +182,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     ignorarNoHistoricoRef.current = true
     setAppData(proximo)
     sincronizarTamanhoHistorico()
-    setUltimaAcao(null)
   }, [sincronizarTamanhoHistorico])
   const [sincronizando, setSincronizando] = useState(false)
   const [dadosRemotosCarregados, setDadosRemotosCarregados] = useState(false)
@@ -457,9 +455,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       podeRefazer: tamanhoHistorico.futuro > 0,
       desfazer,
       refazer,
-      ultimaAcao,
-      rotularProximaAcao,
-      dispensarUltimaAcao,
       sincronizando,
       dadosRemotosCarregados,
       usuarioId,
@@ -486,9 +481,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       tamanhoHistorico,
       desfazer,
       refazer,
-      ultimaAcao,
-      rotularProximaAcao,
-      dispensarUltimaAcao,
       sincronizando,
       dadosRemotosCarregados,
       usuarioId,

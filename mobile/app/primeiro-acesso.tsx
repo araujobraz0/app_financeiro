@@ -18,6 +18,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router } from 'expo-router'
 import { supabase } from '../src/lib/supabase'
+import { VERSAO_MIGRACAO_FIXOS } from '../src/data/appData'
 import {
   digitsToMoneyPlainString as digitsToMoneyString,
   handleMaskedMoneyInput,
@@ -399,6 +400,7 @@ export default function PrimeiroAcessoScreen() {
           onboardingFixedExpenses: fixedItemsPreview.map((item) => item.nome),
           fixosRecorrentes: criarFixosIniciais(fixedItemsPreview),
           fixosMigrados: true,
+          fixosMigracaoVersao: VERSAO_MIGRACAO_FIXOS,
           pixContacts: [],
           notes: [],
           cards: hasCreditCards ? cardsPreview : [],
