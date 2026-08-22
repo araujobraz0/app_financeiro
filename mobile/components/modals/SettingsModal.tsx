@@ -1,10 +1,9 @@
 import { Image, StyleSheet, Text, View } from 'react-native'
-import type { SettingsThemeMode, Tema } from '../../app/types'
+import type { Tema } from '../../app/types'
 import Campo from '../common/Campo'
 import Icon, { type IconName } from '../common/Icon'
 import ModalSheet from '../common/ModalSheet'
 import PressableScale from '../common/motion/PressableScale'
-import Interruptor from '../common/Interruptor'
 
 type ExportType = 'csv' | 'excel' | 'pdf'
 type ProcessFileType = ExportType | 'importar' | null
@@ -25,8 +24,6 @@ type SettingsModalProps = {
   initials: string
   onChooseProfileImage: () => void
   onSaveProfile: () => void
-  themeMode: SettingsThemeMode
-  onToggleSystemTheme: () => void
   processingFile: ProcessFileType
   onOpenExportPreview: (type: ExportType) => void
   onImportData: () => void
@@ -81,8 +78,6 @@ export default function SettingsModal({
   initials,
   onChooseProfileImage,
   onSaveProfile,
-  themeMode,
-  onToggleSystemTheme,
   processingFile,
   onOpenExportPreview,
   onImportData,
@@ -202,17 +197,6 @@ export default function SettingsModal({
           premiumStatusText,
           seta,
           onPremiumPress
-        )
-      )}
-
-      {/* ---------- Aparencia ---------- */}
-      {secao(
-        'Aparência',
-        linha(
-          'sol',
-          'Seguir o tema do celular',
-          'Alterna claro e escuro sozinho',
-          <Interruptor theme={theme} ativo={themeMode === 'system'} onAlternar={onToggleSystemTheme} />
         )
       )}
 

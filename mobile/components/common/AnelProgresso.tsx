@@ -4,8 +4,19 @@
 // meio importa tanto quanto a proporcao — o anel deixa o valor no centro e a
 // fracao na borda, sem competir por espaco.
 
+import { useEffect } from 'react'
 import Svg, { Circle } from 'react-native-svg'
 import { StyleSheet, Text, View } from 'react-native'
+import Animated, {
+  useAnimatedProps,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated'
+
+import { duration, easing } from '../../src/theme/motion'
+
+// O Circle do react-native-svg nao e animavel por padrao; isto o torna.
+const CirculoAnimado = Animated.createAnimatedComponent(Circle)
 
 type Props = {
   /** 0 a 1. */
@@ -37,6 +48,21 @@ export default function AnelProgresso({
   const circunferencia = 2 * Math.PI * raio
   const preenchido = Math.min(1, Math.max(0, progresso))
 
+  // O anel cresce ate a fracao atual em vez de aparecer pronto: ao marcar um
+  // gasto como pago, da para ver o quanto aquilo mudou no total do mes.
+  const animado = useSharedValue(0)
+
+  useEffect(() => {
+    animado.value = withTiming(preenchido, {
+      duration: duration.slower,
+      easing: easing.emphasized,
+    })
+  }, [animado, preenchido])
+
+  const propsAnimadas = useAnimatedProps(() => ({
+    strokeDashoffset: circunferencia * (1 - animado.value),
+  }))
+
   return (
     <View style={{ width: tamanho, height: tamanho }}>
       <Svg width={tamanho} height={tamanho}>
@@ -48,7 +74,7 @@ export default function AnelProgresso({
           strokeWidth={espessura}
           fill="none"
         />
-        <Circle
+        <CirculoAnimado
           cx={tamanho / 2}
           cy={tamanho / 2}
           r={raio}
@@ -57,7 +83,7 @@ export default function AnelProgresso({
           fill="none"
           strokeLinecap="round"
           strokeDasharray={`${circunferencia} ${circunferencia}`}
-          strokeDashoffset={circunferencia * (1 - preenchido)}
+          animatedProps={propsAnimadas}
           // Comeca no topo em vez de na direita.
           transform={`rotate(-90 ${tamanho / 2} ${tamanho / 2})`}
         />

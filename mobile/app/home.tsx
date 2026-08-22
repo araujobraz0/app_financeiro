@@ -29,6 +29,8 @@ import * as Haptics from 'expo-haptics'
 import BottomTabItem from '../components/home/BottomTabItem'
 import Calendario from '../components/common/Calendario'
 import { gerarPdfUri } from '../src/utils/export/pdfDoc'
+import { parseCsv, parseOfx, parseTabela } from '../src/utils/importar/parse'
+import type { TransacaoImportada } from '../src/utils/importar/parse'
 import AppHeader from '../components/home/AppHeader'
 import BuscaGlobal from '../components/home/BuscaGlobal'
 import PeriodoSelector from '../components/home/PeriodoSelector'
@@ -95,11 +97,7 @@ import {
   meses,
   parseDiaMesInput,
 } from '../src/utils/dates'
-import {
-  addMonthsToCompetencia,
-  competenciaMaiorOuIgual,
-  listaAnosAtual,
-} from '../src/utils/competency'
+import { addMonthsToCompetencia, competenciaMaiorOuIgual, listaAnosAtual, resolverMesComRecorrentes } from '../src/utils/competency'
 import {
   buildExportRows,
   buildExportWorkbook,
@@ -214,9 +212,7 @@ function HomeScreenContent() {
     recarregarStatusPremium,
     theme,
     temaEscuro,
-    themeMode,
     alternarTema,
-    alternarModoTemaSistema,
   } = useFinance()
   const [modalPremiumBloqueioAberto, setModalPremiumBloqueioAberto] = useState(false)
   const [premiumBloqueioTitulo, setPremiumBloqueioTitulo] = useState('Modo somente leitura')
@@ -664,15 +660,14 @@ function HomeScreenContent() {
   }, [nome, avatarPerfil])
 
   const dadosAtual: DadosMes = useMemo(() => {
-    return (
-      bancoDeDados[chaveAtual] || {
-        salario: 0,
-        entradas: [],
-        fixo: [],
-        saidas: [],
-        categoriasSaidas: [...categoriasPadrao],
-      }
-    )
+    const mesVazio: DadosMes = {
+      salario: 0,
+      entradas: [],
+      fixo: [],
+      saidas: [],
+      categoriasSaidas: [...categoriasPadrao],
+    }
+    return resolverMesComRecorrentes(bancoDeDados, chaveAtual, mesVazio)
   }, [bancoDeDados, chaveAtual])
 
   const salario = Number(dadosAtual.salario || 0)
@@ -1519,20 +1514,6 @@ function HomeScreenContent() {
     await exportarPdf()
   }
 
-  const normalizarValorImportado = (valorBruto: string) => {
-    const bruto = String(valorBruto || '').trim().replace(/\s/g, '')
-    if (!bruto) return NaN
-    const temVirgula = bruto.includes(',')
-    const temPonto = bruto.includes('.')
-    if (temVirgula && temPonto) {
-      return bruto.lastIndexOf(',') > bruto.lastIndexOf('.')
-        ? Number(bruto.replace(/\./g, '').replace(',', '.'))
-        : Number(bruto.replace(/,/g, ''))
-    }
-    if (temVirgula) return Number(bruto.replace(/\./g, '').replace(',', '.'))
-    return Number(bruto.replace(/,/g, ''))
-  }
-
   const inferirCategoriaPorHistorico = (descricao: string) => {
     const texto = String(descricao || '').toLowerCase().trim()
     if (!texto) return ''
@@ -1555,91 +1536,36 @@ function HomeScreenContent() {
     return 'Extra'
   }
 
-  const parseImportedBankText = (textContent: string, fileName: string) => {
-    const lowerName = String(fileName || '').toLowerCase()
+  /**
+   * Converte as transacoes lidas do arquivo nos lancamentos do app.
+   *
+   * A leitura em si (CSV com aspas, Excel, OFX, formatos de data e de valor)
+   * mora em src/utils/importar, que e testavel isoladamente.
+   */
+  const converterTransacoes = (transacoes: TransacaoImportada[]) => {
     const importedEntradas: EntradaItem[] = []
     const importedSaidas: SaidaItem[] = []
+    const carimbo = Date.now()
 
-    const extrairDiaTransacao = (rawDate: string) => {
-      const value = String(rawDate || '').trim().replace(/^"|"$/g, '')
-      if (!value) return 1
-      if (/^\d{8}$/.test(value)) return Number(value.slice(6, 8))
-      const slash = value.match(/^(\d{1,2})\/(\d{1,2})(?:\/\d{2,4})?$/)
-      if (slash) return Number(slash[1])
-      const dash = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-      if (dash) return Number(dash[3])
-      const dash2 = value.match(/^(\d{2})-(\d{2})-(\d{4})$/)
-      if (dash2) return Number(dash2[1])
-      return 1
-    }
+    transacoes.forEach((t, indice) => {
+      const diaSeguro = Math.min(31, Math.max(1, Number(t.dia || 1)))
 
-    const pushTransaction = (descricao: string, valor: number, dia?: number) => {
-      const nomeBase = String(descricao || 'Importado do banco').trim()
-      const diaSeguro = Math.min(31, Math.max(1, Number(dia || 1)))
-      if (!nomeBase || Number.isNaN(valor) || !Number.isFinite(valor)) return
-
-      if (valor >= 0) {
+      if (t.valor >= 0) {
         importedEntradas.push({
-          id: `entrada-import-${Date.now()}-${importedEntradas.length}`,
-          nome: nomeBase,
-          valor,
+          id: `entrada-import-${carimbo}-${indice}`,
+          nome: t.descricao,
+          valor: t.valor,
           dia: diaSeguro,
         })
       } else {
         importedSaidas.push({
-          id: `saida-import-${Date.now()}-${importedSaidas.length}`,
-          nome: nomeBase,
-          valor: Math.abs(valor),
-          categoria: categorizarAutomaticamente(nomeBase),
+          id: `saida-import-${carimbo}-${indice}`,
+          nome: t.descricao,
+          valor: Math.abs(t.valor),
+          categoria: categorizarAutomaticamente(t.descricao),
           dia: diaSeguro,
         })
       }
-    }
-
-    if (lowerName.endsWith('.ofx')) {
-      const blocos = textContent.split(/<STMTTRN>/i).slice(1)
-      blocos.forEach((bloco) => {
-        const valorMatch = bloco.match(/<TRNAMT>([-\d.,]+)/i)
-        const memoMatch = bloco.match(/<(?:MEMO|NAME)>([^\r\n<]+)/i)
-        const dateMatch = bloco.match(/<DTPOSTED>(\d{8,14})/i)
-        if (!valorMatch) return
-        const valor = normalizarValorImportado(valorMatch[1])
-        if (Number.isNaN(valor)) return
-        const dia = dateMatch ? extrairDiaTransacao(dateMatch[1]) : 1
-        pushTransaction(memoMatch?.[1] || 'Importado OFX', valor, dia)
-      })
-      return { importedEntradas, importedSaidas }
-    }
-
-    const linhas = textContent.split(/\r?\n/).filter((linha) => String(linha || '').trim())
-    if (!linhas.length) return { importedEntradas, importedSaidas }
-
-    const separador = linhas[0].includes(';') ? ';' : ','
-    const headers = linhas[0].split(separador).map((item) => String(item || '').trim().toLowerCase())
-
-    const idxDescricao = headers.findIndex((item) => ['descricao', 'descrição', 'historico', 'histórico', 'memo', 'name'].includes(item))
-    const idxValor = headers.findIndex((item) => ['valor', 'amount', 'valor_rs', 'valor r$', 'valor_r$', 'vlr'].includes(item))
-    const idxTipo = headers.findIndex((item) => ['tipo', 'type'].includes(item))
-    const idxData = headers.findIndex((item) => ['data', 'date', 'dtposted', 'lançamento', 'lancamento'].includes(item))
-
-    if (idxValor < 0) return { importedEntradas, importedSaidas }
-
-    linhas.slice(1).forEach((linha) => {
-      const cols = linha.split(separador)
-      const descricao = idxDescricao >= 0 ? String(cols[idxDescricao] || 'Importado banco').replace(/^"|"$/g, '').trim() : 'Importado banco'
-      const valorBruto = String(cols[idxValor] || '').replace(/^"|"$/g, '').trim()
-      let valor = normalizarValorImportado(valorBruto)
-      if (Number.isNaN(valor)) return
-      const tipo = idxTipo >= 0 ? String(cols[idxTipo] || '').toLowerCase() : ''
-      const dia = idxData >= 0 ? extrairDiaTransacao(String(cols[idxData] || '')) : 1
-
-      if (tipo.includes('debito') || tipo.includes('débito') || tipo.includes('saida') || tipo.includes('saída')) {
-        valor = -Math.abs(valor)
-      } else if (tipo.includes('credito') || tipo.includes('crédito') || tipo.includes('entrada')) {
-        valor = Math.abs(valor)
-      }
-
-      pushTransaction(descricao, valor, dia)
     })
 
     return { importedEntradas, importedSaidas }
@@ -1669,15 +1595,24 @@ function HomeScreenContent() {
       let importedSaidas: SaidaItem[] = []
 
       if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
+        // A planilha vira matriz de celulas direto, sem passar por texto: o
+        // caminho antigo juntava as celulas com ';' e corrompia qualquer
+        // descricao que ja tivesse ponto e virgula.
         const buffer = await lerArquivoComoArrayBuffer(arquivo)
         const wb = XLSX.read(buffer, { type: 'array' })
-        const firstSheet = wb.SheetNames[0]
-        const rows = XLSX.utils.sheet_to_json<Record<string, any>>(wb.Sheets[firstSheet], { defval: '' })
-        const csvLike = rows.length ? [Object.keys(rows[0]).join(';'), ...rows.map((row) => Object.keys(rows[0]).map((k) => String(row[k] ?? '')).join(';'))].join('\n') : ''
-        ;({ importedEntradas, importedSaidas } = parseImportedBankText(csvLike, 'importacao.csv'))
+        const planilha = wb.Sheets[wb.SheetNames[0]]
+        const matriz = XLSX.utils.sheet_to_json<(string | number)[]>(planilha, {
+          header: 1,
+          defval: '',
+          raw: true,
+        })
+        ;({ importedEntradas, importedSaidas } = converterTransacoes(parseTabela(matriz)))
       } else {
         const textContent = await lerArquivoComoTexto(arquivo)
-        ;({ importedEntradas, importedSaidas } = parseImportedBankText(textContent, arquivo.name || 'importacao.csv'))
+        const transacoes = lowerName.endsWith('.ofx')
+          ? parseOfx(textContent)
+          : parseTabela(parseCsv(textContent))
+        ;({ importedEntradas, importedSaidas } = converterTransacoes(transacoes))
       }
       if (!importedEntradas.length && !importedSaidas.length) {
         Alert.alert('Importação', 'Nenhum lançamento reconhecido no arquivo.')
@@ -2339,6 +2274,48 @@ function HomeScreenContent() {
     }))
   }
 
+  /**
+   * Remove todas as parcelas da mesma compra.
+   *
+   * As parcelas geradas juntas compartilham um `groupId`. Sem isto, apagar
+   * uma compra de 12x exigia excluir parcela por parcela, mes a mes.
+   */
+  const excluirCompraParcelada = (id: string) => {
+    if (!selectedCardId) return
+    setAppData((prev) => {
+      const cartao = prev.global.cards.find((card) => card.id === selectedCardId)
+      const alvo = cartao?.parcelas.find((item) => item.id === id)
+      const grupo = alvo?.groupId
+
+      return {
+        ...prev,
+        global: {
+          ...prev.global,
+          cards: prev.global.cards.map((card) =>
+            card.id === selectedCardId
+              ? {
+                  ...card,
+                  parcelas: card.parcelas.filter((item) =>
+                    grupo ? item.groupId !== grupo : item.id !== id
+                  ),
+                }
+              : card
+          ),
+        },
+      }
+    })
+  }
+
+  /** Quantas parcelas a compra do item tem, para o modal oferecer a escolha. */
+  const escopoDaParcela = (id: string) => {
+    const cartao = cards.find((card) => card.id === selectedCardId)
+    const alvo = cartao?.parcelas.find((item) => item.id === id)
+    if (!alvo?.groupId) return null
+    const irmas = (cartao?.parcelas || []).filter((item) => item.groupId === alvo.groupId)
+    if (irmas.length <= 1) return null
+    return { quantidade: irmas.length, descricao: alvo.descricao }
+  }
+
   const anteciparFaturaSeguinte = () => {
     if (!selectedCardId) return
     const competenciaSeguinte = addMonthsToCompetencia(chaveAtual, 1)
@@ -2508,6 +2485,7 @@ function HomeScreenContent() {
                 renderHighlightOverlay={renderHighlightOverlay}
                 renderTextoSecundario={renderTextoSecundario}
                 renderListaLinks={renderListaLinks}
+                onAbrirLink={abrirLinkComConfirmacao}
                 onNovaNota={abrirNovaNota}
                 onAbrirFiltro={() => abrirFiltro('notas')}
                 onCopiarPix={copiarPix}
@@ -2833,6 +2811,19 @@ function HomeScreenContent() {
         onClose={() => setConfirmacaoExclusao(null)}
         onConfirm={confirmarExclusao}
         theme={theme}
+        escopo={(() => {
+          if (confirmacaoExclusao?.type !== 'parcela') return undefined
+          const info = escopoDaParcela(confirmacaoExclusao.id)
+          if (!info) return undefined
+          return {
+            quantidade: info.quantidade,
+            descricaoConjunto: info.descricao,
+            onConfirmarTodos: () => {
+              excluirCompraParcelada(confirmacaoExclusao.id)
+              setConfirmacaoExclusao(null)
+            },
+          }
+        })()}
       />
 
       <SettingsModal
@@ -2851,8 +2842,6 @@ function HomeScreenContent() {
         initials={iniciais}
         onChooseProfileImage={escolherImagemPerfil}
         onSaveProfile={salvarPerfil}
-        themeMode={themeMode}
-        onToggleSystemTheme={alternarModoTemaSistema}
         processingFile={processandoArquivo}
         onOpenExportPreview={abrirPreviewExportacao}
         onImportData={importarDadosBanco}

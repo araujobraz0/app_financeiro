@@ -1,97 +1,160 @@
 // Montagem da planilha Excel (.xlsx).
-// Função pura: recebe os dados do mês, devolve o workbook do SheetJS.
+// Funcao pura: recebe os dados do mes, devolve o workbook do SheetJS.
 
 import * as XLSX from 'xlsx'
 import type { ExportData } from './types'
 
+/** Formato de moeda do Excel, para as celulas saírem como numero e nao texto. */
+const MOEDA = 'R$ #,##0.00'
+
+type Coluna = { titulo: string; largura: number; moeda?: boolean }
+
 /**
- * Monta o workbook com uma aba por seção:
- * Resumo, Entradas, Fixos, Saídas, Categorias e Cartões.
+ * Cria uma aba a partir de cabecalho + linhas.
+ *
+ * Os valores vao como numero, com formato de moeda aplicado na celula — antes
+ * saiam como texto ja formatado, o que impedia somar ou filtrar na planilha,
+ * que e justamente para o que se exporta um Excel.
+ */
+function montarAba(colunas: Coluna[], linhas: (string | number)[][]) {
+  const aba = XLSX.utils.aoa_to_sheet([colunas.map((c) => c.titulo), ...linhas])
+
+  aba['!cols'] = colunas.map((c) => ({ wch: c.largura }))
+  // Sem congelar o cabecalho: e recurso do SheetJS Pro e aqui seria um
+  // no-op silencioso. O autofiltro abaixo a versao community escreve.
+  aba['!autofilter'] = {
+    ref: XLSX.utils.encode_range({
+      s: { r: 0, c: 0 },
+      e: { r: linhas.length, c: Math.max(0, colunas.length - 1) },
+    }),
+  }
+
+  colunas.forEach((coluna, indiceColuna) => {
+    if (!coluna.moeda) return
+    for (let linha = 1; linha <= linhas.length; linha += 1) {
+      const endereco = XLSX.utils.encode_cell({ r: linha, c: indiceColuna })
+      const celula = aba[endereco]
+      if (celula && typeof celula.v === 'number') {
+        celula.t = 'n'
+        celula.z = MOEDA
+      }
+    }
+  })
+
+  return aba
+}
+
+/**
+ * Monta o workbook com uma aba por secao:
+ * Resumo, Entradas, Fixos, Saidas, Categorias e Cartoes.
  */
 export function buildExportWorkbook(dados: ExportData): XLSX.WorkBook {
   const { resumo, entradas, fixos, saidas, categorias, parcelas } = dados
 
   const wb = XLSX.utils.book_new()
+  wb.Props = {
+    Title: `Brazllet — ${resumo.competencia}`,
+    Subject: 'Relatório financeiro',
+    Author: 'Brazllet',
+  }
 
-  const resumoSheet = XLSX.utils.aoa_to_sheet([
-    ['BRAZLLET'],
-    ['Relatório financeiro premium'],
-    ['Competência', resumo.competencia],
-    ['Estilo', 'Brazllet'],
-    [],
-    ['Resumo do mês'],
-    ['Campo', 'Valor'],
-    ['Salário', resumo.salario],
-    ['Entradas', resumo.entradas],
-    ['Fixos pagos', resumo.fixosPagos],
-    ['Fixos não pagos', resumo.fixosNaoPagos],
-    ['Saídas', resumo.saidas],
-    ['Cartões', resumo.cartoes],
-    ['Saldo atual', resumo.saldoAtual],
-  ])
-  resumoSheet['!cols'] = [{ wch: 26 }, { wch: 20 }]
-  resumoSheet['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
-  ]
-  XLSX.utils.book_append_sheet(wb, resumoSheet, 'Resumo')
-
-  const entradasSheet = XLSX.utils.json_to_sheet(
-    entradas.length
-      ? entradas.map((item) => ({ Nome: item.nome, Valor: item.valor }))
-      : [{ Nome: 'Sem entradas', Valor: '' }]
+  // ---------- Resumo ----------
+  const resumoAba = montarAba(
+    [
+      { titulo: 'Indicador', largura: 26 },
+      { titulo: 'Valor', largura: 18, moeda: true },
+    ],
+    [
+      ['Salário', resumo.salario],
+      ['Entradas', resumo.entradas],
+      ['Fixos pagos', resumo.fixosPagos],
+      ['Fixos não pagos', resumo.fixosNaoPagos],
+      ['Saídas', resumo.saidas],
+      ['Cartões', resumo.cartoes],
+      ['Saldo do mês', resumo.saldoAtual],
+    ]
   )
-  entradasSheet['!cols'] = [{ wch: 34 }, { wch: 16 }]
-  XLSX.utils.book_append_sheet(wb, entradasSheet, 'Entradas')
+  XLSX.utils.book_append_sheet(wb, resumoAba, 'Resumo')
 
-  const fixosSheet = XLSX.utils.json_to_sheet(
-    fixos.length
-      ? fixos.map((item) => ({
-          Nome: item.nome,
-          Valor: item.valor,
-          Status: item.pago ? 'Pago' : 'Não pago',
-        }))
-      : [{ Nome: 'Sem fixos', Valor: '', Status: '' }]
+  // ---------- Entradas ----------
+  XLSX.utils.book_append_sheet(
+    wb,
+    montarAba(
+      [
+        { titulo: 'Descrição', largura: 38 },
+        { titulo: 'Dia', largura: 8 },
+        { titulo: 'Valor', largura: 16, moeda: true },
+      ],
+      entradas.map((item) => [item.nome, item.dia ?? '', item.valor])
+    ),
+    'Entradas'
   )
-  fixosSheet['!cols'] = [{ wch: 34 }, { wch: 16 }, { wch: 16 }]
-  XLSX.utils.book_append_sheet(wb, fixosSheet, 'Fixos')
 
-  const saidasSheet = XLSX.utils.json_to_sheet(
-    saidas.length
-      ? saidas.map((item) => ({
-          Nome: item.nome,
-          Categoria: item.categoria,
-          Valor: item.valor,
-        }))
-      : [{ Nome: 'Sem saídas', Categoria: '', Valor: '' }]
+  // ---------- Fixos ----------
+  XLSX.utils.book_append_sheet(
+    wb,
+    montarAba(
+      [
+        { titulo: 'Descrição', largura: 38 },
+        { titulo: 'Situação', largura: 14 },
+        { titulo: 'Dia', largura: 8 },
+        { titulo: 'Valor', largura: 16, moeda: true },
+      ],
+      fixos.map((item) => [item.nome, item.pago ? 'Pago' : 'Em aberto', item.dia ?? '', item.valor])
+    ),
+    'Fixos'
   )
-  saidasSheet['!cols'] = [{ wch: 34 }, { wch: 18 }, { wch: 16 }]
-  XLSX.utils.book_append_sheet(wb, saidasSheet, 'Saídas')
 
-  const categoriasSheet = XLSX.utils.json_to_sheet(
-    categorias.length
-      ? categorias.map((item) => ({
-          Categoria: item.categoria,
-          Valor: item.valor,
-          Percentual: `${item.percentual.toFixed(1).replace('.', ',')}%`,
-        }))
-      : [{ Categoria: 'Sem categorias', Valor: '', Percentual: '' }]
+  // ---------- Saidas ----------
+  XLSX.utils.book_append_sheet(
+    wb,
+    montarAba(
+      [
+        { titulo: 'Descrição', largura: 38 },
+        { titulo: 'Categoria', largura: 20 },
+        { titulo: 'Dia', largura: 8 },
+        { titulo: 'Valor', largura: 16, moeda: true },
+      ],
+      saidas.map((item) => [item.nome, item.categoria || '', item.dia ?? '', item.valor])
+    ),
+    'Saídas'
   )
-  categoriasSheet['!cols'] = [{ wch: 22 }, { wch: 16 }, { wch: 16 }]
-  XLSX.utils.book_append_sheet(wb, categoriasSheet, 'Categorias')
 
-  const cartoesSheet = XLSX.utils.json_to_sheet(
-    parcelas.length
-      ? parcelas.map((item) => ({
-          Cartão: item.cartao,
-          Descrição: item.descricao,
-          Parcela: `${item.parcelaAtual}/${item.totalParcelas}`,
-          Valor: item.valorParcela,
-        }))
-      : [{ Cartão: 'Sem parcelas no mês', Descrição: '', Parcela: '', Valor: '' }]
+  // ---------- Categorias ----------
+  XLSX.utils.book_append_sheet(
+    wb,
+    montarAba(
+      [
+        { titulo: 'Categoria', largura: 24 },
+        { titulo: 'Participação (%)', largura: 18 },
+        { titulo: 'Valor', largura: 16, moeda: true },
+      ],
+      categorias.map((item) => [item.categoria, Number(item.percentual.toFixed(1)), item.valor])
+    ),
+    'Categorias'
   )
-  cartoesSheet['!cols'] = [{ wch: 20 }, { wch: 34 }, { wch: 14 }, { wch: 16 }]
-  XLSX.utils.book_append_sheet(wb, cartoesSheet, 'Cartões')
+
+  // ---------- Parcelas ----------
+  XLSX.utils.book_append_sheet(
+    wb,
+    montarAba(
+      [
+        { titulo: 'Descrição', largura: 34 },
+        { titulo: 'Cartão', largura: 20 },
+        { titulo: 'Parcela', largura: 12 },
+        { titulo: 'Total de parcelas', largura: 18 },
+        { titulo: 'Valor da parcela', largura: 18, moeda: true },
+      ],
+      parcelas.map((item) => [
+        item.descricao,
+        item.cartao,
+        item.parcelaAtual,
+        item.totalParcelas,
+        item.valorParcela,
+      ])
+    ),
+    'Cartões'
+  )
 
   return wb
 }

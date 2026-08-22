@@ -371,23 +371,23 @@ const local = StyleSheet.create({
   anteciparBtn: { minHeight: 40, paddingHorizontal: 16, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   anteciparTexto: { fontSize: 13, fontWeight: '800' },
 
-  gradeParcelas: { gap: 10, marginTop: 4 },
+  gradeParcelas: { gap: 8, marginTop: 4 },
   compra: {
     position: 'relative',
     overflow: 'hidden',
     borderWidth: 1,
-    borderRadius: 20,
-    padding: 14,
+    borderRadius: 18,
+    padding: 12,
   },
   compraTopo: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   compraNome: { fontSize: 14, fontWeight: '700', lineHeight: 19, letterSpacing: -0.2 },
   compraMeta: { fontSize: 11, fontWeight: '500', marginTop: 3 },
   compraAcoes: { flexDirection: 'row', gap: 7, flexShrink: 0 },
 
-  marcadores: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, marginTop: 12 },
+  marcadores: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, marginTop: 10 },
   marcador: { flex: 1, minWidth: 6, height: 5, borderRadius: 999 },
 
-  compraRodape: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
+  compraRodape: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
   parcelaBloco: { flexShrink: 0 },
   parcelaValor: { fontSize: 17, fontWeight: '800', letterSpacing: -0.4 },
   parcelaLegenda: { fontSize: 10, fontWeight: '600', marginTop: 1 },
@@ -402,7 +402,7 @@ const local = StyleSheet.create({
     justifyContent: 'center',
   },
   seloTexto: { fontSize: 10, fontWeight: '800' },
-  acaoBtn: { width: 32, height: 32, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  acaoBtn: { width: 30, height: 30, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 
   progressoTrilha: { height: 4, borderRadius: 999, overflow: 'hidden', marginTop: 10 },
   progressoFill: { height: '100%', borderRadius: 999 },

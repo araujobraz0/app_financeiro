@@ -25,8 +25,9 @@ type SelectionModalProps = {
 /**
  * Escolha de um valor numa lista (mes, ano, filtro).
  *
- * A rolagem nao precisa mais ser pedida por prop: o corpo do ModalSheet rola
- * sozinho quando a lista passa da altura maxima.
+ * Listas curtas — meses e anos — aparecem em grade: as doze opcoes cabem numa
+ * olhada so, e escolher vira um toque em vez de rolar procurando. Listas
+ * longas continuam empilhadas, onde ler o rotulo inteiro importa mais.
  */
 export default function SelectionModal({
   visible,
@@ -38,6 +39,10 @@ export default function SelectionModal({
   theme,
   hint,
 }: SelectionModalProps) {
+  // Rotulos curtos cabem lado a lado; longos precisam da linha inteira.
+  const rotuloMaisLongo = options.reduce((maior, o) => Math.max(maior, o.label.length), 0)
+  const emGrade = options.length >= 5 && rotuloMaisLongo <= 12
+
   return (
     <ModalSheet
       theme={theme}
@@ -47,9 +52,34 @@ export default function SelectionModal({
       subtitulo={hint}
       level={2}
     >
-      <View style={styles.lista}>
+      <View style={emGrade ? styles.grade : styles.lista}>
         {options.map((option) => {
           const ativo = selectedValue === option.value
+
+          if (emGrade) {
+            return (
+              <PressableScale
+                key={option.value}
+                onPress={() => onSelect(option.value)}
+                scaleTo={0.94}
+                style={[
+                  styles.celula,
+                  {
+                    backgroundColor: ativo ? theme.primary : theme.cardSoft,
+                    borderColor: ativo ? theme.primary : theme.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={[styles.celulaTexto, { color: ativo ? theme.textInverse : theme.text }]}
+                  numberOfLines={1}
+                >
+                  {option.label}
+                </Text>
+              </PressableScale>
+            )
+          }
+
           return (
             <PressableScale
               key={option.value}
@@ -84,10 +114,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
-    minHeight: 50,
+    minHeight: 48,
     paddingHorizontal: 16,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
   },
-  texto: { fontSize: 15, fontWeight: '700', letterSpacing: -0.2, flex: 1 },
+  texto: { fontSize: 14, fontWeight: '700', letterSpacing: -0.2, flex: 1 },
+
+  grade: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  celula: {
+    width: '31.5%',
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  celulaTexto: { fontSize: 13, fontWeight: '800', letterSpacing: -0.2 },
 })

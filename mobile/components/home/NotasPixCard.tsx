@@ -23,6 +23,8 @@ type NotasPixCardProps = {
   onExcluirPix: (id: string, nome: string) => void
   onEditarNota: (item: NoteItem) => void
   onExcluirNota: (id: string, titulo: string) => void
+  /** Abre um link salvo no navegador. */
+  onAbrirLink: (link: string) => void
 }
 
 /** Iniciais do contato, para o circulo colorido do Pix. */
@@ -66,6 +68,7 @@ function NotasPixCard({
   onExcluirPix,
   onEditarNota,
   onExcluirNota,
+  onAbrirLink,
 }: NotasPixCardProps) {
   return (
     <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -118,7 +121,7 @@ function NotasPixCard({
                       <Text style={local.circuloTexto}>{iniciaisDe(item.nome)}</Text>
                     )}
                   </View>
-                  <Text style={[local.contatoNome, { color: theme.text }]} numberOfLines={1}>
+                  <Text style={[local.contatoNome, { color: theme.text }]} numberOfLines={2}>
                     {item.nome}
                   </Text>
                   <Text style={[local.contatoChave, { color: copiado ? theme.green : theme.muted }]} numberOfLines={1}>
@@ -141,6 +144,16 @@ function NotasPixCard({
                 >
                   <Icon name="excluir" size={12} color={theme.red} />
                 </PressableScale>
+
+                {item.links && item.links.filter(Boolean).length > 0 ? (
+                  <PressableScale
+                    onPress={() => onAbrirLink(item.links!.filter(Boolean)[0])}
+                    hitSlop={6}
+                    style={[local.linkContato, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}
+                  >
+                    <Icon name="abrir_link" size={11} color={theme.accent} />
+                  </PressableScale>
+                ) : null}
               </View>
             )
           })}
@@ -205,15 +218,22 @@ function NotasPixCard({
                     {item.conteudo}
                   </Text>
                 ) : null}
-                {item.links && item.links.length > 0 ? (
-                  <View style={[local.selo, { backgroundColor: theme.accentSoft }]}>
-                    <Icon name="link" size={11} color={theme.accent} />
-                    <Text style={[local.seloTexto, { color: theme.accent }]}>
-                      {item.links.length}
-                    </Text>
-                  </View>
-                ) : null}
               </PressableScale>
+
+              {/* Fora do toque de editar: assim tocar o link abre o link, e
+                  nao o formulario da anotacao. */}
+              {(item.links || []).filter(Boolean).map((link) => (
+                <PressableScale
+                  key={link}
+                  onPress={() => onAbrirLink(link)}
+                  style={[local.linkChip, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}
+                >
+                  <Icon name="abrir_link" size={11} color={theme.accent} />
+                  <Text style={[local.linkTexto, { color: theme.accent }]} numberOfLines={1}>
+                    {link.replace(/^https?:\/\//, '')}
+                  </Text>
+                </PressableScale>
+              ))}
 
               <PressableScale
                 onPress={() => onExcluirNota(item.id, item.titulo)}
@@ -256,7 +276,7 @@ const local = StyleSheet.create({
   contatoToque: { alignItems: 'center', width: '100%' },
   circulo: { width: 36, height: 36, borderRadius: 999, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   circuloTexto: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
-  contatoNome: { fontSize: 11, fontWeight: '800', letterSpacing: -0.2, textAlign: 'center', width: '100%' },
+  contatoNome: { fontSize: 11, fontWeight: '800', letterSpacing: -0.2, textAlign: 'center', width: '100%', lineHeight: 14 },
   contatoChave: { fontSize: 9, fontWeight: '600', marginTop: 1, textAlign: 'center', width: '100%' },
   cantoEsquerdo: {
     position: 'absolute',
@@ -294,17 +314,30 @@ const local = StyleSheet.create({
   notaToque: { width: '100%' },
   notaTitulo: { fontSize: 13, fontWeight: '800', letterSpacing: -0.2, paddingRight: 22 },
   notaTexto: { fontSize: 11, fontWeight: '500', lineHeight: 16, marginTop: 6 },
-  selo: {
+  linkChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
     alignSelf: 'flex-start',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    maxWidth: '100%',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 999,
-    marginTop: 8,
+    borderWidth: 1,
+    marginTop: 7,
   },
-  seloTexto: { fontSize: 10, fontWeight: '800' },
+  linkTexto: { fontSize: 10, fontWeight: '700', flexShrink: 1 },
+  linkContato: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    width: 20,
+    height: 20,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   notaExcluir: {
     position: 'absolute',
     top: 8,

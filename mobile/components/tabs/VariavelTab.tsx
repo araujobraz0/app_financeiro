@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { ReactNode } from 'react'
-import { ScrollView, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import type { EntradaItem, SaidaItem, Tema, TipoVariavelTab } from '../../app/types'
 import { formatarMoeda } from '../../src/utils/currency'
 import { formatarDiaMes } from '../../src/utils/dates'
@@ -101,30 +101,35 @@ function VariavelTab({
 
         {tipoVariavelTab === 'saida' && (
           <View style={local.categorias}>
-            <Text style={[local.categoriasRotulo, { color: theme.muted }]}>Filtrar por categoria</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={local.faixa}>
+            {/* Grade em vez de faixa horizontal: numa faixa as ultimas
+                categorias ficam escondidas fora da tela e nada indica que ha
+                mais. Aqui todas aparecem de uma vez. */}
+            <View style={local.grade}>
               {['Todas', ...categoriasSaidas].map((categoria) => {
                 const ativo = filtroCategoria === categoria
                 return (
                   <PressableScale
                     key={categoria}
                     onPress={() => onFiltroCategoriaChange(categoria)}
+                    scaleTo={0.95}
                     style={[
                       local.chip,
                       {
-                        backgroundColor: ativo ? theme.accentSoft : 'transparent',
-                        borderColor: ativo ? theme.accent : theme.border,
+                        backgroundColor: ativo ? theme.primary : theme.cardSoft,
+                        borderColor: ativo ? theme.primary : theme.border,
                       },
                     ]}
                   >
-                    {ativo ? <Icon name="confirmar" size={13} color={theme.accent} /> : null}
-                    <Text style={[local.chipTexto, { color: ativo ? theme.accent : theme.muted }]}>
+                    <Text
+                      style={[local.chipTexto, { color: ativo ? theme.textInverse : theme.muted }]}
+                      numberOfLines={1}
+                    >
                       {categoria}
                     </Text>
                   </PressableScale>
                 )
               })}
-            </ScrollView>
+            </View>
           </View>
         )}
 
@@ -180,25 +185,17 @@ function VariavelTab({
 }
 
 const local = StyleSheet.create({
-  categorias: { marginTop: 14 },
-  categoriasRotulo: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 8,
-  },
-  faixa: { gap: 8, paddingRight: 8 },
+  categorias: { marginTop: 12 },
+  grade: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    minHeight: 36,
-    paddingHorizontal: 14,
-    borderRadius: 999,
+    minHeight: 34,
+    paddingHorizontal: 13,
+    borderRadius: 10,
     borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  chipTexto: { fontSize: 12, fontWeight: '700' },
+  chipTexto: { fontSize: 12, fontWeight: '700', letterSpacing: -0.1 },
 })
 
 export default memo(VariavelTab)

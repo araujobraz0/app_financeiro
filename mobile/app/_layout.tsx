@@ -19,6 +19,7 @@ import * as SplashScreen from 'expo-splash-screen'
 import * as Updates from 'expo-updates'
 import Constants from 'expo-constants'
 import { supabase } from '../src/lib/supabase'
+import { aplicarAjustesWeb } from '../src/utils/estiloWeb'
 
 if (Platform.OS !== 'web') {
   SplashScreen.preventAutoHideAsync()
@@ -53,6 +54,9 @@ function compareVersions(currentVersion: string, latestVersion: string) {
 
   return 0
 }
+
+// Ajustes de CSS da web, aplicados uma vez no carregamento.
+aplicarAjustesWeb()
 
 export default function RootLayout() {
   const [loading, setLoading] = useState(true)
