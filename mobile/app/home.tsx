@@ -9,7 +9,6 @@ import {
   Linking,
   Keyboard,
   Platform,
-  Pressable,
   ScrollView,
   Share,
   Text,
@@ -29,6 +28,10 @@ import { StatusBar } from 'expo-status-bar'
 import Svg, { Circle, G, Path } from 'react-native-svg'
 import PdfPreview from '../components/PdfPreview'
 import AppModal from '../components/common/AppModal'
+import * as Haptics from 'expo-haptics'
+import BottomTabItem from '../components/home/BottomTabItem'
+import PressableScale from '../components/common/motion/PressableScale'
+import AppearIn from '../components/common/motion/AppearIn'
 import SelectionModal from '../components/modals/SelectionModal'
 import CategoryNameModal from '../components/modals/CategoryNameModal'
 import GoalModal, { emptyGoalFormValues } from '../components/modals/GoalModal'
@@ -1398,9 +1401,9 @@ function HomeScreenContent() {
     return (
       <View style={styles.linkListWrap}>
         {linksValidos.map((link) => (
-          <Pressable key={link} onPress={() => abrirLinkComConfirmacao(link)} style={[styles.linkChip, { borderColor: theme.borderStrong }]}>
+          <PressableScale key={link} onPress={() => abrirLinkComConfirmacao(link)} style={[styles.linkChip, { borderColor: theme.borderStrong }]}>
             <Text numberOfLines={1} style={[styles.linkChipText, { color: theme.primary }]}>{link}</Text>
-          </Pressable>
+          </PressableScale>
         ))}
       </View>
     )
@@ -2662,11 +2665,11 @@ function HomeScreenContent() {
           </View>
 
           <View style={styles.topActions}>
-            <Pressable style={[styles.themeButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => setModalConfiguracoesAberto(true)}><Text style={[styles.themeButtonText, { color: theme.text }]}>⚙</Text></Pressable>
-            <Pressable style={[styles.themeButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={alternarTema}>
+            <PressableScale style={[styles.themeButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => setModalConfiguracoesAberto(true)}><Text style={[styles.themeButtonText, { color: theme.text }]}>⚙</Text></PressableScale>
+            <PressableScale style={[styles.themeButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={alternarTema}>
               <Text style={[styles.themeButtonText, { color: theme.text }]}>{temaEscuro ? '☀' : '☾'}</Text>
-            </Pressable>
-            <Pressable
+            </PressableScale>
+            <PressableScale
               style={[
                 styles.themeButton,
                 styles.valueToggleButton,
@@ -2675,10 +2678,10 @@ function HomeScreenContent() {
               onPress={() => atualizarPreferenciasInvestimento({ hideValues: !ocultarValores })}
             >
               <EyeToggleIcon closed={ocultarValores} color={ocultarValores ? theme.white : theme.text} />
-            </Pressable>
-            <Pressable style={[styles.logoutButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={handleSair}>
+            </PressableScale>
+            <PressableScale style={[styles.logoutButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={handleSair}>
               <Text style={[styles.logoutButtonText, { color: theme.text }]}>Sair</Text>
-            </Pressable>
+            </PressableScale>
           </View>
         </View>
 
@@ -2724,34 +2727,34 @@ function HomeScreenContent() {
           <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 0, marginBottom: 8 }]}>
             <Text style={[styles.manageTitle, { color: theme.text, marginBottom: 8 }]}>Busca global</Text>
             {resultadosBuscaGlobal.map((item, index) => (
-              <Pressable
+              <PressableScale
                 key={`${item.tipo}-${item.id}-${index}`}
                 onPress={() => irParaResultadoBuscaGlobal(item)}
                 style={[styles.fullRowCard, { borderColor: theme.border, backgroundColor: theme.cardSoft, marginTop: index === 0 ? 0 : 8 }]}
               >
                 <Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.titulo}</Text>
                 <Text style={[styles.rowItemMeta, { color: theme.muted }]}>{item.tipo} · {item.subtitulo}</Text>
-              </Pressable>
+              </PressableScale>
             ))}
           </View>
         )}
 
         <View style={styles.selectorGroup}>
-          <Pressable style={[styles.dropdownButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => setAnoModalAberto(true)}>
+          <PressableScale style={[styles.dropdownButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => setAnoModalAberto(true)}>
             <Text style={[styles.dropdownLabel, { color: theme.muted }]}>Ano</Text>
             <View style={styles.dropdownValueRow}>
               <Text style={[styles.dropdownValue, { color: theme.text }]}>{anoSelecionado}</Text>
               <Text style={[styles.dropdownIcon, { color: theme.muted }]}>⌄</Text>
             </View>
-          </Pressable>
+          </PressableScale>
 
-          <Pressable style={[styles.dropdownButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => setMesModalAberto(true)}>
+          <PressableScale style={[styles.dropdownButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => setMesModalAberto(true)}>
             <Text style={[styles.dropdownLabel, { color: theme.muted }]}>Mês</Text>
             <View style={styles.dropdownValueRow}>
               <Text style={[styles.dropdownValue, { color: theme.text }]}>{mesSelecionado}</Text>
               <Text style={[styles.dropdownIcon, { color: theme.muted }]}>⌄</Text>
             </View>
-          </Pressable>
+          </PressableScale>
         </View>
 
         {abaInferior === 'home' && (
@@ -2768,90 +2771,102 @@ function HomeScreenContent() {
               onIniciarEdicaoSalario={iniciarEdicaoSalario}
               onSalvarSalario={salvarSalarioEdicao}
               salaryInputRef={salaryInputRef}
-              formatarValorVisivel={formatarValorVisivel}
+              ocultarValores={ocultarValores}
             />
 
-            <GraficoCategoriasCard
-              theme={theme}
-              dadosPizza={dadosPizza}
-              formatarValorVisivel={formatarValorVisivel}
-            />
+            <AppearIn index={3}>
+              <GraficoCategoriasCard
+                theme={theme}
+                dadosPizza={dadosPizza}
+                formatarValorVisivel={formatarValorVisivel}
+              />
+            </AppearIn>
 
-            <InvestimentosCard
-              theme={theme}
-              percentualExibicao={percentualInvestimentoExibicao}
-              baseModo={baseInvestimentoModo}
-              baseValor={baseInvestimentoValor}
-              valorSugerido={valorInvestimentoSugerido}
-              manualInput={investmentManualInput}
-              onManualInputChange={setInvestmentManualInput}
-              onPercentualChange={atualizarPercentualInvestimento}
-              onPreferenciasChange={atualizarPreferenciasInvestimento}
-              onManualFieldLayout={(y) => {
-                investmentManualFieldYRef.current = y
-              }}
-              onManualFieldFocus={scrollToInvestmentManualField}
-              formatarValorVisivel={formatarValorVisivel}
-              formatarPercentualVisivel={formatarPercentualVisivel}
-            />
+            <AppearIn index={4}>
+              <InvestimentosCard
+                theme={theme}
+                percentualExibicao={percentualInvestimentoExibicao}
+                baseModo={baseInvestimentoModo}
+                baseValor={baseInvestimentoValor}
+                valorSugerido={valorInvestimentoSugerido}
+                manualInput={investmentManualInput}
+                onManualInputChange={setInvestmentManualInput}
+                onPercentualChange={atualizarPercentualInvestimento}
+                onPreferenciasChange={atualizarPreferenciasInvestimento}
+                onManualFieldLayout={(y) => {
+                  investmentManualFieldYRef.current = y
+                }}
+                onManualFieldFocus={scrollToInvestmentManualField}
+                formatarValorVisivel={formatarValorVisivel}
+                formatarPercentualVisivel={formatarPercentualVisivel}
+              />
+            </AppearIn>
 
             <View style={styles.sectionSpacerLarge} />
 
-            <ComparacaoCard
-              theme={theme}
-              anoComparacao={anoComparacao}
-              mesComparacao={mesComparacao}
-              onAbrirSeletorAno={() => setModalAnoComparacaoAberto(true)}
-              onAbrirSeletorMes={() => setModalMesComparacaoAberto(true)}
-              comparativos={comparativosResumo}
-              totalAcumulado={totalAcumuladoComparacao}
-              formatarValorVisivel={formatarValorVisivel}
-            />
+            <AppearIn index={5}>
+              <ComparacaoCard
+                theme={theme}
+                anoComparacao={anoComparacao}
+                mesComparacao={mesComparacao}
+                onAbrirSeletorAno={() => setModalAnoComparacaoAberto(true)}
+                onAbrirSeletorMes={() => setModalMesComparacaoAberto(true)}
+                comparativos={comparativosResumo}
+                totalAcumulado={totalAcumuladoComparacao}
+                formatarValorVisivel={formatarValorVisivel}
+              />
+            </AppearIn>
 
             <View style={styles.sectionSpacerLarge} />
 
-            <ComprasDesejoCard
-              theme={theme}
-              itens={comprasDesejoVisiveis}
-              highlightedItemId={highlightedItemId}
-              formatarValorVisivel={formatarValorVisivel}
-              registrarLayoutItem={registrarLayoutItem}
-              renderHighlightOverlay={renderHighlightOverlay}
-              onNovo={() => abrirNovaCompraDesejo()}
-              onEditar={abrirNovaCompraDesejo}
-              onAlternarComprado={alternarCompraDesejoComprado}
-              onExcluir={(id, nome) => abrirConfirmacaoExclusao('compra_desejo', id, nome)}
-            />
+            <AppearIn index={6}>
+              <ComprasDesejoCard
+                theme={theme}
+                itens={comprasDesejoVisiveis}
+                highlightedItemId={highlightedItemId}
+                formatarValorVisivel={formatarValorVisivel}
+                registrarLayoutItem={registrarLayoutItem}
+                renderHighlightOverlay={renderHighlightOverlay}
+                onNovo={() => abrirNovaCompraDesejo()}
+                onEditar={abrirNovaCompraDesejo}
+                onAlternarComprado={alternarCompraDesejoComprado}
+                onExcluir={(id, nome) => abrirConfirmacaoExclusao('compra_desejo', id, nome)}
+              />
+            </AppearIn>
 
             <View style={styles.sectionSpacerLarge} />
 
-            <ObjetivosCard
-              theme={theme}
-              objetivos={objetivos}
-              formatarValorVisivel={formatarValorVisivel}
-              onNovo={() => abrirNovoObjetivo()}
-              onEditar={abrirNovoObjetivo}
-              onExcluir={(id, titulo) => abrirConfirmacaoExclusao('objetivo', id, titulo)}
-            />
+            <AppearIn index={7}>
+              <ObjetivosCard
+                theme={theme}
+                objetivos={objetivos}
+                formatarValorVisivel={formatarValorVisivel}
+                onNovo={() => abrirNovoObjetivo()}
+                onEditar={abrirNovoObjetivo}
+                onExcluir={(id, titulo) => abrirConfirmacaoExclusao('objetivo', id, titulo)}
+              />
+            </AppearIn>
 
-            <NotasPixCard
-              theme={theme}
-              pixOrdenados={pixOrdenados}
-              notasOrdenadas={notasOrdenadas}
-              copiedPixId={copiedPixId}
-              highlightedItemId={highlightedItemId}
-              registrarLayoutItem={registrarLayoutItem}
-              renderHighlightOverlay={renderHighlightOverlay}
-              renderTextoSecundario={renderTextoSecundario}
-              renderListaLinks={renderListaLinks}
-              onNovaNota={abrirNovaNota}
-              onAbrirFiltro={() => abrirFiltro('notas')}
-              onCopiarPix={copiarPix}
-              onEditarPix={abrirEditarPix}
-              onExcluirPix={(id, nome) => abrirConfirmacaoExclusao('pix', id, nome)}
-              onEditarNota={abrirEditarNota}
-              onExcluirNota={(id, titulo) => abrirConfirmacaoExclusao('nota', id, titulo)}
-            />
+            <AppearIn index={8}>
+              <NotasPixCard
+                theme={theme}
+                pixOrdenados={pixOrdenados}
+                notasOrdenadas={notasOrdenadas}
+                copiedPixId={copiedPixId}
+                highlightedItemId={highlightedItemId}
+                registrarLayoutItem={registrarLayoutItem}
+                renderHighlightOverlay={renderHighlightOverlay}
+                renderTextoSecundario={renderTextoSecundario}
+                renderListaLinks={renderListaLinks}
+                onNovaNota={abrirNovaNota}
+                onAbrirFiltro={() => abrirFiltro('notas')}
+                onCopiarPix={copiarPix}
+                onEditarPix={abrirEditarPix}
+                onExcluirPix={(id, nome) => abrirConfirmacaoExclusao('pix', id, nome)}
+                onEditarNota={abrirEditarNota}
+                onExcluirNota={(id, titulo) => abrirConfirmacaoExclusao('nota', id, titulo)}
+              />
+            </AppearIn>
           </>
         )}
 
@@ -2933,25 +2948,22 @@ function HomeScreenContent() {
 
       {!algumModalAberto && <View style={[styles.bottomBar, { backgroundColor: theme.card, borderColor: theme.border, bottom: Math.max(insets.bottom, 10) }]}>
         <View style={styles.bottomHalf}>
-          <Pressable onPress={() => setAbaInferior('home')} style={styles.bottomItem}>
-            <Text style={[styles.bottomItemText, { color: abaInferior === 'home' ? theme.blue : theme.text }]}>HOME</Text>
-          </Pressable>
-          <View style={[styles.bottomDivider, { backgroundColor: theme.borderStrong }]} />
-          <Pressable onPress={() => setAbaInferior('cartao')} style={styles.bottomItem}>
-            <Text style={[styles.bottomItemText, { color: abaInferior === 'cartao' ? theme.blue : theme.text }]}>CARTÃO</Text>
-          </Pressable>
+          <BottomTabItem label="HOME" active={abaInferior === 'home'} theme={theme} onPress={() => setAbaInferior('home')} />
+          <View style={[styles.bottomDivider, { backgroundColor: theme.border }]} />
+          <BottomTabItem label="CARTÃO" active={abaInferior === 'cartao'} theme={theme} onPress={() => setAbaInferior('cartao')} />
         </View>
-        <Pressable onPress={abrirAcaoRapida} style={[styles.plusButton, { backgroundColor: theme.primary, shadowColor: theme.shadow }]}> 
-          <Text style={[styles.plusButtonText, { color: theme.white }]}>＋</Text>
-        </Pressable>
+        <PressableScale
+          onPress={abrirAcaoRapida}
+          scaleTo={0.9}
+          hapticStyle={Haptics.ImpactFeedbackStyle.Medium}
+          style={[styles.plusButton, { backgroundColor: theme.primary, shadowColor: theme.primary }]}
+        >
+          <Text style={[styles.plusButtonText, { color: theme.textInverse }]}>＋</Text>
+        </PressableScale>
         <View style={styles.bottomHalf}>
-          <Pressable onPress={() => setAbaInferior('fixo')} style={styles.bottomItem}>
-            <Text style={[styles.bottomItemText, { color: abaInferior === 'fixo' ? theme.blue : theme.text }]}>FIXO</Text>
-          </Pressable>
-          <View style={[styles.bottomDivider, { backgroundColor: theme.borderStrong }]} />
-          <Pressable onPress={() => setAbaInferior('variavel')} style={styles.bottomItem}>
-            <Text style={[styles.bottomItemText, { color: abaInferior === 'variavel' ? theme.blue : theme.text }]}>VARIÁVEL</Text>
-          </Pressable>
+          <BottomTabItem label="FIXO" active={abaInferior === 'fixo'} theme={theme} onPress={() => setAbaInferior('fixo')} />
+          <View style={[styles.bottomDivider, { backgroundColor: theme.border }]} />
+          <BottomTabItem label="VARIÁVEL" active={abaInferior === 'variavel'} theme={theme} onPress={() => setAbaInferior('variavel')} />
         </View>
       </View>}
 
@@ -2965,7 +2977,7 @@ function HomeScreenContent() {
               ['fixo', 'Fixo'],
               ['parcela', 'Parcela'],
             ] as [QuickAddType, string][]).map(([tipo, label]) => (
-              <Pressable
+              <PressableScale
                 key={tipo}
                 onPress={() => abrirFormularioPorAcao(tipo)}
                 style={[
@@ -2979,7 +2991,7 @@ function HomeScreenContent() {
                 <Text style={[styles.quickActionBtnText, { color: acaoRapidaPadrao === tipo ? theme.white : theme.text }]}>
                   {label}
                 </Text>
-              </Pressable>
+              </PressableScale>
             ))}
           </View>
         </View>
@@ -3165,12 +3177,12 @@ function HomeScreenContent() {
             <Text numberOfLines={3} style={[styles.linkPreviewText, { color: theme.primary }]}>{linkPendenteConfirmacao || ''}</Text>
           </View>
           <View style={styles.modalActions}>
-            <Pressable onPress={() => setLinkPendenteConfirmacao(null)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+            <PressableScale onPress={() => setLinkPendenteConfirmacao(null)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
               <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-            </Pressable>
-            <Pressable onPress={confirmarAberturaLink} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
+            </PressableScale>
+            <PressableScale onPress={confirmarAberturaLink} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
               <Text style={[styles.modalActionText, { color: theme.white }]}>Abrir</Text>
-            </Pressable>
+            </PressableScale>
           </View>
         </View>
       </AppModal>
@@ -3183,13 +3195,13 @@ function HomeScreenContent() {
           <Text style={[styles.modalTitle, { color: theme.text, textAlign: 'center' }]}>{avisoAtualizacao?.titulo || 'Atualizações'}</Text>
           <Text style={[styles.emptyChartText, { color: theme.muted, marginBottom: 16, textAlign: 'center' }]}>{avisoAtualizacao?.mensagem || ''}</Text>
           <View style={styles.modalActions}>
-            <Pressable onPress={() => setAvisoAtualizacao(null)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
+            <PressableScale onPress={() => setAvisoAtualizacao(null)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
               <Text style={[styles.modalActionText, { color: theme.text }]}>{avisoAtualizacao?.acao ? 'Depois' : 'Fechar'}</Text>
-            </Pressable>
+            </PressableScale>
             {avisoAtualizacao?.acao ? (
-              <Pressable onPress={executarAcaoAvisoAtualizacao} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}> 
+              <PressableScale onPress={executarAcaoAvisoAtualizacao} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}> 
                 <Text style={[styles.modalActionText, { color: theme.white }]}>{avisoAtualizacao?.botaoPrincipal || 'Atualizar'}</Text>
-              </Pressable>
+              </PressableScale>
             ) : null}
           </View>
         </View>
@@ -3302,8 +3314,8 @@ function HomeScreenContent() {
 
             <View style={[styles.modalActionsSticky, { borderTopColor: theme.border, backgroundColor: theme.card }]}> 
               <View style={styles.modalActions}>
-                <Pressable onPress={() => setModalPreviewExportacaoAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalActionText, { color: theme.text }]}>Fechar</Text></Pressable>
-                <Pressable onPress={confirmarExportacaoPreview} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>{previewExportacaoTipo === 'pdf' ? 'Compartilhar PDF' : 'Exportar'}</Text></Pressable>
+                <PressableScale onPress={() => setModalPreviewExportacaoAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalActionText, { color: theme.text }]}>Fechar</Text></PressableScale>
+                <PressableScale onPress={confirmarExportacaoPreview} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>{previewExportacaoTipo === 'pdf' ? 'Compartilhar PDF' : 'Exportar'}</Text></PressableScale>
               </View>
             </View>
           </View>
@@ -3325,8 +3337,8 @@ function HomeScreenContent() {
             </View>
           </ScrollView>
           <View style={styles.modalActions}>
-            <Pressable onPress={() => setModalPreviewImportacaoAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text></Pressable>
-            <Pressable onPress={confirmarImportacaoPreview} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>Importar</Text></Pressable>
+            <PressableScale onPress={() => setModalPreviewImportacaoAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text></PressableScale>
+            <PressableScale onPress={confirmarImportacaoPreview} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>Importar</Text></PressableScale>
           </View>
         </View>
       </AppModal>
@@ -3367,12 +3379,12 @@ function HomeScreenContent() {
             <Text style={[styles.premiumLockInfoText, { color: theme.muted }]}>{premiumStatusTexto}</Text>
           </View>
           <View style={styles.modalActions}>
-            <Pressable onPress={() => setModalPremiumBloqueioAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+            <PressableScale onPress={() => setModalPremiumBloqueioAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
               <Text style={[styles.modalActionText, { color: theme.text }]}>Agora não</Text>
-            </Pressable>
-            <Pressable onPress={irParaTelaPremium} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
+            </PressableScale>
+            <PressableScale onPress={irParaTelaPremium} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
               <Text style={[styles.modalActionText, { color: theme.white }]}>Virar Premium</Text>
-            </Pressable>
+            </PressableScale>
           </View>
         </View>
       </AppModal>
@@ -3397,9 +3409,9 @@ function HomeScreenContent() {
                 const mesNumero = index + 1
                 const ativo = calendarMes === mesNumero
                 return (
-                  <Pressable key={mes} onPress={() => setCalendarMes(mesNumero)} style={[styles.filterPill, { backgroundColor: ativo ? theme.primary : theme.cardSoft, borderColor: ativo ? theme.primary : theme.border }]}>
+                  <PressableScale key={mes} onPress={() => setCalendarMes(mesNumero)} style={[styles.filterPill, { backgroundColor: ativo ? theme.primary : theme.cardSoft, borderColor: ativo ? theme.primary : theme.border }]}>
                     <Text style={[styles.filterPillText, { color: ativo ? theme.white : theme.text }]}>{String(mesNumero).padStart(2, '0')}</Text>
-                  </Pressable>
+                  </PressableScale>
                 )
               })}
             </ScrollView>
@@ -3411,17 +3423,17 @@ function HomeScreenContent() {
                 const dia = index + 1
                 const ativo = calendarDia === dia
                 return (
-                  <Pressable key={dia} onPress={() => setCalendarDia(dia)} style={[styles.calendarDayBtn, { backgroundColor: ativo ? theme.primary : theme.cardSoft, borderColor: ativo ? theme.primary : theme.border }]}>
+                  <PressableScale key={dia} onPress={() => setCalendarDia(dia)} style={[styles.calendarDayBtn, { backgroundColor: ativo ? theme.primary : theme.cardSoft, borderColor: ativo ? theme.primary : theme.border }]}>
                     <Text style={[styles.calendarDayText, { color: ativo ? theme.white : theme.text }]}>{String(dia).padStart(2, '0')}</Text>
-                  </Pressable>
+                  </PressableScale>
                 )
               })}
             </View>
           </View>
           <Text style={[styles.rowItemMeta, { color: theme.muted, textAlign: 'center', marginTop: 6 }]}>Selecionado: {formatarDiaMesInput(calendarDia, calendarMes, anoSelecionado)}</Text>
           <View style={styles.modalActions}>
-            <Pressable onPress={() => setModalCalendarioAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text></Pressable>
-            <Pressable onPress={confirmarCalendario} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>Aplicar</Text></Pressable>
+            <PressableScale onPress={() => setModalCalendarioAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text></PressableScale>
+            <PressableScale onPress={confirmarCalendario} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>Aplicar</Text></PressableScale>
           </View>
         </View>
       </AppModal>

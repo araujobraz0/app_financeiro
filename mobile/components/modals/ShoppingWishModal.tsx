@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import type { Tema } from '../../app/types'
 import { handleMaskedMoneyInput } from '../../src/utils/currency'
 import { formatarInputDiaMes } from '../../src/utils/dates'
 import AppModal from '../common/AppModal'
+import PressableScale from '../common/motion/PressableScale'
 
 /**
  * Campos do item da lista de compras desejadas. O modal e dono deles.
@@ -141,9 +142,9 @@ export default function ShoppingWishModal({
                     placeholderTextColor={theme.muted}
                     style={[styles.modalInput, styles.dateInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
                   />
-                  <Pressable onPress={onOpenCalendar} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+                  <PressableScale onPress={onOpenCalendar} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
                     <Text style={[styles.calendarBtnText, { color: theme.text }]}>📅</Text>
-                  </Pressable>
+                  </PressableScale>
                 </View>
               </View>
 
@@ -166,12 +167,12 @@ export default function ShoppingWishModal({
 
           <View style={[styles.modalActionsSticky, { borderTopColor: theme.border, backgroundColor: theme.card }]}>
             <View style={styles.modalActions}>
-              <Pressable onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+              <PressableScale onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
                 <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-              </Pressable>
-              <Pressable onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
+              </PressableScale>
+              <PressableScale onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
                 <Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text>
-              </Pressable>
+              </PressableScale>
             </View>
           </View>
         </View>

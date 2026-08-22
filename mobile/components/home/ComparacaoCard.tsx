@@ -1,7 +1,8 @@
 import { memo } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import type { Tema } from '../../app/types'
 import { styles } from '../../src/theme/homeStyles'
+import PressableScale from '../common/motion/PressableScale'
 
 export type ItemComparativo = {
   label: string
@@ -48,7 +49,7 @@ function ComparacaoCard({
       <Text style={[styles.chartTitle, { color: theme.text }]}>Comparação</Text>
 
       <View style={styles.selectorGroup}>
-        <Pressable
+        <PressableScale
           style={[styles.dropdownButton, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
           onPress={onAbrirSeletorAno}
         >
@@ -57,8 +58,8 @@ function ComparacaoCard({
             <Text style={[styles.dropdownValue, { color: theme.text }]}>{anoComparacao}</Text>
             <Text style={[styles.dropdownIcon, { color: theme.muted }]}>⌄</Text>
           </View>
-        </Pressable>
-        <Pressable
+        </PressableScale>
+        <PressableScale
           style={[styles.dropdownButton, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
           onPress={onAbrirSeletorMes}
         >
@@ -67,7 +68,7 @@ function ComparacaoCard({
             <Text style={[styles.dropdownValue, { color: theme.text }]}>{mesComparacao}</Text>
             <Text style={[styles.dropdownIcon, { color: theme.muted }]}>⌄</Text>
           </View>
-        </Pressable>
+        </PressableScale>
       </View>
 
       <View style={[styles.comparisonGrid, { marginTop: 4 }]}>

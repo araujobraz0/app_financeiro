@@ -5,7 +5,6 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -20,6 +19,7 @@ import { supabase } from '../src/lib/supabase'
 import * as WebBrowser from 'expo-web-browser'
 import { makeRedirectUri } from 'expo-auth-session'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import PressableScale from '../components/common/motion/PressableScale'
 
 WebBrowser.maybeCompleteAuthSession()
 
@@ -315,32 +315,32 @@ export default function LoginScreen() {
             <View style={styles.cardWrap}>
               <View style={[styles.card, cadastroCompacto && styles.cardCadastroCompact]}>
                 <View style={[styles.tabs, cadastroCompacto && styles.tabsCompact]}>
-                  <Pressable
+                  <PressableScale
                     style={[styles.tabButton, modo === 'login' && styles.tabButtonActive]}
                     onPress={() => trocarModo('login')}
                   >
                     <Text style={[styles.tabText, modo === 'login' && styles.tabTextActive]}>
                       Entrar
                     </Text>
-                  </Pressable>
+                  </PressableScale>
 
-                  <Pressable
+                  <PressableScale
                     style={[styles.tabButton, modo === 'cadastro' && styles.tabButtonActive]}
                     onPress={() => trocarModo('cadastro')}
                   >
                     <Text style={[styles.tabText, modo === 'cadastro' && styles.tabTextActive]}>
                       Criar conta
                     </Text>
-                  </Pressable>
+                  </PressableScale>
 
-                  <Pressable
+                  <PressableScale
                     style={[styles.tabButton, modo === 'recuperar' && styles.tabButtonActive]}
                     onPress={() => trocarModo('recuperar')}
                   >
                     <Text style={[styles.tabText, modo === 'recuperar' && styles.tabTextActive]}>
                       Senha
                     </Text>
-                  </Pressable>
+                  </PressableScale>
                 </View>
 
                 <View style={[styles.header, cadastroCompacto && styles.headerCompact]}>
@@ -418,14 +418,14 @@ export default function LoginScreen() {
                             }, 120)
                           }}
                         />
-                        <Pressable
+                        <PressableScale
                           style={[styles.toggleButton, cadastroCompacto && styles.toggleButtonCompact]}
                           onPress={() => setMostrarSenha((prev) => !prev)}
                         >
                           <Text style={styles.toggleButtonText}>
                             {mostrarSenha ? 'Ocultar' : 'Mostrar'}
                           </Text>
-                        </Pressable>
+                        </PressableScale>
                       </View>
                     </View>
                   )}
@@ -435,7 +435,7 @@ export default function LoginScreen() {
                     <Text style={[styles.feedback, styles.feedbackSuccess]}>{mensagem}</Text>
                   )}
 
-                  <Pressable
+                  <PressableScale
                     style={[
                       styles.submitButton,
                       cadastroCompacto && styles.submitButtonCompact,
@@ -455,12 +455,12 @@ export default function LoginScreen() {
                             : 'Enviar link'}
                       </Text>
                     )}
-                  </Pressable>
+                  </PressableScale>
 
                   {modo === 'login' && (
-                    <Pressable style={styles.linkButton} onPress={() => trocarModo('recuperar')}>
+                    <PressableScale style={styles.linkButton} onPress={() => trocarModo('recuperar')}>
                       <Text style={styles.linkButtonText}>Esqueci minha senha</Text>
-                    </Pressable>
+                    </PressableScale>
                   )}
 
                   <View
@@ -474,7 +474,7 @@ export default function LoginScreen() {
                     <View style={styles.separatorLine} />
                   </View>
 
-                  <Pressable
+                  <PressableScale
                     style={[
                       styles.googleButton,
                       cadastroCompacto && styles.googleButtonCompact,
@@ -491,7 +491,7 @@ export default function LoginScreen() {
                         <Text style={styles.googleButtonText}>Continuar com Google</Text>
                       </>
                     )}
-                  </Pressable>
+                  </PressableScale>
                 </View>
               </View>
             </View>

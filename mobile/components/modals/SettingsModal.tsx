@@ -1,6 +1,7 @@
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Image, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import type { SettingsThemeMode, Tema } from '../../app/types'
 import AppModal from '../common/AppModal'
+import PressableScale from '../common/motion/PressableScale'
 
 type ExportType = 'csv' | 'excel' | 'pdf'
 type ProcessFileType = ExportType | 'importar' | null
@@ -107,7 +108,7 @@ export default function SettingsModal({
             <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Premium Brazllet</Text>
             <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 10 }]}>{premiumStatusText}</Text>
             <View style={styles.settingsStack}>
-              <Pressable
+              <PressableScale
                 onPress={onPremiumPress}
                 style={[
                   styles.settingsActionBtn,
@@ -120,7 +121,7 @@ export default function SettingsModal({
                 <Text style={[styles.settingsActionBtnText, { color: premiumValid ? theme.text : theme.white }]}> 
                   {premiumValid ? 'Gerenciar Premium' : 'Virar Premium'}
                 </Text>
-              </Pressable>
+              </PressableScale>
             </View>
           </View>
 
@@ -166,7 +167,7 @@ export default function SettingsModal({
 
               <Text style={[styles.profileLabel, { color: theme.muted, marginTop: 10 }]}>Foto de perfil</Text>
               <View style={styles.profilePhotoActions}>
-                <Pressable
+                <PressableScale
                   onPress={onChooseProfileImage}
                   style={[
                     styles.settingsActionBtn,
@@ -175,10 +176,10 @@ export default function SettingsModal({
                   ]}
                 >
                   <Text style={[styles.settingsActionBtnText, { color: theme.text }]}>Abrir galeria</Text>
-                </Pressable>
+                </PressableScale>
               </View>
 
-              <Pressable
+              <PressableScale
                 onPress={onSaveProfile}
                 style={[
                   styles.settingsActionBtn,
@@ -186,7 +187,7 @@ export default function SettingsModal({
                 ]}
               >
                 <Text style={[styles.settingsActionBtnText, { color: theme.white }]}>Salvar perfil</Text>
-              </Pressable>
+              </PressableScale>
 
               <View style={[styles.profileInfoLine, { borderColor: theme.border }]}> 
                 <Text style={[styles.profileLabel, { color: theme.muted, marginBottom: 0 }]}>Competência atual</Text>
@@ -204,7 +205,7 @@ export default function SettingsModal({
                   Quando ativo, o app alterna sozinho entre claro e escuro.
                 </Text>
               </View>
-              <Pressable
+              <PressableScale
                 onPress={onToggleSystemTheme}
                 style={[
                   styles.switchTrack,
@@ -221,7 +222,7 @@ export default function SettingsModal({
                     themeMode === 'system' ? styles.switchThumbActive : null,
                   ]}
                 />
-              </Pressable>
+              </PressableScale>
             </View>
           </View>
 
@@ -293,7 +294,7 @@ export default function SettingsModal({
             <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 12 }]}> 
               Verifique se existe uma atualização rápida do app ou uma nova versão do APK disponível.
             </Text>
-            <Pressable
+            <PressableScale
               onPress={onCheckUpdates}
               disabled={checkingUpdates}
               style={[
@@ -309,7 +310,7 @@ export default function SettingsModal({
               <Text style={[styles.updateCheckBoxText, { color: theme.text }]}> 
                 {checkingUpdates ? 'Checando...' : 'Checar atualizações'}
               </Text>
-            </Pressable>
+            </PressableScale>
           </View>
 
           <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}> 
@@ -330,7 +331,7 @@ export default function SettingsModal({
                   return (
                     <View key={backup.id} style={[styles.backupRow, { borderColor: theme.border, backgroundColor: theme.card }]}> 
                       <Text style={[styles.rowItemMeta, { color: theme.text, flex: 1 }]}>{dataFormatada}</Text>
-                      <Pressable
+                      <PressableScale
                         onPress={() => onRestoreBackup(backup.id, dataFormatada)}
                         disabled={restaurando}
                         style={[styles.backupRestoreBtn, { backgroundColor: theme.primary, opacity: restaurando ? 0.6 : 1 }]}
@@ -338,7 +339,7 @@ export default function SettingsModal({
                         <Text style={[styles.backupRestoreBtnText, { color: theme.white }]}> 
                           {restaurando ? 'Restaurando...' : 'Restaurar'}
                         </Text>
-                      </Pressable>
+                      </PressableScale>
                     </View>
                   )
                 })}
@@ -348,12 +349,12 @@ export default function SettingsModal({
         </ScrollView>
 
         <View style={styles.modalActions}>
-          <Pressable
+          <PressableScale
             onPress={onClose}
             style={[styles.modalActionBtn, { backgroundColor: theme.primary, borderColor: theme.primary }]}
           >
             <Text style={[styles.modalActionText, { color: theme.white }]}>Fechar</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </View>
     </AppModal>
@@ -370,7 +371,7 @@ type ExportButtonProps = {
 
 function ExportButton({ label, description, icon, onPress, theme }: ExportButtonProps) {
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       style={[
         styles.exportPremiumBtn,
@@ -384,7 +385,7 @@ function ExportButton({ label, description, icon, onPress, theme }: ExportButton
         <Text style={[styles.exportPremiumTitle, { color: theme.text }]}>{label}</Text>
         <Text style={[styles.exportPremiumSub, { color: theme.muted }]}>{description}</Text>
       </View>
-    </Pressable>
+    </PressableScale>
   )
 }
 

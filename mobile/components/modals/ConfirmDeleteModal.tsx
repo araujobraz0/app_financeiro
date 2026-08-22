@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import type { Tema } from '../../app/types'
 import AppModal from '../common/AppModal'
+import PressableScale from '../common/motion/PressableScale'
 
 type ConfirmDeleteModalProps = {
   visible: boolean
@@ -25,12 +26,12 @@ export default function ConfirmDeleteModal({
           Tem certeza que deseja excluir {label ? `"${label}"` : 'este item'}?
         </Text>
         <View style={styles.modalActions}>
-          <Pressable onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+          <PressableScale onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
             <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-          </Pressable>
-          <Pressable onPress={onConfirm} style={[styles.modalActionBtn, { backgroundColor: '#dc2626' }]}>
+          </PressableScale>
+          <PressableScale onPress={onConfirm} style={[styles.modalActionBtn, { backgroundColor: '#dc2626' }]}>
             <Text style={[styles.modalActionText, { color: theme.white }]}>Excluir</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </View>
     </AppModal>

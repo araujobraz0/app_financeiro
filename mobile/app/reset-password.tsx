@@ -6,7 +6,6 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -19,6 +18,7 @@ import * as Linking from 'expo-linking'
 import { router } from 'expo-router'
 import { supabase } from '../src/lib/supabase'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import PressableScale from '../components/common/motion/PressableScale'
 
 type AuthParams = {
   accessToken: string | null
@@ -302,7 +302,7 @@ export default function ResetPasswordScreen() {
                               }, 120)
                             }}
                           />
-                          <Pressable
+                          <PressableScale
                             style={styles.toggleButton}
                             onPress={() => setMostrarSenha((prev) => !prev)}
                             disabled={!sessaoPronta}
@@ -310,7 +310,7 @@ export default function ResetPasswordScreen() {
                             <Text style={styles.toggleButtonText}>
                               {mostrarSenha ? 'Ocultar' : 'Mostrar'}
                             </Text>
-                          </Pressable>
+                          </PressableScale>
                         </View>
                       </View>
 
@@ -334,7 +334,7 @@ export default function ResetPasswordScreen() {
                               }, 120)
                             }}
                           />
-                          <Pressable
+                          <PressableScale
                             style={styles.toggleButton}
                             onPress={() => setMostrarConfirmarSenha((prev) => !prev)}
                             disabled={!sessaoPronta}
@@ -342,7 +342,7 @@ export default function ResetPasswordScreen() {
                             <Text style={styles.toggleButtonText}>
                               {mostrarConfirmarSenha ? 'Ocultar' : 'Mostrar'}
                             </Text>
-                          </Pressable>
+                          </PressableScale>
                         </View>
                       </View>
                     </>
@@ -353,7 +353,7 @@ export default function ResetPasswordScreen() {
                     <Text style={[styles.feedback, styles.feedbackSuccess]}>{mensagem}</Text>
                   )}
 
-                  <Pressable
+                  <PressableScale
                     style={[
                       styles.submitButton,
                       (carregando || validandoSessao || !sessaoPronta) && styles.submitButtonDisabled,
@@ -366,11 +366,11 @@ export default function ResetPasswordScreen() {
                     ) : (
                       <Text style={styles.submitButtonText}>Salvar nova senha</Text>
                     )}
-                  </Pressable>
+                  </PressableScale>
 
-                  <Pressable style={styles.linkButton} onPress={() => router.replace('/login')}>
+                  <PressableScale style={styles.linkButton} onPress={() => router.replace('/login')}>
                     <Text style={styles.linkButtonText}>Voltar para login</Text>
-                  </Pressable>
+                  </PressableScale>
                 </View>
               </View>
             </View>

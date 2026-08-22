@@ -1,9 +1,10 @@
 import { memo } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { ScrollView, Text, View } from 'react-native'
 import type { CardInstallment, CardItem, Tema } from '../../app/types'
 import { formatarDiaMes } from '../../src/utils/dates'
 import { styles } from '../../src/theme/homeStyles'
+import PressableScale from '../common/motion/PressableScale'
 
 type CartaoTabProps = {
   theme: Tema
@@ -73,21 +74,21 @@ function CartaoTab({
             </Text>
           </View>
           <View style={styles.categoryToolbar}>
-            <Pressable onPress={onNovoCartao} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}>
+            <PressableScale onPress={onNovoCartao} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}>
               <Text style={[styles.smallActionBtnIcon, { color: theme.white }]}>＋</Text>
-            </Pressable>
-            <Pressable
+            </PressableScale>
+            <PressableScale
               onPress={onGerenciarCartoes}
               style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
             >
               <Text style={[styles.smallActionBtnText, { color: theme.text }]}>Gerenciar</Text>
-            </Pressable>
-            <Pressable
+            </PressableScale>
+            <PressableScale
               onPress={onAbrirFiltro}
               style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
             >
               <Text style={[styles.smallActionBtnIcon, { color: theme.text }]}>☷</Text>
-            </Pressable>
+            </PressableScale>
           </View>
         </View>
 
@@ -138,19 +139,19 @@ function CartaoTab({
               {percentualUsoCartao.toFixed(1).replace('.', ',')}% do limite usado
             </Text>
             {totalProximaFatura > 0 ? (
-              <Pressable
+              <PressableScale
                 onPress={onAnteciparFatura}
                 style={[styles.settingsActionBtn, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 12 }]}
               >
                 <Text style={[styles.settingsActionBtnText, { color: theme.text }]}>Antecipar fatura do mês seguinte</Text>
-              </Pressable>
+              </PressableScale>
             ) : null}
           </View>
         )}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
           {cards.map((card) => (
-            <Pressable
+            <PressableScale
               key={card.id}
               onPress={() => onSelectCard(card.id)}
               style={[
@@ -164,7 +165,7 @@ function CartaoTab({
               <Text style={[styles.filterPillText, { color: selectedCardId === card.id ? theme.white : theme.text }]}>
                 {card.nome}
               </Text>
-            </Pressable>
+            </PressableScale>
           ))}
         </ScrollView>
       </View>
@@ -199,12 +200,12 @@ function CartaoTab({
                 </View>
                 <View style={styles.inlineActions}>
                   <Text style={[styles.rowItemValue, { color: theme.blue }]}>{formatarValorVisivel(item.valorParcela)}</Text>
-                  <Pressable onPress={() => onEditarParcela(item)} style={styles.iconBtn}>
+                  <PressableScale onPress={() => onEditarParcela(item)} style={styles.iconBtn}>
                     <Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text>
-                  </Pressable>
-                  <Pressable onPress={() => onExcluirParcela(item.id, item.descricao)} style={styles.iconBtn}>
+                  </PressableScale>
+                  <PressableScale onPress={() => onExcluirParcela(item.id, item.descricao)} style={styles.iconBtn}>
                     <Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text>
-                  </Pressable>
+                  </PressableScale>
                 </View>
               </View>
             </View>

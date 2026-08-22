@@ -1,8 +1,9 @@
 import { memo } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import type { NoteItem, NoteModalMode, PixItem, Tema } from '../../app/types'
 import { styles } from '../../src/theme/homeStyles'
+import PressableScale from '../common/motion/PressableScale'
 
 type NotasPixCardProps = {
   theme: Tema
@@ -54,21 +55,21 @@ function NotasPixCard({
           </Text>
         </View>
         <View style={styles.categoryToolbar}>
-          <Pressable onPress={() => onNovaNota('pix')} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}>
+          <PressableScale onPress={() => onNovaNota('pix')} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}>
             <Text style={[styles.smallActionBtnText, { color: theme.white }]}>+ Pix</Text>
-          </Pressable>
-          <Pressable
+          </PressableScale>
+          <PressableScale
             onPress={() => onNovaNota('nota')}
             style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
           >
             <Text style={[styles.smallActionBtnText, { color: theme.text }]}>+ Nota</Text>
-          </Pressable>
-          <Pressable
+          </PressableScale>
+          <PressableScale
             onPress={onAbrirFiltro}
             style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
           >
             <Text style={[styles.smallActionBtnIcon, { color: theme.text }]}>☷</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </View>
 
@@ -97,17 +98,17 @@ function NotasPixCard({
                 {renderListaLinks(item.links)}
               </View>
               <View style={styles.inlineActions}>
-                <Pressable onPress={() => onCopiarPix(item.id, item.chave)} style={styles.iconBtn}>
+                <PressableScale onPress={() => onCopiarPix(item.id, item.chave)} style={styles.iconBtn}>
                   <Text style={[styles.iconBtnText, { color: copiedPixId === item.id ? theme.green : theme.text }]}>
                     {copiedPixId === item.id ? '✓' : '⎘'}
                   </Text>
-                </Pressable>
-                <Pressable onPress={() => onEditarPix(item)} style={styles.iconBtn}>
+                </PressableScale>
+                <PressableScale onPress={() => onEditarPix(item)} style={styles.iconBtn}>
                   <Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text>
-                </Pressable>
-                <Pressable onPress={() => onExcluirPix(item.id, item.nome)} style={styles.iconBtn}>
+                </PressableScale>
+                <PressableScale onPress={() => onExcluirPix(item.id, item.nome)} style={styles.iconBtn}>
                   <Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text>
-                </Pressable>
+                </PressableScale>
               </View>
             </View>
           </View>
@@ -138,12 +139,12 @@ function NotasPixCard({
                 {renderListaLinks(item.links)}
               </View>
               <View style={styles.inlineActions}>
-                <Pressable onPress={() => onEditarNota(item)} style={styles.iconBtn}>
+                <PressableScale onPress={() => onEditarNota(item)} style={styles.iconBtn}>
                   <Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text>
-                </Pressable>
-                <Pressable onPress={() => onExcluirNota(item.id, item.titulo)} style={styles.iconBtn}>
+                </PressableScale>
+                <PressableScale onPress={() => onExcluirNota(item.id, item.titulo)} style={styles.iconBtn}>
                   <Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text>
-                </Pressable>
+                </PressableScale>
               </View>
             </View>
           </View>

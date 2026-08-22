@@ -1,7 +1,8 @@
 import { memo } from 'react'
-import { Platform, Pressable, Text, TextInput, View } from 'react-native'
+import { Platform, Text, TextInput, View } from 'react-native'
 import type { GlobalData, InvestmentBaseMode, Tema } from '../../app/types'
 import { styles } from '../../src/theme/homeStyles'
+import PressableScale from '../common/motion/PressableScale'
 
 type InvestimentosCardProps = {
   theme: Tema
@@ -54,7 +55,7 @@ function InvestimentosCard({
   }
 
   const chipBase = (modo: InvestmentBaseMode, label: string) => (
-    <Pressable
+    <PressableScale
       onPress={() => onPreferenciasChange({ investmentBaseMode: modo })}
       style={[
         styles.investmentBaseChip,
@@ -67,7 +68,7 @@ function InvestimentosCard({
       <Text style={[styles.investmentBaseChipText, { color: baseModo === modo ? theme.white : theme.text }]}>
         {label}
       </Text>
-    </Pressable>
+    </PressableScale>
   )
 
   return (
@@ -116,7 +117,7 @@ function InvestimentosCard({
 
         <View style={styles.investmentSliderScale}>
           {ATALHOS_PERCENTUAL.map((step) => (
-            <Pressable
+            <PressableScale
               key={step}
               onPress={() => {
                 onManualInputChange(String(step))
@@ -133,7 +134,7 @@ function InvestimentosCard({
               <Text style={[styles.investmentScalePillText, { color: percentualExibicao === step ? theme.white : theme.text }]}>
                 {step}%
               </Text>
-            </Pressable>
+            </PressableScale>
           ))}
         </View>
 

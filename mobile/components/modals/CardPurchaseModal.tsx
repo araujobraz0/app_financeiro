@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import type { CardItem, Tema } from '../../app/types'
 import { handleMaskedMoneyInput } from '../../src/utils/currency'
 import AppModal from '../common/AppModal'
+import PressableScale from '../common/motion/PressableScale'
 
 /**
  * Campos da compra parcelada. O modal e dono deles: recebe os valores
@@ -69,7 +70,7 @@ export default function CardPurchaseModal({
           <Text style={[styles.modalLabel, { color: theme.muted }]}>CARTÃO</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
             {cards.map((card) => (
-              <Pressable
+              <PressableScale
                 key={card.id}
                 onPress={() => onSelectedCardIdChange(card.id)}
                 style={[
@@ -83,7 +84,7 @@ export default function CardPurchaseModal({
                 <Text style={[styles.filterPillText, { color: selectedCardId === card.id ? theme.white : theme.text }]}>
                   {card.nome}
                 </Text>
-              </Pressable>
+              </PressableScale>
             ))}
           </ScrollView>
         </View>
@@ -143,20 +144,20 @@ export default function CardPurchaseModal({
                 placeholderTextColor={theme.muted}
                 style={[styles.modalInput, styles.dateInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
               />
-              <Pressable onPress={onOpenDayCalendar} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+              <PressableScale onPress={onOpenDayCalendar} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
                 <Text style={[styles.calendarBtnText, { color: theme.text }]}>📅</Text>
-              </Pressable>
+              </PressableScale>
             </View>
           </View>
         ) : null}
 
         <View style={styles.modalActions}>
-          <Pressable onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+          <PressableScale onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
             <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-          </Pressable>
-          <Pressable onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
+          </PressableScale>
+          <PressableScale onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
             <Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </View>
     </AppModal>

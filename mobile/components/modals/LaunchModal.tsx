@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import type { CardItem, ModoModal, QuickAddType, Tema, TipoFormularioLancamento } from '../../app/types'
 import { handleMaskedMoneyInput } from '../../src/utils/currency'
 import AppModal from '../common/AppModal'
+import PressableScale from '../common/motion/PressableScale'
 
 /**
  * Valores dos campos do formulario. O modal e dono deles: o HomeScreen
@@ -114,7 +115,7 @@ export default function LaunchModal({
         ['fixo', 'Fixo'],
         ['parcela', 'Parcela'],
       ] as [QuickAddType, string][]).map(([type, label]) => (
-        <Pressable
+        <PressableScale
           key={type}
           onPress={() => onTypeChange(type)}
           style={[
@@ -128,7 +129,7 @@ export default function LaunchModal({
           <Text style={[styles.switchBtnText, { color: formType === type ? theme.white : theme.text }]}> 
             {label}
           </Text>
-        </Pressable>
+        </PressableScale>
       ))}
     </View>
   ) : null
@@ -150,12 +151,12 @@ export default function LaunchModal({
             { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text },
           ]}
         />
-        <Pressable
+        <PressableScale
           onPress={onOpenDayCalendar}
           style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
         >
           <Text style={[styles.calendarBtnText, { color: theme.text }]}>📅</Text>
-        </Pressable>
+        </PressableScale>
       </View>
     </View>
   )
@@ -178,7 +179,7 @@ export default function LaunchModal({
           <Text style={[styles.modalLabel, { color: theme.muted }]}>Categoria</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
             {categories.map((category) => (
-              <Pressable
+              <PressableScale
                 key={category}
                 onPress={() => setSelectedCategory(category)}
                 style={[
@@ -192,7 +193,7 @@ export default function LaunchModal({
                 <Text style={[styles.filterPillText, { color: selectedCategory === category ? theme.white : theme.text }]}> 
                   {category}
                 </Text>
-              </Pressable>
+              </PressableScale>
             ))}
           </ScrollView>
         </View>
@@ -219,7 +220,7 @@ export default function LaunchModal({
         <Text style={[styles.modalLabel, { color: theme.muted }]}>CARTÃO</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
           {cards.map((card) => (
-            <Pressable
+            <PressableScale
               key={card.id}
               onPress={() => onSelectedCardIdChange(card.id)}
               style={[
@@ -233,7 +234,7 @@ export default function LaunchModal({
               <Text style={[styles.filterPillText, { color: selectedCardId === card.id ? theme.white : theme.text }]}> 
                 {card.nome}
               </Text>
-            </Pressable>
+            </PressableScale>
           ))}
         </ScrollView>
       </View>
@@ -286,15 +287,15 @@ export default function LaunchModal({
 
   const actions = (
     <View style={styles.modalActions}>
-      <Pressable
+      <PressableScale
         onPress={onClose}
         style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
       >
         <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-      </Pressable>
-      <Pressable onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary, borderColor: theme.primary }]}> 
+      </PressableScale>
+      <PressableScale onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary, borderColor: theme.primary }]}> 
         <Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text>
-      </Pressable>
+      </PressableScale>
     </View>
   )
 

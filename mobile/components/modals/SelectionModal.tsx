@@ -1,6 +1,7 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { Tema } from '../../app/types'
 import AppModal from '../common/AppModal'
+import PressableScale from '../common/motion/PressableScale'
 
 type SelectionOption = {
   value: string | number
@@ -31,7 +32,7 @@ export default function SelectionModal({
   hint,
 }: SelectionModalProps) {
   const list = options.map((option) => (
-    <Pressable
+    <PressableScale
       key={option.value}
       style={[
         styles.modalOption,
@@ -45,7 +46,7 @@ export default function SelectionModal({
       <Text style={[styles.modalOptionText, { color: selectedValue === option.value ? theme.text : theme.muted }]}>
         {option.label}
       </Text>
-    </Pressable>
+    </PressableScale>
   ))
 
   return (

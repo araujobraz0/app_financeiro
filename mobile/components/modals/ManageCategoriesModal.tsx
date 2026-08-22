@@ -1,6 +1,7 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { Tema } from '../../app/types'
 import AppModal from '../common/AppModal'
+import PressableScale from '../common/motion/PressableScale'
 
 type ManageCategoriesModalProps = {
   visible: boolean
@@ -31,20 +32,20 @@ export default function ManageCategoriesModal({
             <View key={categoria} style={[styles.categoryManageRow, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}>
               <Text style={[styles.categoryManageText, { color: theme.text }]} numberOfLines={1}>{categoria}</Text>
               <View style={styles.categoryManageActions}>
-                <Pressable onPress={() => onEdit(categoria)} style={[styles.manageMiniBtn, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <PressableScale onPress={() => onEdit(categoria)} style={[styles.manageMiniBtn, { backgroundColor: theme.card, borderColor: theme.border }]}>
                   <Text style={[styles.manageMiniBtnText, { color: theme.text }]}>✎</Text>
-                </Pressable>
-                <Pressable onPress={() => onDelete(categoria)} style={[styles.manageMiniBtn, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                </PressableScale>
+                <PressableScale onPress={() => onDelete(categoria)} style={[styles.manageMiniBtn, { backgroundColor: theme.card, borderColor: theme.border }]}>
                   <Text style={[styles.manageMiniBtnText, { color: theme.red }]}>×</Text>
-                </Pressable>
+                </PressableScale>
               </View>
             </View>
           ))}
         </ScrollView>
         <View style={styles.modalActions}>
-          <Pressable onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
+          <PressableScale onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
             <Text style={[styles.modalActionText, { color: theme.white }]}>Fechar</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </View>
     </AppModal>

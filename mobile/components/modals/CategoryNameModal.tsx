@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { StyleSheet, Text, TextInput, View } from 'react-native'
 import type { ModoCategoria, Tema } from '../../app/types'
 import AppModal from '../common/AppModal'
+import PressableScale from '../common/motion/PressableScale'
 
 type CategoryNameModalProps = {
   visible: boolean
@@ -44,12 +45,12 @@ export default function CategoryNameModal({
           />
         </View>
         <View style={styles.modalActions}>
-          <Pressable onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+          <PressableScale onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
             <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-          </Pressable>
-          <Pressable onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
+          </PressableScale>
+          <PressableScale onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
             <Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </View>
     </AppModal>

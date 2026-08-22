@@ -1,10 +1,11 @@
 import { memo } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import { ScrollView, Text, View } from 'react-native'
 import type { EntradaItem, SaidaItem, Tema, TipoVariavelTab } from '../../app/types'
 import { formatarMoeda } from '../../src/utils/currency'
 import { formatarDiaMes } from '../../src/utils/dates'
 import { styles } from '../../src/theme/homeStyles'
+import PressableScale from '../common/motion/PressableScale'
 
 type VariavelTabProps = {
   theme: Tema
@@ -78,28 +79,28 @@ function VariavelTab({
           <View style={styles.categoryToolbar}>
             {tipoVariavelTab === 'saida' && (
               <>
-                <Pressable onPress={onNovaCategoria} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}>
+                <PressableScale onPress={onNovaCategoria} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}>
                   <Text style={[styles.smallActionBtnText, { color: theme.white }]}>+ Categoria</Text>
-                </Pressable>
-                <Pressable
+                </PressableScale>
+                <PressableScale
                   onPress={onGerenciarCategorias}
                   style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
                 >
                   <Text style={[styles.smallActionBtnText, { color: theme.text }]}>Gerenciar</Text>
-                </Pressable>
+                </PressableScale>
               </>
             )}
-            <Pressable
+            <PressableScale
               onPress={() => onAbrirFiltro(tipoVariavelTab === 'entrada' ? 'entradas' : 'saidas')}
               style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
             >
               <Text style={[styles.smallActionBtnIcon, { color: theme.text }]}>☷</Text>
-            </Pressable>
+            </PressableScale>
           </View>
         </View>
 
         <View style={styles.variableSwitchRow}>
-          <Pressable
+          <PressableScale
             onPress={() => onTipoChange('entrada')}
             style={[
               styles.variableSwitchBtn,
@@ -112,8 +113,8 @@ function VariavelTab({
             <Text style={[styles.variableSwitchBtnText, { color: tipoVariavelTab === 'entrada' ? theme.white : theme.text }]}>
               Entradas
             </Text>
-          </Pressable>
-          <Pressable
+          </PressableScale>
+          <PressableScale
             onPress={() => onTipoChange('saida')}
             style={[
               styles.variableSwitchBtn,
@@ -126,12 +127,12 @@ function VariavelTab({
             <Text style={[styles.variableSwitchBtnText, { color: tipoVariavelTab === 'saida' ? theme.white : theme.text }]}>
               Saídas
             </Text>
-          </Pressable>
+          </PressableScale>
         </View>
 
         {tipoVariavelTab === 'saida' && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-            <Pressable
+            <PressableScale
               onPress={() => onFiltroCategoriaChange('Todas')}
               style={[
                 styles.filterPill,
@@ -142,9 +143,9 @@ function VariavelTab({
               ]}
             >
               <Text style={[styles.filterPillText, { color: filtroCategoria === 'Todas' ? theme.white : theme.text }]}>Todas</Text>
-            </Pressable>
+            </PressableScale>
             {categoriasSaidas.map((categoria) => (
-              <Pressable
+              <PressableScale
                 key={categoria}
                 onPress={() => onFiltroCategoriaChange(categoria)}
                 style={[
@@ -158,7 +159,7 @@ function VariavelTab({
                 <Text style={[styles.filterPillText, { color: filtroCategoria === categoria ? theme.white : theme.text }]}>
                   {categoria}
                 </Text>
-              </Pressable>
+              </PressableScale>
             ))}
           </ScrollView>
         )}
@@ -189,12 +190,12 @@ function VariavelTab({
                   </View>
                   <View style={styles.inlineActions}>
                     <Text style={[styles.rowItemValue, { color: theme.green }]}>{formatarValorVisivel(item.valor)}</Text>
-                    <Pressable onPress={() => onEditarEntrada(item)} style={styles.iconBtn}>
+                    <PressableScale onPress={() => onEditarEntrada(item)} style={styles.iconBtn}>
                       <Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text>
-                    </Pressable>
-                    <Pressable onPress={() => onExcluirEntrada(item.id, item.nome)} style={styles.iconBtn}>
+                    </PressableScale>
+                    <PressableScale onPress={() => onExcluirEntrada(item.id, item.nome)} style={styles.iconBtn}>
                       <Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text>
-                    </Pressable>
+                    </PressableScale>
                   </View>
                 </View>
               </View>
@@ -225,12 +226,12 @@ function VariavelTab({
                 </View>
                 <View style={styles.inlineActions}>
                   <Text style={[styles.rowItemValue, { color: theme.red }]}>{formatarValorVisivel(item.valor)}</Text>
-                  <Pressable onPress={() => onEditarSaida(item)} style={styles.iconBtn}>
+                  <PressableScale onPress={() => onEditarSaida(item)} style={styles.iconBtn}>
                     <Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text>
-                  </Pressable>
-                  <Pressable onPress={() => onExcluirSaida(item.id, item.nome)} style={styles.iconBtn}>
+                  </PressableScale>
+                  <PressableScale onPress={() => onExcluirSaida(item.id, item.nome)} style={styles.iconBtn}>
                     <Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text>
-                  </Pressable>
+                  </PressableScale>
                 </View>
               </View>
             </View>

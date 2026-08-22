@@ -1,7 +1,8 @@
 import { memo } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import type { GoalItem, Tema } from '../../app/types'
 import { styles } from '../../src/theme/homeStyles'
+import PressableScale from '../common/motion/PressableScale'
 
 type ObjetivosCardProps = {
   theme: Tema
@@ -30,9 +31,9 @@ function ObjetivosCard({
           <Text style={[styles.manageTitle, { color: theme.text }]}>Objetivos</Text>
           <Text style={[styles.manageSub, { color: theme.muted }]}>Acompanhe metas e progresso.</Text>
         </View>
-        <Pressable onPress={onNovo} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}>
+        <PressableScale onPress={onNovo} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}>
           <Text style={[styles.smallActionBtnText, { color: theme.white }]}>+ Objetivo</Text>
-        </Pressable>
+        </PressableScale>
       </View>
 
       {objetivos.length === 0 ? (
@@ -53,12 +54,12 @@ function ObjetivosCard({
                   </Text>
                 </View>
                 <View style={styles.inlineActions}>
-                  <Pressable onPress={() => onEditar(goal)} style={styles.iconBtn}>
+                  <PressableScale onPress={() => onEditar(goal)} style={styles.iconBtn}>
                     <Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text>
-                  </Pressable>
-                  <Pressable onPress={() => onExcluir(goal.id, goal.titulo)} style={styles.iconBtn}>
+                  </PressableScale>
+                  <PressableScale onPress={() => onExcluir(goal.id, goal.titulo)} style={styles.iconBtn}>
                     <Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text>
-                  </Pressable>
+                  </PressableScale>
                 </View>
               </View>
               <View style={[styles.compareBarTrack, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 10 }]}>

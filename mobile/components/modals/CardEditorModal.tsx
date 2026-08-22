@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { StyleSheet, Text, TextInput, View } from 'react-native'
 import type { Tema } from '../../app/types'
 import { handleMaskedMoneyInput } from '../../src/utils/currency'
 import AppModal from '../common/AppModal'
+import PressableScale from '../common/motion/PressableScale'
 
 /**
  * Campos de texto do cartao. O modal e dono deles.
@@ -105,9 +106,9 @@ export default function CardEditorModal({
                 inputMode='numeric'
                 style={[styles.modalInput, styles.dateInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
               />
-              <Pressable onPress={onOpenClosingCalendar} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+              <PressableScale onPress={onOpenClosingCalendar} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
                 <Text style={[styles.calendarBtnText, { color: theme.text }]}>📅</Text>
-              </Pressable>
+              </PressableScale>
             </View>
           </View>
           <View style={[styles.modalField, styles.dualFieldItem]}>
@@ -122,20 +123,20 @@ export default function CardEditorModal({
                 inputMode='numeric'
                 style={[styles.modalInput, styles.dateInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
               />
-              <Pressable onPress={onOpenDueCalendar} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+              <PressableScale onPress={onOpenDueCalendar} style={[styles.calendarBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
                 <Text style={[styles.calendarBtnText, { color: theme.text }]}>📅</Text>
-              </Pressable>
+              </PressableScale>
             </View>
           </View>
         </View>
 
         <View style={styles.modalActions}>
-          <Pressable onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+          <PressableScale onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
             <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-          </Pressable>
-          <Pressable onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
+          </PressableScale>
+          <PressableScale onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
             <Text style={[styles.modalActionText, { color: theme.white }]}>{editing ? 'Salvar' : 'Adicionar'}</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </View>
     </AppModal>

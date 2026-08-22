@@ -31,6 +31,7 @@ import {
   parseDiaMesInputOptional as parseDiaMesInput,
 } from '../src/utils/dates'
 import type { AppData, BancoDeDados, CardItem } from './types'
+import PressableScale from '../components/common/motion/PressableScale'
 
 type FixedPreset = {
   id: string
@@ -520,7 +521,7 @@ export default function PrimeiroAcessoScreen() {
                 {isEEARStudent && (
                   <View style={styles.fixedPremiumStack}>
                     {fixedPresets.map((item) => (
-                      <Pressable
+                      <PressableScale
                         key={item.id}
                         style={[styles.fixedPremiumCard, item.selected && styles.fixedPremiumCardActive]}
                         onPress={() => toggleFixedPreset(item.id)}
@@ -554,7 +555,7 @@ export default function PrimeiroAcessoScreen() {
                             />
                           </View>
                         </View>
-                      </Pressable>
+                      </PressableScale>
                     ))}
                   </View>
                 )}
@@ -593,9 +594,9 @@ export default function PrimeiroAcessoScreen() {
                     />
                   </View>
 
-                  <Pressable style={styles.addButtonPremium} onPress={adicionarNovoFixo}>
+                  <PressableScale style={styles.addButtonPremium} onPress={adicionarNovoFixo}>
                     <Text style={styles.addButtonText}>+ Adicionar gasto fixo</Text>
-                  </Pressable>
+                  </PressableScale>
                 </View>
 
                 {customFixedItems.length > 0 && (
@@ -604,9 +605,9 @@ export default function PrimeiroAcessoScreen() {
                       <View key={item.id} style={styles.customFixedCard}>
                         <View style={styles.customCardHeader}>
                           <Text style={styles.optionTitle}>{item.nome}</Text>
-                          <Pressable onPress={() => removerFixoCustom(item.id)}>
+                          <PressableScale onPress={() => removerFixoCustom(item.id)}>
                             <Text style={styles.removeText}>Remover</Text>
-                          </Pressable>
+                          </PressableScale>
                         </View>
                         <View style={styles.moneyInputWrap}>
                           <Text style={styles.moneyPrefix}>R$</Text>
@@ -644,25 +645,25 @@ export default function PrimeiroAcessoScreen() {
                   {categoriasVariaveisBase.map((categoria) => {
                     const ativo = selectedVariableCategories.includes(categoria)
                     return (
-                      <Pressable
+                      <PressableScale
                         key={categoria}
                         onPress={() => toggleVariableCategory(categoria)}
                         style={[styles.chip, ativo && styles.chipActive]}
                       >
                         <Text style={[styles.chipText, ativo && styles.chipTextActive]}>{categoria}</Text>
-                      </Pressable>
+                      </PressableScale>
                     )
                   })}
                   {customVariableCategories.map((categoria) => {
                     const ativo = selectedVariableCategories.includes(categoria)
                     return (
                       <View key={categoria} style={[styles.customChipWrap, ativo && styles.customChipWrapActive]}>
-                        <Pressable onPress={() => toggleVariableCategory(categoria)} style={styles.customChipPressable}>
+                        <PressableScale onPress={() => toggleVariableCategory(categoria)} style={styles.customChipPressable}>
                           <Text style={[styles.chipText, ativo && styles.chipTextActive]}>{categoria}</Text>
-                        </Pressable>
-                        <Pressable onPress={() => removerCategoriaVariavelCustom(categoria)} style={styles.customChipRemoveBtn}>
+                        </PressableScale>
+                        <PressableScale onPress={() => removerCategoriaVariavelCustom(categoria)} style={styles.customChipRemoveBtn}>
                           <Text style={[styles.customChipRemoveText, ativo && styles.chipTextActive]}>×</Text>
-                        </Pressable>
+                        </PressableScale>
                       </View>
                     )
                   })}
@@ -680,9 +681,9 @@ export default function PrimeiroAcessoScreen() {
                     onBlur={dismissKeyboard}
                     blurOnSubmit
                   />
-                  <Pressable style={styles.inlineAddButton} onPress={adicionarCategoriaVariavelCustom}>
+                  <PressableScale style={styles.inlineAddButton} onPress={adicionarCategoriaVariavelCustom}>
                     <Text style={styles.inlineAddButtonText}>+</Text>
-                  </Pressable>
+                  </PressableScale>
                 </View>
               </View>
 
@@ -751,9 +752,9 @@ export default function PrimeiroAcessoScreen() {
                             onBlur={dismissKeyboard}
                             blurOnSubmit
                           />
-                          <Pressable onPress={() => abrirCalendarioCartao('new_closing', newCardClosing, mesAtual)} style={styles.calendarBtn}>
+                          <PressableScale onPress={() => abrirCalendarioCartao('new_closing', newCardClosing, mesAtual)} style={styles.calendarBtn}>
                             <Text style={styles.calendarBtnText}>📅</Text>
-                          </Pressable>
+                          </PressableScale>
                         </View>
                       </View>
 
@@ -772,18 +773,18 @@ export default function PrimeiroAcessoScreen() {
                             onBlur={dismissKeyboard}
                             blurOnSubmit
                           />
-                          <Pressable onPress={() => abrirCalendarioCartao('new_due', newCardDue, Math.min(12, mesAtual + 1))} style={styles.calendarBtn}>
+                          <PressableScale onPress={() => abrirCalendarioCartao('new_due', newCardDue, Math.min(12, mesAtual + 1))} style={styles.calendarBtn}>
                             <Text style={styles.calendarBtnText}>📅</Text>
-                          </Pressable>
+                          </PressableScale>
                         </View>
                       </View>
                     </View>
 
                     <Text style={styles.helperText}>Deixe os campos de dia vazios se preferir preencher depois.</Text>
 
-                    <Pressable style={styles.addButtonPremium} onPress={adicionarCartao}>
+                    <PressableScale style={styles.addButtonPremium} onPress={adicionarCartao}>
                       <Text style={styles.addButtonText}>+ Adicionar cartão</Text>
-                    </Pressable>
+                    </PressableScale>
                   </View>
 
                   {cards.length > 0 && (
@@ -792,9 +793,9 @@ export default function PrimeiroAcessoScreen() {
                         <View key={item.id} style={styles.cardItemBox}>
                           <View style={styles.customCardHeader}>
                             <Text style={styles.optionTitle}>{item.nome || 'Cartão sem nome'}</Text>
-                            <Pressable onPress={() => removerCartao(item.id)}>
+                            <PressableScale onPress={() => removerCartao(item.id)}>
                               <Text style={styles.removeText}>Remover</Text>
-                            </Pressable>
+                            </PressableScale>
                           </View>
 
                           <TextInput
@@ -872,9 +873,9 @@ export default function PrimeiroAcessoScreen() {
 
               {!!erro && <Text style={styles.errorText}>{erro}</Text>}
 
-              <Pressable style={[styles.submitButton, loading && styles.submitButtonDisabled]} onPress={handleContinue} disabled={loading}>
+              <PressableScale style={[styles.submitButton, loading && styles.submitButtonDisabled]} onPress={handleContinue} disabled={loading}>
                 {loading ? <ActivityIndicator color='#ffffff' /> : <Text style={styles.submitButtonText}>Concluir primeiro acesso</Text>}
-              </Pressable>
+              </PressableScale>
             </View>
 
 
@@ -885,7 +886,7 @@ export default function PrimeiroAcessoScreen() {
               onRequestClose={() => setCalendarVisible(false)}
             >
               <Pressable style={styles.calendarOverlay} onPress={() => setCalendarVisible(false)}>
-                <Pressable style={styles.calendarModalCard} onPress={() => {}}>
+                <PressableScale style={styles.calendarModalCard} onPress={() => {}}>
                   <Text style={styles.calendarModalTitle}>Selecionar data</Text>
                   <View style={styles.calendarSection}>
                     <Text style={styles.label}>Mês</Text>
@@ -894,7 +895,7 @@ export default function PrimeiroAcessoScreen() {
                         const mesNumero = index + 1
                         const ativo = calendarMes === mesNumero
                         return (
-                          <Pressable
+                          <PressableScale
                             key={mesNome}
                             onPress={() => {
                               setCalendarMes(mesNumero)
@@ -903,7 +904,7 @@ export default function PrimeiroAcessoScreen() {
                             style={[styles.calendarMonthBtn, ativo && styles.calendarMonthBtnActive]}
                           >
                             <Text style={[styles.calendarMonthText, ativo && styles.calendarMonthTextActive]}>{String(mesNumero).padStart(2, '0')}</Text>
-                          </Pressable>
+                          </PressableScale>
                         )
                       })}
                     </View>
@@ -915,9 +916,9 @@ export default function PrimeiroAcessoScreen() {
                       {Array.from({ length: getDiasNoMes(anoAtual, calendarMes) }, (_, i) => i + 1).map((dia) => {
                         const ativo = calendarDia === dia
                         return (
-                          <Pressable key={dia} onPress={() => setCalendarDia(dia)} style={[styles.calendarDayBtn, ativo && styles.calendarDayBtnActive]}>
+                          <PressableScale key={dia} onPress={() => setCalendarDia(dia)} style={[styles.calendarDayBtn, ativo && styles.calendarDayBtnActive]}>
                             <Text style={[styles.calendarDayText, ativo && styles.calendarDayTextActive]}>{String(dia).padStart(2, '0')}</Text>
-                          </Pressable>
+                          </PressableScale>
                         )
                       })}
                     </View>
@@ -926,14 +927,14 @@ export default function PrimeiroAcessoScreen() {
                   <Text style={styles.calendarSelectedText}>Selecionado: {formatarDiaMesInput(calendarDia, calendarMes, anoAtual)}</Text>
 
                   <View style={styles.calendarActions}>
-                    <Pressable style={styles.calendarSecondaryButton} onPress={() => setCalendarVisible(false)}>
+                    <PressableScale style={styles.calendarSecondaryButton} onPress={() => setCalendarVisible(false)}>
                       <Text style={styles.calendarSecondaryButtonText}>Cancelar</Text>
-                    </Pressable>
-                    <Pressable style={styles.calendarPrimaryButton} onPress={confirmarCalendarioCartao}>
+                    </PressableScale>
+                    <PressableScale style={styles.calendarPrimaryButton} onPress={confirmarCalendarioCartao}>
                       <Text style={styles.calendarPrimaryButtonText}>Confirmar</Text>
-                    </Pressable>
+                    </PressableScale>
                   </View>
-                </Pressable>
+                </PressableScale>
               </Pressable>
             </Modal>
 

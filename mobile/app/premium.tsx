@@ -20,6 +20,7 @@ import { supabase } from '../src/lib/supabase'
 import { darkTheme, lightTheme, THEME_KEY, THEME_MODE_KEY } from '../src/theme/themes'
 import { formatarMoeda } from '../src/utils/currency'
 import type { PremiumEntitlement, SettingsThemeMode, Tema } from './types'
+import PressableScale from '../components/common/motion/PressableScale'
 
 type PixResponse = {
   payment_id: string
@@ -72,7 +73,7 @@ function AppPopup({
 
             <View style={styles.modalActions}>
               {secondaryText ? (
-                <Pressable
+                <PressableScale
                   onPress={onSecondary}
                   style={[
                     styles.modalActionBtn,
@@ -83,10 +84,10 @@ function AppPopup({
                   ]}
                 >
                   <Text style={[styles.modalActionText, { color: theme.text }]}>{secondaryText}</Text>
-                </Pressable>
+                </PressableScale>
               ) : null}
 
-              <Pressable
+              <PressableScale
                 onPress={onPrimary}
                 style={[
                   styles.modalActionBtn,
@@ -97,7 +98,7 @@ function AppPopup({
                 ]}
               >
                 <Text style={[styles.modalActionText, { color: theme.white }]}>{primaryText}</Text>
-              </Pressable>
+              </PressableScale>
             </View>
           </View>
         </View>
@@ -369,14 +370,14 @@ export default function PremiumScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.primary} />}
       >
         <View style={styles.topBar}>
-          <Pressable
+          <PressableScale
             onPress={() => router.back()}
             style={[styles.backCircle, { backgroundColor: theme.card, borderColor: theme.border }]}
           >
             <Text style={[styles.backCircleText, { color: theme.text }]}>←</Text>
-          </Pressable>
+          </PressableScale>
 
-          <Pressable
+          <PressableScale
             onPress={() => {
               setThemeMode('manual')
               setTemaEscuro((prev) => !prev)
@@ -384,7 +385,7 @@ export default function PremiumScreen() {
             style={[styles.themeCircle, { backgroundColor: theme.card, borderColor: theme.border }]}
           >
             <Text style={[styles.themeCircleText, { color: theme.text }]}>{temaEscuro ? '☀' : '☾'}</Text>
-          </Pressable>
+          </PressableScale>
         </View>
 
         <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: theme.shadow }]}>
@@ -487,7 +488,7 @@ export default function PremiumScreen() {
 
 
         {onboardingPending && !premiumValido ? (
-          <Pressable
+          <PressableScale
             onPress={handleStartFreeTrial}
             style={[
               styles.trialButton,
@@ -495,10 +496,10 @@ export default function PremiumScreen() {
             ]}
           >
             <Text style={[styles.trialButtonText, { color: theme.primary }]}>Usar 7 dias grátis</Text>
-          </Pressable>
+          </PressableScale>
         ) : null}
 
-        <Pressable
+        <PressableScale
           onPress={handleCreatePix}
           disabled={creatingPix}
           style={[
@@ -510,7 +511,7 @@ export default function PremiumScreen() {
           <Text style={[styles.ctaButtonText, { color: theme.white }]}>
             {creatingPix ? 'Gerando Pix...' : 'Gerar Pix de R$ 6,90'}
           </Text>
-        </Pressable>
+        </PressableScale>
 
         {pixData ? (
           <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -534,12 +535,12 @@ export default function PremiumScreen() {
               <Text style={[styles.pixCodeText, { color: theme.text }]}>{pixData.qr_code || 'Código indisponível.'}</Text>
             </View>
 
-            <Pressable
+            <PressableScale
               onPress={handleCopyPix}
               style={[styles.secondaryButton, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
             >
               <Text style={[styles.secondaryButtonText, { color: theme.text }]}>Copiar código Pix</Text>
-            </Pressable>
+            </PressableScale>
 
             {pixData.expires_at ? (
               <Text style={[styles.expireText, { color: theme.muted }]}>

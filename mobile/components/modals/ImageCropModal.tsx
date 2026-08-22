@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import type { Tema } from '../../app/types'
 import AppModal from '../common/AppModal'
+import PressableScale from '../common/motion/PressableScale'
 
 type ImageCropModalProps = {
   visible: boolean
@@ -165,12 +166,12 @@ export default function ImageCropModal({ visible, imageUri, theme, onCancel, onC
         />
 
         <View style={styles.modalActions}>
-          <Pressable onPress={handleCancel} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+          <PressableScale onPress={handleCancel} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
             <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-          </Pressable>
-          <Pressable onPress={handleConfirm} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
+          </PressableScale>
+          <PressableScale onPress={handleConfirm} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
             <Text style={[styles.modalActionText, { color: theme.white }]}>Usar foto</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </View>
     </AppModal>

@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import type { NoteModalMode, Tema } from '../../app/types'
 import AppModal from '../common/AppModal'
+import PressableScale from '../common/motion/PressableScale'
 
 /**
  * Campos do formulario de Pix / anotacao. O modal e dono deles: recebe os
@@ -84,12 +85,12 @@ export default function NoteModal({
     <View style={styles.modalField}>
       <View style={styles.linkFieldHeader}>
         <Text style={[styles.modalLabel, { color: theme.muted }]}>Links</Text>
-        <Pressable
+        <PressableScale
           onPress={() => adicionarCampoLink(setter)}
           style={[styles.smallActionBtn, styles.linkAddBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
         >
           <Text style={[styles.smallActionBtnIcon, { color: theme.text }]}>＋</Text>
-        </Pressable>
+        </PressableScale>
       </View>
       {links.map((link, index) => (
         <View key={`${keyPrefix}-link-${index}`} style={styles.linkInputRow}>
@@ -103,12 +104,12 @@ export default function NoteModal({
             keyboardType='url'
             style={[styles.modalInput, styles.linkInputField, { backgroundColor: theme.card, borderColor: theme.borderStrong, color: theme.text }]}
           />
-          <Pressable
+          <PressableScale
             onPress={() => removerCampoLink(setter, index)}
             style={[styles.linkRemoveBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
           >
             <Text style={[styles.linkRemoveBtnText, { color: theme.red }]}>×</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       ))}
     </View>
@@ -201,12 +202,12 @@ export default function NoteModal({
 
           <View style={[styles.modalActionsSticky, { borderTopColor: theme.border, backgroundColor: theme.card }]}>
             <View style={styles.modalActions}>
-              <Pressable onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+              <PressableScale onPress={onClose} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
                 <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
-              </Pressable>
-              <Pressable onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
+              </PressableScale>
+              <PressableScale onPress={handleSave} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
                 <Text style={[styles.modalActionText, { color: theme.white }]}>Salvar</Text>
-              </Pressable>
+              </PressableScale>
             </View>
           </View>
         </View>

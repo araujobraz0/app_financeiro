@@ -1,9 +1,10 @@
 import { memo } from 'react'
 import type { ReactNode } from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import type { FixoItem, Tema } from '../../app/types'
 import { formatarDiaMes } from '../../src/utils/dates'
 import { styles } from '../../src/theme/homeStyles'
+import PressableScale from '../common/motion/PressableScale'
 
 type FixoTabProps = {
   theme: Tema
@@ -51,12 +52,12 @@ function FixoTab({
             Pago: {formatarValorVisivel(totalFixoPago)} · Não pago: {formatarValorVisivel(totalFixoNaoPago)}
           </Text>
         </View>
-        <Pressable
+        <PressableScale
           onPress={onAbrirFiltro}
           style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
         >
           <Text style={[styles.smallActionBtnIcon, { color: theme.text }]}>☷</Text>
-        </Pressable>
+        </PressableScale>
       </View>
 
       {fixosOrdenados.map((item) => (
@@ -77,18 +78,18 @@ function FixoTab({
             </View>
             <View style={styles.inlineActions}>
               <Text style={[styles.rowItemValue, { color: theme.text }]}>{formatarValorVisivel(item.valor)}</Text>
-              <Pressable
+              <PressableScale
                 style={[styles.statusBtn, { backgroundColor: item.pago ? theme.green : theme.red }]}
                 onPress={() => onAlternarPago(item.id)}
               >
                 <Text style={styles.statusBtnText}>{item.pago ? 'Pago' : 'Não pago'}</Text>
-              </Pressable>
-              <Pressable onPress={() => onEditar(item)} style={styles.iconBtn}>
+              </PressableScale>
+              <PressableScale onPress={() => onEditar(item)} style={styles.iconBtn}>
                 <Text style={[styles.iconBtnText, { color: theme.text }]}>✎</Text>
-              </Pressable>
-              <Pressable onPress={() => onExcluir(item.id, item.nome)} style={styles.iconBtn}>
+              </PressableScale>
+              <PressableScale onPress={() => onExcluir(item.id, item.nome)} style={styles.iconBtn}>
                 <Text style={[styles.iconBtnText, { color: theme.red }]}>×</Text>
-              </Pressable>
+              </PressableScale>
             </View>
           </View>
         </View>
