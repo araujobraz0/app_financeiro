@@ -169,6 +169,10 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
             valor: Number(item.valor || 0),
             pago: Boolean(item.pago),
             dia: Number(item.dia || 5),
+            // Sem isto o vinculo do gasto recorrente se perdia a cada carga:
+            // o item voltava como "so neste mes" e as edicoes deixavam de
+            // valer para os meses seguintes.
+            recorrenteId: item.recorrenteId || undefined,
           })
         ),
         saidas: (Array.isArray(bloco.saidas) ? bloco.saidas : []).map((item: any, index: number) => ({

@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { CardItem, ModoModal, QuickAddType, Tema, TipoFormularioLancamento } from '../../app/types'
 import { corDoCartao } from '../../src/utils/cardColor'
-import { handleMaskedMoneyInput } from '../../src/utils/currency'
+import { addMonthsToCompetencia } from '../../src/utils/competency'
+import { formatarMoeda, handleMaskedMoneyInput, moneyStringToNumber } from '../../src/utils/currency'
 import Campo from '../common/Campo'
 import Icon from '../common/Icon'
 import ModalSheet from '../common/ModalSheet'
@@ -46,11 +47,20 @@ type LaunchModalProps = {
   onSelectedCardIdChange: (value: string) => void
   categories: string[]
   initialValues: LaunchFormValues
+  /** Competencia em edicao ("2026-Agosto"), para dizer onde a ultima parcela cai. */
+  competenciaAtual: string
   day: string
   onDayChange: (value: string) => void
   onOpenDayCalendar: () => void
   onTypeChange: (type: QuickAddType) => void
   onSave: (values: LaunchFormValues) => void
+}
+
+/** "2026-Agosto" -> "Ago/2026". */
+function formatarCompetenciaCurta(competencia: string) {
+  const [ano, mes] = String(competencia || '').split('-')
+  if (!ano || !mes) return competencia
+  return `${mes.slice(0, 3)}/${ano}`
 }
 
 const TIPOS: [QuickAddType, string, Parameters<typeof Icon>[0]['name']][] = [
@@ -72,6 +82,7 @@ export default function LaunchModal({
   onSelectedCardIdChange,
   categories,
   initialValues,
+  competenciaAtual,
   day,
   onDayChange,
   onOpenDayCalendar,
@@ -87,6 +98,35 @@ export default function LaunchModal({
   const [naoSei, setNaoSei] = useState(initialValues.name.trim() === 'N/S')
 
   const ehParcela = formType === 'parcela'
+
+  // --- resumo da compra parcelada ---
+  //
+  // Antes o modal so pedia total e numero de parcelas; quanto ia cair por mes,
+  // ate quando e o quanto disso comia o limite so dava para descobrir depois
+  // de salvar. Agora as contas aparecem enquanto se digita.
+  const cartaoEscolhido = cards.find((card) => card.id === selectedCardId) || null
+  const totalDaCompra = moneyStringToNumber(installmentValue)
+  const quantidadeParcelas = Math.max(1, Math.min(360, Number(installmentTotal) || 1))
+  const valorDeCadaParcela = totalDaCompra > 0 ? totalDaCompra / quantidadeParcelas : 0
+  const competenciaFinal = addMonthsToCompetencia(competenciaAtual, quantidadeParcelas - 1)
+  const limiteDoCartao = Number(cartaoEscolhido?.limite || 0)
+  const usadoNoCartao = (cartaoEscolhido?.parcelas || []).reduce(
+    (acc, item) => acc + Number(item.valorParcela || 0),
+    0
+  )
+  const estouraLimite = limiteDoCartao > 0 && usadoNoCartao + totalDaCompra > limiteDoCartao
+  const mostrarResumoParcela = ehParcela && totalDaCompra > 0
+
+  const resumo = (rotulo: string, valor: string) => (
+    <View style={[styles.resumoItem, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      <Text style={[styles.resumoRotulo, { color: theme.muted }]} numberOfLines={2}>
+        {rotulo}
+      </Text>
+      <Text style={[styles.resumoValor, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit>
+        {valor}
+      </Text>
+    </View>
+  )
 
   const nomeFinal = naoSei ? 'N/S' : name
 
@@ -183,7 +223,7 @@ export default function LaunchModal({
                     ]}
                   >
                     <View style={styles.miniChip} />
-                    <Text style={styles.miniNome} numberOfLines={1}>{card.nome}</Text>
+                    <Text style={styles.miniNome} numberOfLines={2}>{card.nome}</Text>
                     {ativo ? (
                       <View style={[styles.miniSelo, { backgroundColor: theme.accent }]}>
                         <Icon name="confirmar" size={11} color={theme.textInverse} />
@@ -226,6 +266,26 @@ export default function LaunchModal({
           />
 
           {campoDia('Dia da compra')}
+
+          {mostrarResumoParcela ? (
+            <>
+              <View style={styles.resumoGrade}>
+                {resumo('Cada parcela', formatarMoeda(valorDeCadaParcela))}
+                {resumo('Última parcela', formatarCompetenciaCurta(competenciaFinal))}
+                {resumo('Total da compra', formatarMoeda(totalDaCompra))}
+              </View>
+
+              {estouraLimite ? (
+                <View style={[styles.aviso, { backgroundColor: theme.redSoft, borderColor: theme.red }]}>
+                  <Icon name="cartao" size={16} color={theme.red} />
+                  <Text style={[styles.avisoTexto, { color: theme.red }]}>
+                    Somando o que já está lançado, esta compra passa o limite de{' '}
+                    {formatarMoeda(limiteDoCartao)} do {cartaoEscolhido?.nome}.
+                  </Text>
+                </View>
+              ) : null}
+            </>
+          ) : null}
         </>
       ) : (
         <>
@@ -262,7 +322,7 @@ export default function LaunchModal({
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.naoSeiTitulo, { color: theme.text }]}>Não sei o nome</Text>
               <Text style={[styles.naoSeiDica, { color: theme.muted }]}>
-                Salva como "N/S" e você renomeia depois
+                Salva como N/S e você renomeia depois
               </Text>
             </View>
           </PressableScale>
@@ -311,7 +371,9 @@ export default function LaunchModal({
             placeholder="R$ 0,00"
           />
 
-          {campoDia('Dia')}
+          {/* Gasto fixo se repete todo mes: um dia especifico so confundiria,
+              entao o campo aparece apenas em entrada e saida do mes. */}
+          {formType === 'fixo' ? null : campoDia('Dia')}
         </>
       )}
     </ModalSheet>
@@ -349,6 +411,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pilulaTexto: { fontSize: 12, fontWeight: '700' },
+  resumoGrade: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  resumoItem: {
+    flexGrow: 1,
+    flexBasis: '46%',
+    minWidth: 0,
+    borderWidth: 1,
+    borderRadius: 13,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+  },
+  resumoRotulo: { fontSize: 9.5, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
+  resumoValor: { fontSize: 13.5, fontWeight: '800', letterSpacing: -0.3, marginTop: 3 },
+
   gradeCategorias: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 16 },
   chipCategoria: {
     minHeight: 34,
@@ -397,7 +472,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: 'rgba(255,255,255,0.7)',
   },
-  miniNome: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  miniNome: { color: '#FFFFFF', fontSize: 11, fontWeight: '800', lineHeight: 14 },
   miniSelo: {
     position: 'absolute',
     top: 7,

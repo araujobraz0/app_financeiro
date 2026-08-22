@@ -101,6 +101,30 @@ function VariavelTab({
 
         {tipoVariavelTab === 'saida' && (
           <View style={local.categorias}>
+            <View style={local.categoriasTopo}>
+              <Text style={[local.categoriasRotulo, { color: theme.muted }]}>Categorias</Text>
+              <View style={local.categoriasAcoes}>
+                <PressableScale
+                  onPress={onNovaCategoria}
+                  scaleTo={0.9}
+                  accessibilityRole="button"
+                  accessibilityLabel="Nova categoria"
+                  style={[local.botaoCategoria, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+                >
+                  <Icon name="adicionar" size={15} color={theme.text} />
+                </PressableScale>
+                <PressableScale
+                  onPress={onGerenciarCategorias}
+                  scaleTo={0.9}
+                  accessibilityRole="button"
+                  accessibilityLabel="Gerenciar categorias"
+                  style={[local.botaoCategoria, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+                >
+                  <Icon name="editar" size={14} color={theme.text} />
+                </PressableScale>
+              </View>
+            </View>
+
             {/* Grade em vez de faixa horizontal: numa faixa as ultimas
                 categorias ficam escondidas fora da tela e nada indica que ha
                 mais. Aqui todas aparecem de uma vez. */}
@@ -150,6 +174,7 @@ function VariavelTab({
                 meta={formatarDiaMes(item.dia, chaveAtual)}
                 valor={formatarValorVisivel(item.valor)}
                 valorCor={theme.green}
+                compacto
                 onEditar={() => onEditarEntrada(item)}
                 onExcluir={() => onExcluirEntrada(item.id, item.nome)}
                 destacado={highlightedItemId === item.id}
@@ -171,6 +196,7 @@ function VariavelTab({
               meta={`${item.categoria} · ${formatarDiaMes(item.dia, chaveAtual)}`}
               valor={formatarValorVisivel(item.valor)}
               valorCor={theme.red}
+              compacto
               onEditar={() => onEditarSaida(item)}
               onExcluir={() => onExcluirSaida(item.id, item.nome)}
               destacado={highlightedItemId === item.id}
@@ -186,6 +212,30 @@ function VariavelTab({
 
 const local = StyleSheet.create({
   categorias: { marginTop: 12 },
+  categoriasTopo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 9,
+  },
+  categoriasRotulo: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    flex: 1,
+    minWidth: 0,
+  },
+  categoriasAcoes: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  botaoCategoria: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   grade: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   chip: {
     minHeight: 34,

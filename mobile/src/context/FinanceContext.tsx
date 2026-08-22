@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import { AppState, useColorScheme } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -35,6 +35,13 @@ type FinanceContextValue = {
   appData: AppData
   setAppData: Dispatch<SetStateAction<AppData>>
   carregando: boolean
+
+  // desfazer / refazer
+  podeDesfazer: boolean
+  podeRefazer: boolean
+  desfazer: () => void
+  refazer: () => void
+
   sincronizando: boolean
   dadosRemotosCarregados: boolean
 
@@ -61,6 +68,9 @@ type FinanceContextValue = {
   alternarModoTemaSistema: () => void
 }
 
+/** Quantas edicoes o app lembra para tras (e para frente). */
+const LIMITE_HISTORICO = 50
+
 const FinanceContext = createContext<FinanceContextValue | null>(null)
 
 /**
@@ -79,6 +89,66 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const [appData, setAppData] = useState<AppData>(criarAppDataInicial())
   const [carregando, setCarregando] = useState(true)
+
+  // --- historico de desfazer/refazer ---
+  //
+  // Todo o estado editavel do app mora em `appData`, entao o historico e
+  // simplesmente uma pilha de versoes anteriores desse objeto. Guardar as
+  // pilhas em refs (e nao em estado) evita re-renderizar a arvore inteira a
+  // cada edicao: so as duas contagens abaixo viram estado, e elas mudam
+  // apenas quando um botao precisa ligar ou desligar.
+  const passadoRef = useRef<AppData[]>([])
+  const futuroRef = useRef<AppData[]>([])
+  const ultimoAppDataRef = useRef<AppData | null>(null)
+  /** Marca a proxima mudanca como "nao e edicao do usuario" (carga, desfazer, refazer). */
+  const ignorarNoHistoricoRef = useRef(true)
+  const [tamanhoHistorico, setTamanhoHistorico] = useState({ passado: 0, futuro: 0 })
+
+  const sincronizarTamanhoHistorico = useCallback(() => {
+    setTamanhoHistorico((anterior) => {
+      const passado = passadoRef.current.length
+      const futuro = futuroRef.current.length
+      if (anterior.passado === passado && anterior.futuro === futuro) return anterior
+      return { passado, futuro }
+    })
+  }, [])
+
+  useEffect(() => {
+    const anterior = ultimoAppDataRef.current
+    ultimoAppDataRef.current = appData
+
+    if (ignorarNoHistoricoRef.current) {
+      ignorarNoHistoricoRef.current = false
+      return
+    }
+    if (anterior === null || anterior === appData) return
+
+    passadoRef.current = [...passadoRef.current, anterior].slice(-LIMITE_HISTORICO)
+    futuroRef.current = []
+    sincronizarTamanhoHistorico()
+  }, [appData, sincronizarTamanhoHistorico])
+
+  const desfazer = useCallback(() => {
+    const anterior = passadoRef.current[passadoRef.current.length - 1]
+    if (!anterior) return
+    const atual = ultimoAppDataRef.current
+    passadoRef.current = passadoRef.current.slice(0, -1)
+    if (atual) futuroRef.current = [atual, ...futuroRef.current].slice(0, LIMITE_HISTORICO)
+    ignorarNoHistoricoRef.current = true
+    setAppData(anterior)
+    sincronizarTamanhoHistorico()
+  }, [sincronizarTamanhoHistorico])
+
+  const refazer = useCallback(() => {
+    const proximo = futuroRef.current[0]
+    if (!proximo) return
+    const atual = ultimoAppDataRef.current
+    futuroRef.current = futuroRef.current.slice(1)
+    if (atual) passadoRef.current = [...passadoRef.current, atual].slice(-LIMITE_HISTORICO)
+    ignorarNoHistoricoRef.current = true
+    setAppData(proximo)
+    sincronizarTamanhoHistorico()
+  }, [sincronizarTamanhoHistorico])
   const [sincronizando, setSincronizando] = useState(false)
   const [dadosRemotosCarregados, setDadosRemotosCarregados] = useState(false)
 
@@ -185,6 +255,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
         if (data?.data) {
           const normalizado = normalizarAppData(data.data)
+          ignorarNoHistoricoRef.current = true
           setAppData(normalizado)
           if (normalizado.global.profileName) {
             setNome(normalizado.global.profileName)
@@ -345,6 +416,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       appData,
       setAppData,
       carregando,
+      podeDesfazer: tamanhoHistorico.passado > 0,
+      podeRefazer: tamanhoHistorico.futuro > 0,
+      desfazer,
+      refazer,
       sincronizando,
       dadosRemotosCarregados,
       usuarioId,
@@ -367,6 +442,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     [
       appData,
       carregando,
+      tamanhoHistorico,
+      desfazer,
+      refazer,
       sincronizando,
       dadosRemotosCarregados,
       usuarioId,

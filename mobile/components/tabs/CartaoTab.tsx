@@ -22,6 +22,16 @@ type CartaoTabProps = {
   totalProximaFatura: number
   percentualUsoCartao: number
   datasFaturaCartao: { fechamentoAtual: string; vencimentoAtual: string }
+  /** Total das parcelas que caem depois da proxima fatura. */
+  totalFuturoCartao: number
+  /** Dia seguinte ao fechamento: maior prazo possivel para pagar. */
+  melhorDiaCompraCartao: number | null
+  /** Dias que faltam para a fatura vencer. Negativo quando ja venceu. */
+  diasAteVencimentoCartao: number | null
+  /** Compras com parcelas ainda por cair. */
+  comprasAbertasCartao: number
+  /** Soma das faturas do mes somando todos os cartoes. */
+  totalTodosCartoesMes: number
   highlightedItemId: string | null
   formatarValorVisivel: (valor: number) => string
   registrarLayoutItem: (id: string, y: number, height?: number) => void
@@ -56,6 +66,11 @@ function CartaoTab({
   totalProximaFatura,
   percentualUsoCartao,
   datasFaturaCartao,
+  totalFuturoCartao,
+  melhorDiaCompraCartao,
+  diasAteVencimentoCartao,
+  comprasAbertasCartao,
+  totalTodosCartoesMes,
   highlightedItemId,
   formatarValorVisivel,
   registrarLayoutItem,
@@ -69,6 +84,39 @@ function CartaoTab({
 }: CartaoTabProps) {
   const usoAlto = percentualUsoCartao >= 85
   const corUso = usoAlto ? theme.red : percentualUsoCartao >= 60 ? theme.accent : theme.green
+
+  const prazoTexto =
+    diasAteVencimentoCartao === null
+      ? '—'
+      : diasAteVencimentoCartao === 0
+        ? 'Vence hoje'
+        : diasAteVencimentoCartao > 0
+          ? `${diasAteVencimentoCartao} ${diasAteVencimentoCartao === 1 ? 'dia' : 'dias'}`
+          : `Venceu há ${Math.abs(diasAteVencimentoCartao)}`
+  const prazoCor =
+    diasAteVencimentoCartao === null
+      ? theme.text
+      : diasAteVencimentoCartao < 0
+        ? theme.red
+        : diasAteVencimentoCartao <= 5
+          ? theme.accent
+          : theme.text
+
+  const dado = (rotulo: string, valor: string, cor?: string, apoio?: string) => (
+    <View style={[local.dado, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+      <Text style={[local.dadoRotulo, { color: theme.muted }]} numberOfLines={2}>
+        {rotulo}
+      </Text>
+      <Text style={[local.dadoValor, { color: cor || theme.text }]} numberOfLines={1} adjustsFontSizeToFit>
+        {valor}
+      </Text>
+      {apoio ? (
+        <Text style={[local.dadoApoio, { color: theme.faint }]} numberOfLines={1}>
+          {apoio}
+        </Text>
+      ) : null}
+    </View>
+  )
 
   return (
     <>
@@ -172,6 +220,31 @@ function CartaoTab({
                 Limite {formatarValorVisivel(limiteCartaoSelecionado)}
               </Text>
             </View>
+          </View>
+
+          {/* O que antes so dava para saber fazendo conta na mao: prazo,
+              melhor dia de compra, quanto ja esta comprometido la na frente e
+              o total somando os outros cartoes. */}
+          <View style={local.grade}>
+            {dado('Vence em', prazoTexto, prazoCor, datasFaturaCartao.vencimentoAtual)}
+            {dado(
+              'Melhor dia',
+              melhorDiaCompraCartao ? `Dia ${melhorDiaCompraCartao}` : '—',
+              theme.text,
+              melhorDiaCompraCartao ? 'Maior prazo para pagar' : 'Defina o fechamento'
+            )}
+            {dado(
+              'Ainda a pagar',
+              formatarValorVisivel(totalFuturoCartao + totalProximaFatura),
+              totalFuturoCartao + totalProximaFatura > 0 ? theme.accent : theme.text,
+              `${comprasAbertasCartao} ${comprasAbertasCartao === 1 ? 'compra aberta' : 'compras abertas'}`
+            )}
+            {dado(
+              'Todos os cartões',
+              formatarValorVisivel(totalTodosCartoesMes),
+              theme.text,
+              `${cards.length} ${cards.length === 1 ? 'cartão' : 'cartões'} neste mês`
+            )}
           </View>
 
           {totalProximaFatura > 0 ? (
@@ -335,6 +408,20 @@ function CartaoTab({
 }
 
 const local = StyleSheet.create({
+  grade: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  dado: {
+    flexGrow: 1,
+    flexBasis: '46%',
+    minWidth: 0,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 11,
+  },
+  dadoRotulo: { fontSize: 9.5, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.7 },
+  dadoValor: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3, marginTop: 4 },
+  dadoApoio: { fontSize: 10, fontWeight: '600', marginTop: 2 },
+
   carrossel: { gap: 12, paddingRight: 4, paddingVertical: 2 },
   vazio: {
     borderWidth: 1,

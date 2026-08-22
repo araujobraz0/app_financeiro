@@ -41,6 +41,12 @@ type Props = {
   children?: ReactNode
   /** Botoes adicionais, exibidos antes de editar/excluir. */
   acoesExtras?: ReactNode
+  /**
+   * Versao de uma linha so: titulo + meta a esquerda, valor e botoes a direita.
+   * Usada nas listas longas (entradas e saidas), onde o formato de duas linhas
+   * gastava altura demais para pouca informacao.
+   */
+  compacto?: boolean
 }
 
 export default function ListRow({
@@ -59,16 +65,124 @@ export default function ListRow({
   onLayout,
   children,
   acoesExtras,
+  compacto = false,
 }: Props) {
   const temRodape = Boolean(valor || status || onEditar || onExcluir || acoesExtras)
 
+  const botoes = (
+    <View style={styles.acoes}>
+      {acoesExtras}
+
+      {status ? (
+        <PressableScale
+          onPress={status.onPress}
+          style={[
+            styles.status,
+            {
+              backgroundColor: status.ativo ? theme.greenSoft : theme.redSoft,
+              borderColor: status.ativo ? theme.green : theme.red,
+            },
+          ]}
+        >
+          <Icon
+            name={status.ativo ? 'confirmar' : 'excluir'}
+            size={13}
+            color={status.ativo ? theme.green : theme.red}
+          />
+          <Text style={[styles.statusTexto, { color: status.ativo ? theme.green : theme.red }]}>
+            {status.label}
+          </Text>
+        </PressableScale>
+      ) : null}
+
+      {onEditar ? (
+        <PressableScale
+          onPress={onEditar}
+          style={[styles.iconeBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
+          accessibilityRole="button"
+          accessibilityLabel={`Editar ${titulo}`}
+        >
+          <Icon name="editar" size={14} color={theme.muted} />
+        </PressableScale>
+      ) : null}
+
+      {onExcluir ? (
+        <PressableScale
+          onPress={onExcluir}
+          style={[styles.iconeBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
+          accessibilityRole="button"
+          accessibilityLabel={`Excluir ${titulo}`}
+        >
+          <Icon name="excluir" size={16} color={theme.red} />
+        </PressableScale>
+      ) : null}
+    </View>
+  )
+
+  const barraProgresso =
+    typeof progresso === 'number' ? (
+      <View style={[styles.trilha, { backgroundColor: theme.background }]}>
+        <View
+          style={[
+            styles.preenchimento,
+            {
+              width: `${Math.min(100, Math.max(0, progresso * 100))}%`,
+              backgroundColor: progressoCor || theme.green,
+            },
+          ]}
+        />
+      </View>
+    ) : null
+
+  const aoMedir = onLayout
+    ? (event: { nativeEvent: { layout: { y: number; height: number } } }) =>
+        onLayout(event.nativeEvent.layout.y, event.nativeEvent.layout.height)
+    : undefined
+
+  if (compacto) {
+    return (
+      <View
+        onLayout={aoMedir}
+        style={[
+          styles.card,
+          styles.cardCompacto,
+          { backgroundColor: theme.cardSoft, borderColor: destacado ? theme.accent : theme.border },
+        ]}
+      >
+        {overlay}
+
+        <View style={styles.linhaCompacta}>
+          {/* O texto encolhe e quebra em duas linhas; o valor nunca encolhe,
+              entao nao ha como sobrar reticencias em cima do numero. */}
+          <View style={styles.infoCompacta}>
+            <Text style={[styles.tituloCompacto, { color: theme.text }]} numberOfLines={2}>
+              {titulo}
+            </Text>
+            {meta ? (
+              <Text style={[styles.metaCompacta, { color: theme.muted }]} numberOfLines={1}>
+                {meta}
+              </Text>
+            ) : null}
+          </View>
+
+          {valor ? (
+            <Text style={[styles.valorCompacto, { color: valorCor || theme.text }]} numberOfLines={1}>
+              {valor}
+            </Text>
+          ) : null}
+
+          {botoes}
+        </View>
+
+        {children}
+        {barraProgresso}
+      </View>
+    )
+  }
+
   return (
     <View
-      onLayout={
-        onLayout
-          ? (event) => onLayout(event.nativeEvent.layout.y, event.nativeEvent.layout.height)
-          : undefined
-      }
+      onLayout={aoMedir}
       style={[
         styles.card,
         { backgroundColor: theme.cardSoft, borderColor: destacado ? theme.accent : theme.border },
@@ -97,65 +211,11 @@ export default function ListRow({
             ) : null}
           </View>
 
-          <View style={styles.acoes}>
-            {acoesExtras}
-
-            {status ? (
-              <PressableScale
-                onPress={status.onPress}
-                style={[
-                  styles.status,
-                  {
-                    backgroundColor: status.ativo ? theme.greenSoft : theme.redSoft,
-                    borderColor: status.ativo ? theme.green : theme.red,
-                  },
-                ]}
-              >
-                <Icon
-                  name={status.ativo ? 'confirmar' : 'excluir'}
-                  size={13}
-                  color={status.ativo ? theme.green : theme.red}
-                />
-                <Text style={[styles.statusTexto, { color: status.ativo ? theme.green : theme.red }]}>
-                  {status.label}
-                </Text>
-              </PressableScale>
-            ) : null}
-
-            {onEditar ? (
-              <PressableScale
-                onPress={onEditar}
-                style={[styles.iconeBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
-              >
-                <Icon name="editar" size={14} color={theme.muted} />
-              </PressableScale>
-            ) : null}
-
-            {onExcluir ? (
-              <PressableScale
-                onPress={onExcluir}
-                style={[styles.iconeBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
-              >
-                <Icon name="excluir" size={16} color={theme.red} />
-              </PressableScale>
-            ) : null}
-          </View>
+          {botoes}
         </View>
       ) : null}
 
-      {typeof progresso === 'number' ? (
-        <View style={[styles.trilha, { backgroundColor: theme.background }]}>
-          <View
-            style={[
-              styles.preenchimento,
-              {
-                width: `${Math.min(100, Math.max(0, progresso * 100))}%`,
-                backgroundColor: progressoCor || theme.green,
-              },
-            ]}
-          />
-        </View>
-      ) : null}
+      {barraProgresso}
     </View>
   )
 }
@@ -172,6 +232,13 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   titulo: { fontSize: 14, fontWeight: '700', lineHeight: 19, letterSpacing: -0.2 },
+
+  cardCompacto: { paddingVertical: 9, paddingHorizontal: 12, marginTop: 7 },
+  linhaCompacta: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  infoCompacta: { flex: 1, minWidth: 0 },
+  tituloCompacto: { fontSize: 13.5, fontWeight: '700', lineHeight: 18, letterSpacing: -0.2 },
+  metaCompacta: { fontSize: 10.5, fontWeight: '500', marginTop: 1 },
+  valorCompacto: { fontSize: 14, fontWeight: '800', letterSpacing: -0.3, flexShrink: 0 },
   rodape: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   rodapeInfo: { flex: 1, minWidth: 0 },
   valor: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },

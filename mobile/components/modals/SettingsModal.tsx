@@ -2,6 +2,7 @@ import { Image, StyleSheet, Text, View } from 'react-native'
 import type { Tema } from '../../app/types'
 import Campo from '../common/Campo'
 import Icon, { type IconName } from '../common/Icon'
+import Interruptor from '../common/Interruptor'
 import ModalSheet from '../common/ModalSheet'
 import PressableScale from '../common/motion/PressableScale'
 
@@ -27,6 +28,11 @@ type SettingsModalProps = {
   processingFile: ProcessFileType
   onOpenExportPreview: (type: ExportType) => void
   onImportData: () => void
+  temaEscuro: boolean
+  seguirTemaDoSistema: boolean
+  onAlternarTema: () => void
+  onAlternarModoTemaSistema: () => void
+  onSair: () => void
   backups: { id: string; created_at: string }[]
   loadingBackups: boolean
   restoringBackupId: string | null
@@ -81,6 +87,11 @@ export default function SettingsModal({
   processingFile,
   onOpenExportPreview,
   onImportData,
+  temaEscuro,
+  seguirTemaDoSistema,
+  onAlternarTema,
+  onAlternarModoTemaSistema,
+  onSair,
   backups,
   loadingBackups,
   restoringBackupId,
@@ -172,6 +183,9 @@ export default function SettingsModal({
           </View>
         </PressableScale>
 
+        <Text style={[styles.nomePerfil, { color: theme.text }]} numberOfLines={1}>
+          {currentName || 'Sem nome'}
+        </Text>
         <Text style={[styles.email, { color: theme.muted }]} numberOfLines={1}>
           {email || 'Sem e-mail'}
         </Text>
@@ -198,6 +212,32 @@ export default function SettingsModal({
           seta,
           onPremiumPress
         )
+      )}
+
+      {/* ---------- Aparencia e conta ---------- */}
+      {secao(
+        'Aparência e conta',
+        <>
+          {linha(
+            'lua',
+            'Tema escuro',
+            seguirTemaDoSistema ? 'Controlado pelo sistema' : 'Fundo escuro em todo o app',
+            <Interruptor
+              theme={theme}
+              ativo={temaEscuro}
+              onAlternar={seguirTemaDoSistema ? onAlternarModoTemaSistema : onAlternarTema}
+            />
+          )}
+          <View style={[styles.divisor, { backgroundColor: theme.border }]} />
+          {linha(
+            'atualizar',
+            'Seguir o tema do sistema',
+            'Acompanha o modo claro ou escuro do aparelho',
+            <Interruptor theme={theme} ativo={seguirTemaDoSistema} onAlternar={onAlternarModoTemaSistema} />
+          )}
+          <View style={[styles.divisor, { backgroundColor: theme.border }]} />
+          {linha('sair', 'Sair da conta', 'Encerra a sessão neste aparelho', seta, onSair)}
+        </>
       )}
 
       {/* ---------- Exportar e importar ---------- */}
@@ -313,6 +353,7 @@ const styles = StyleSheet.create({
   },
   avatarImagem: { width: '100%', height: '100%' },
   avatarIniciais: { fontSize: 28, fontWeight: '800' },
+  nomePerfil: { fontSize: 16, fontWeight: '800', letterSpacing: -0.3, maxWidth: '100%' },
   selo: {
     position: 'absolute',
     right: -2,

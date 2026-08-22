@@ -11,7 +11,8 @@ import type { Tema } from '../../app/types'
 
 type Props = TextInputProps & {
   theme: Tema
-  rotulo: string
+  /** Rotulo acima do campo. Omitido quando quem chama ja desenha o proprio. */
+  rotulo?: string
   /** Texto de apoio abaixo do campo. */
   dica?: string
   erro?: string
@@ -29,7 +30,7 @@ const Campo = forwardRef<TextInput, Props>(function Campo(
 
   return (
     <View style={styles.wrap}>
-      <Text style={[styles.rotulo, { color: theme.muted }]}>{rotulo}</Text>
+      {rotulo ? <Text style={[styles.rotulo, { color: theme.muted }]}>{rotulo}</Text> : null}
 
       <View
         style={[

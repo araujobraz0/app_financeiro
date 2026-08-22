@@ -72,3 +72,31 @@ export function resolverMesComRecorrentes<
     })),
   }
 }
+
+/**
+ * Garante que a competencia exista no banco antes de altera-la.
+ *
+ * Um mes nunca aberto nao esta gravado: ele so e montado na leitura, herdando
+ * os fixos recorrentes. Isso basta para exibir, mas nao para editar — sem o
+ * mes no banco, `banco[chave]` e undefined e qualquer alteracao se perde no
+ * vazio (era por isso que mudar o valor de um fixo num mes recem-aberto nao
+ * surtia efeito nenhum).
+ *
+ * Devolve sempre um banco novo, para nao mutar o estado anterior.
+ */
+export function garantirCompetencia<
+  T extends {
+    salario: number
+    entradas: unknown[]
+    fixo: { pago: boolean; recorrenteId?: string; id: string }[]
+    saidas: unknown[]
+    categoriasSaidas: string[]
+  },
+>(banco: Record<string, T>, chave: string, mesVazio: T): Record<string, T> {
+  if (banco[chave]) return { ...banco }
+
+  return {
+    ...banco,
+    [chave]: resolverMesComRecorrentes(banco, chave, mesVazio),
+  }
+}

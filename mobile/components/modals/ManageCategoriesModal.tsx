@@ -9,6 +9,7 @@ type ManageCategoriesModalProps = {
   onClose: () => void
   theme: Tema
   categories: string[]
+  onCreate: () => void
   onEdit: (category: string) => void
   onDelete: (category: string) => void
 }
@@ -18,6 +19,7 @@ export default function ManageCategoriesModal({
   onClose,
   theme,
   categories,
+  onCreate,
   onEdit,
   onDelete,
 }: ManageCategoriesModalProps) {
@@ -30,7 +32,23 @@ export default function ManageCategoriesModal({
       subtitulo={`${categories.length} ${categories.length === 1 ? 'categoria' : 'categorias'} para classificar suas saídas.`}
       acoes={[{ label: 'Concluir', onPress: onClose, primaria: true }]}
     >
+      <PressableScale
+        onPress={onCreate}
+        style={[styles.adicionar, { borderColor: theme.borderStrong }]}
+        accessibilityRole="button"
+        accessibilityLabel="Nova categoria"
+      >
+        <Icon name="adicionar" size={15} color={theme.muted} />
+        <Text style={[styles.adicionarTexto, { color: theme.muted }]}>Nova categoria</Text>
+      </PressableScale>
+
       <View style={styles.lista}>
+        {categories.length === 0 ? (
+          <Text style={[styles.vazio, { color: theme.faint }]}>
+            Nenhuma categoria ainda. Crie a primeira para classificar as saídas.
+          </Text>
+        ) : null}
+
         {categories.map((categoria) => (
           <View
             key={categoria}
@@ -61,7 +79,19 @@ export default function ManageCategoriesModal({
 }
 
 const styles = StyleSheet.create({
-  lista: { gap: 8 },
+  lista: { gap: 8, marginTop: 12 },
+  vazio: { fontSize: 13, fontWeight: '500', lineHeight: 19, paddingVertical: 6 },
+  adicionar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    minHeight: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+  },
+  adicionarTexto: { fontSize: 13, fontWeight: '700' },
   linha: {
     flexDirection: 'row',
     alignItems: 'center',

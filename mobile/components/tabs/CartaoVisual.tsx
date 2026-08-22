@@ -44,14 +44,18 @@ export default function CartaoVisual({ card, theme, ativo, limiteTexto, onPress 
 
       <Text style={styles.numero}>•••• •••• •••• ••••</Text>
 
+      {/* Nome numa linha inteira: dividido com o limite, um nome comum como
+          "Nubank Ultravioleta" ja saia cortado. */}
       <View style={styles.rodape}>
-        <View style={styles.rodapeInfo}>
-          <Text style={styles.rotulo}>CARTÃO</Text>
-          <Text style={styles.nome} numberOfLines={1}>{card.nome}</Text>
-        </View>
-        <View style={styles.rodapeValor}>
-          <Text style={styles.rotulo}>LIMITE</Text>
+        <Text style={styles.rotulo}>CARTÃO</Text>
+        <Text style={styles.nome} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
+          {card.nome}
+        </Text>
+        <View style={styles.rodapeLinha}>
           <Text style={styles.valor} numberOfLines={1}>{limiteTexto}</Text>
+          {card.fechamento ? (
+            <Text style={styles.detalhe} numberOfLines={1}>Fecha dia {card.fechamento}</Text>
+          ) : null}
         </View>
       </View>
     </PressableScale>
@@ -91,9 +95,14 @@ const styles = StyleSheet.create({
     letterSpacing: 1.4,
     fontWeight: '700',
   },
-  rodape: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 },
-  rodapeInfo: { flex: 1, minWidth: 0 },
-  rodapeValor: { alignItems: 'flex-end', maxWidth: '52%' },
+  rodape: { gap: 1 },
+  rodapeLinha: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 3,
+  },
   rotulo: {
     color: 'rgba(255,255,255,0.62)',
     fontSize: 8,
@@ -102,5 +111,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   nome: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', letterSpacing: -0.2 },
-  valor: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', letterSpacing: -0.2 },
+  valor: { color: '#FFFFFF', fontSize: 13, fontWeight: '800', letterSpacing: -0.2, flexShrink: 0 },
+  detalhe: { color: 'rgba(255,255,255,0.72)', fontSize: 10, fontWeight: '700', flexShrink: 1 },
 })

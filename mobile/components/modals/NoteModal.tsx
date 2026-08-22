@@ -40,27 +40,6 @@ type NoteModalProps = {
   onSave: (values: NoteFormValues) => void
 }
 
-/** Tipos de chave Pix, para o app formatar e o teclado abrir certo. */
-type TipoChave = 'cpf' | 'telefone' | 'email' | 'aleatoria'
-
-const TIPOS_CHAVE: { valor: TipoChave; label: string; teclado: 'default' | 'number-pad' | 'email-address' }[] = [
-  { valor: 'cpf', label: 'CPF/CNPJ', teclado: 'number-pad' },
-  { valor: 'telefone', label: 'Telefone', teclado: 'number-pad' },
-  { valor: 'email', label: 'E-mail', teclado: 'email-address' },
-  { valor: 'aleatoria', label: 'Aleatória', teclado: 'default' },
-]
-
-/** Adivinha o tipo a partir do que ja esta salvo, ao editar. */
-function detectarTipo(chave: string): TipoChave {
-  const texto = String(chave || '')
-  if (texto.includes('@')) return 'email'
-  const digitos = texto.replace(/\D/g, '')
-  if (digitos.length === 11 && texto.includes('(')) return 'telefone'
-  if (digitos.length === 11 || digitos.length === 14) return 'cpf'
-  if (digitos.length >= 10 && digitos.length <= 13) return 'telefone'
-  return 'aleatoria'
-}
-
 export default function NoteModal({
   visible,
   onClose,
@@ -76,7 +55,6 @@ export default function NoteModal({
   const [notaTitulo, setNotaTitulo] = useState(initialValues.notaTitulo)
   const [notaConteudo, setNotaConteudo] = useState(initialValues.notaConteudo)
   const [notaLinks, setNotaLinks] = useState<string[]>(initialValues.notaLinks)
-  const [tipoChave, setTipoChave] = useState<TipoChave>(detectarTipo(initialValues.pixChave))
 
   const ehPix = type === 'pix'
 
@@ -97,8 +75,6 @@ export default function NoteModal({
     setLinks((anteriores) => anteriores.filter((_, i) => i !== indice))
 
   const adicionarLink = () => setLinks((anteriores) => [...anteriores, ''])
-
-  const tecladoDaChave = TIPOS_CHAVE.find((t) => t.valor === tipoChave)?.teclado ?? 'default'
 
   return (
     <ModalSheet
@@ -127,46 +103,14 @@ export default function NoteModal({
             autoFocus
           />
 
-          <Text style={[styles.rotulo, { color: theme.muted }]}>Tipo da chave</Text>
-          <View style={styles.tipos}>
-            {TIPOS_CHAVE.map((item) => {
-              const ativo = tipoChave === item.valor
-              return (
-                <PressableScale
-                  key={item.valor}
-                  onPress={() => setTipoChave(item.valor)}
-                  style={[
-                    styles.tipo,
-                    {
-                      backgroundColor: ativo ? theme.accentSoft : theme.cardSoft,
-                      borderColor: ativo ? theme.accent : theme.border,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.tipoTexto, { color: ativo ? theme.accent : theme.muted }]}>
-                    {item.label}
-                  </Text>
-                </PressableScale>
-              )
-            })}
-          </View>
-
           <Campo
             theme={theme}
             rotulo="Chave"
             value={pixChave}
             onChangeText={setPixChave}
-            placeholder={
-              tipoChave === 'email'
-                ? 'nome@email.com'
-                : tipoChave === 'telefone'
-                  ? '(11) 90000-0000'
-                  : tipoChave === 'cpf'
-                    ? '000.000.000-00'
-                    : 'Cole a chave aleatória'
-            }
-            keyboardType={tecladoDaChave}
+            placeholder="CPF, telefone, e-mail ou chave aleatória"
             autoCapitalize="none"
+            dica="Cole do jeito que estiver — o app guarda igual."
           />
 
           <Campo
@@ -206,24 +150,30 @@ export default function NoteModal({
         <Text style={[styles.vazio, { color: theme.faint }]}>Nenhum link adicionado.</Text>
       ) : (
         links.map((link, indice) => (
-          <View key={indice} style={styles.linkLinha}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Campo
-                theme={theme}
-                rotulo={`Link ${indice + 1}`}
-                value={link}
-                onChangeText={(valor) => atualizarLink(indice, valor)}
-                placeholder="https://"
-                autoCapitalize="none"
-                keyboardType="url"
-              />
+          <View key={indice} style={styles.linkBloco}>
+            {/* O botao de remover vive na linha do rotulo: assim ele fica
+                centralizado por construcao, sem chutar a altura do campo. */}
+            <View style={styles.linkTopo}>
+              <Text style={[styles.rotuloLink, { color: theme.muted }]}>{`Link ${indice + 1}`}</Text>
+              <PressableScale
+                onPress={() => removerLink(indice)}
+                scaleTo={0.9}
+                accessibilityRole="button"
+                accessibilityLabel={`Remover link ${indice + 1}`}
+                style={[styles.remover, { backgroundColor: theme.card, borderColor: theme.border }]}
+              >
+                <Icon name="excluir" size={14} color={theme.red} />
+              </PressableScale>
             </View>
-            <PressableScale
-              onPress={() => removerLink(indice)}
-              style={[styles.remover, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
-            >
-              <Icon name="excluir" size={15} color={theme.red} />
-            </PressableScale>
+
+            <Campo
+              theme={theme}
+              value={link}
+              onChangeText={(valor) => atualizarLink(indice, valor)}
+              placeholder="https://"
+              autoCapitalize="none"
+              keyboardType="url"
+            />
           </View>
         ))
       )}
@@ -247,27 +197,30 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 8,
   },
-  tipos: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 16 },
-  tipo: {
-    minHeight: 36,
-    paddingHorizontal: 14,
+  vazio: { fontSize: 12, fontWeight: '500', marginBottom: 12 },
+  linkBloco: { marginBottom: 2 },
+  linkTopo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 8,
+  },
+  rotuloLink: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    flex: 1,
+    minWidth: 0,
+  },
+  remover: {
+    width: 30,
+    height: 30,
     borderRadius: 999,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  tipoTexto: { fontSize: 12, fontWeight: '700' },
-
-  vazio: { fontSize: 12, fontWeight: '500', marginBottom: 12 },
-  linkLinha: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  remover: {
-    width: 44,
-    height: 52,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 25,
   },
   adicionar: {
     flexDirection: 'row',

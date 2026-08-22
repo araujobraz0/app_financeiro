@@ -99,7 +99,7 @@ import {
   meses,
   parseDiaMesInput,
 } from '../src/utils/dates'
-import { addMonthsToCompetencia, competenciaMaiorOuIgual, resolverMesComRecorrentes } from '../src/utils/competency'
+import { addMonthsToCompetencia, competenciaMaiorOuIgual, garantirCompetencia, resolverMesComRecorrentes } from '../src/utils/competency'
 import {
   buildExportRows,
   buildExportWorkbook,
@@ -197,7 +197,13 @@ function HomeScreenContent() {
     recarregarStatusPremium,
     theme,
     temaEscuro,
+    themeMode,
     alternarTema,
+    alternarModoTemaSistema,
+    podeDesfazer,
+    podeRefazer,
+    desfazer,
+    refazer,
   } = useFinance()
   const [modalPremiumBloqueioAberto, setModalPremiumBloqueioAberto] = useState(false)
   const [premiumBloqueioTitulo, setPremiumBloqueioTitulo] = useState('Modo somente leitura')
@@ -655,6 +661,15 @@ function HomeScreenContent() {
 
   const salario = Number(dadosAtual.salario || 0)
 
+  /** Mes em branco, usado como base ao materializar uma competencia nova. */
+  const mesEmBranco = (): DadosMes => ({
+    salario: 0,
+    entradas: [],
+    fixo: [],
+    saidas: [],
+    categoriasSaidas: [...categoriasPadrao],
+  })
+
   /** Competencias com algum lancamento, para marcar no seletor de periodo. */
   const competenciasComLancamentos = useMemo(
     () =>
@@ -844,6 +859,56 @@ function HomeScreenContent() {
   const totalFaturaAtual = parcelasFaturaAtual.reduce((acc, item) => acc + Number(item.valorParcela || 0), 0)
   const totalProximaFatura = parcelasProximaFatura.reduce((acc, item) => acc + Number(item.valorParcela || 0), 0)
   const totalFuturoCartao = parcelasFuturasCartao.reduce((acc, item) => acc + Number(item.valorParcela || 0), 0)
+
+  // --- informacoes derivadas do cartao, para a aba mostrar sem contas manuais ---
+
+  /**
+   * Melhor dia para comprar: o dia seguinte ao fechamento. Uma compra feita
+   * ali cai na fatura mais distante possivel, entao e o maior prazo de
+   * pagamento que o cartao consegue dar.
+   */
+  const melhorDiaCompraCartao = fechamentoCartaoSelecionado > 0
+    ? (fechamentoCartaoSelecionado % 31) + 1
+    : null
+
+  /** Dias que faltam para a fatura em exibicao vencer (negativo = ja passou). */
+  const diasAteVencimentoCartao = useMemo(() => {
+    const [dia, mes] = datasFaturaCartao.vencimentoAtual.split('/').map(Number)
+    if (!dia || !mes) return null
+    const [anoStr, mesNome] = chaveAtual.split('-')
+    const mesCompetencia = meses.indexOf(mesNome) + 1
+    // O vencimento pode pertencer ao ano seguinte quando a competencia e dezembro.
+    const ano = mes < mesCompetencia ? Number(anoStr) + 1 : Number(anoStr)
+    const alvo = new Date(ano, mes - 1, dia)
+    const hoje = new Date()
+    hoje.setHours(0, 0, 0, 0)
+    return Math.round((alvo.getTime() - hoje.getTime()) / 86400000)
+  }, [datasFaturaCartao.vencimentoAtual, chaveAtual])
+
+  /** Quantas compras do cartao ainda tem parcela para cair depois deste mes. */
+  const comprasAbertasCartao = useMemo(() => {
+    if (!selectedCard) return 0
+    const chaves = new Set(
+      (selectedCard.parcelas || [])
+        .filter((item) => competenciaMaiorOuIgual(item.competencia, chaveAtual))
+        .map((item) => item.groupId || item.id)
+    )
+    return chaves.size
+  }, [selectedCard, chaveAtual])
+
+  /** Soma das faturas do mes de TODOS os cartoes, nao so o selecionado. */
+  const totalTodosCartoesMes = useMemo(
+    () =>
+      cards.reduce(
+        (acc, card) =>
+          acc +
+          (card.parcelas || [])
+            .filter((item) => item.competencia === chaveAtual)
+            .reduce((soma, item) => soma + Number(item.valorParcela || 0), 0),
+        0
+      ),
+    [cards, chaveAtual]
+  )
   const fixosOrdenados = useMemo(() => ordenarLista(fixos, sortFixo), [fixos, sortFixo])
   const entradasOrdenadas = useMemo(() => ordenarLista(entradas, sortEntradas), [entradas, sortEntradas])
   const saidasOrdenadas = useMemo(() => ordenarLista(saidasFiltradas, sortSaidas), [saidasFiltradas, sortSaidas])
@@ -1129,7 +1194,9 @@ function HomeScreenContent() {
         return
       }
 
-      setBackupsDisponiveis(data || [])
+      // Array.isArray e nao `data || []`: uma resposta inesperada derrubava a
+      // tela inteira no .map do modal de configuracoes.
+      setBackupsDisponiveis(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('[backup] Falha ao carregar backups:', error)
     } finally {
@@ -1877,9 +1944,15 @@ function HomeScreenContent() {
        * conta que ja foi quitada.
        */
       setAppData((prev) => {
-        const atual = prev.bancoDeDados[chaveAtual]?.fixo?.find((item) => item.id === itemEditandoId)
+        // O mes precisa existir no banco antes de ser alterado: se ele so foi
+        // herdado na leitura, nao ha o que editar e a mudanca se perderia.
+        const bancoAtualizado: BancoDeDados = garantirCompetencia(
+          prev.bancoDeDados,
+          chaveAtual,
+          mesEmBranco()
+        )
+        const atual = bancoAtualizado[chaveAtual]?.fixo?.find((item) => item.id === itemEditandoId)
         const recorrenteId = atual?.recorrenteId
-        const bancoAtualizado: BancoDeDados = { ...prev.bancoDeDados }
 
         const campos = {
           nome: values.name.trim(),
@@ -1962,25 +2035,34 @@ function HomeScreenContent() {
       return
     }
 
-    setAppData((prev) => ({
-      ...prev,
-      bancoDeDados: {
-        ...prev.bancoDeDados,
-        [chaveAtual]: {
-          ...prev.bancoDeDados[chaveAtual],
-          fixo: prev.bancoDeDados[chaveAtual].fixo.map((item) =>
-            item.id === id ? { ...item, pago: !item.pago, dia: !item.pago ? new Date().getDate() : undefined } : item
-          ),
+    setAppData((prev) => {
+      // Mesmo motivo da edicao: um mes herdado precisa existir antes de mudar.
+      const banco = garantirCompetencia(prev.bancoDeDados, chaveAtual, mesEmBranco())
+
+      return {
+        ...prev,
+        bancoDeDados: {
+          ...banco,
+          [chaveAtual]: {
+            ...banco[chaveAtual],
+            fixo: (banco[chaveAtual].fixo || []).map((item) =>
+              item.id === id ? { ...item, pago: !item.pago } : item
+            ),
+          },
         },
-      },
-    }))
+      }
+    })
   }
 
   const excluirFixo = (id: string) => {
     setAppData((prev) => {
-      const itemAtual = prev.bancoDeDados[chaveAtual]?.fixo?.find((item) => item.id === id)
+      const bancoAtualizado: BancoDeDados = garantirCompetencia(
+        prev.bancoDeDados,
+        chaveAtual,
+        mesEmBranco()
+      )
+      const itemAtual = bancoAtualizado[chaveAtual]?.fixo?.find((item) => item.id === id)
       const recorrenteId = itemAtual?.recorrenteId
-      const bancoAtualizado: BancoDeDados = { ...prev.bancoDeDados }
       Object.keys(bancoAtualizado).forEach((chave) => {
         if (!competenciaMaiorOuIgual(chave, chaveAtual)) return
         const mes = bancoAtualizado[chave]
@@ -2411,19 +2493,19 @@ function HomeScreenContent() {
 
       <AppHeader
         theme={theme}
-        nome={nome}
-        email={email}
         avatarUri={avatarEhImagem(avatarPerfil) ? avatarPerfil : null}
         iniciais={iniciais}
         premiumAtivo={premiumValido}
         competencia={`${mesSelecionado.slice(0, 3)} ${anoSelecionado}`}
         onAbrirPeriodo={() => setSeletorPeriodoAberto(true)}
         valoresOcultos={ocultarValores}
-        temaEscuro={temaEscuro}
         onAbrirPerfil={() => setModalConfiguracoesAberto(true)}
-        onAlternarTema={alternarTema}
+        onAbrirConfiguracoes={() => setModalConfiguracoesAberto(true)}
         onAlternarValores={() => atualizarPreferenciasInvestimento({ hideValues: !ocultarValores })}
-        onSair={handleSair}
+        podeDesfazer={podeDesfazer}
+        podeRefazer={podeRefazer}
+        onDesfazer={desfazer}
+        onRefazer={refazer}
       />
 
       <ScrollView
@@ -2535,7 +2617,6 @@ function HomeScreenContent() {
         {abaInferior === 'fixo' && (
           <FixoTab
             theme={theme}
-            chaveAtual={chaveAtual}
             fixosOrdenados={fixosOrdenados}
             totalFixoPago={totalFixoPago}
             totalFixoNaoPago={totalFixoNaoPago}
@@ -2593,6 +2674,11 @@ function HomeScreenContent() {
             totalProximaFatura={totalProximaFatura}
             percentualUsoCartao={percentualUsoCartao}
             datasFaturaCartao={datasFaturaCartao}
+            totalFuturoCartao={totalFuturoCartao}
+            melhorDiaCompraCartao={melhorDiaCompraCartao}
+            diasAteVencimentoCartao={diasAteVencimentoCartao}
+            comprasAbertasCartao={comprasAbertasCartao}
+            totalTodosCartoesMes={totalTodosCartoesMes}
             highlightedItemId={highlightedItemId}
             formatarValorVisivel={formatarValorVisivel}
             registrarLayoutItem={registrarLayoutItem}
@@ -2673,6 +2759,7 @@ function HomeScreenContent() {
         onSelectedCardIdChange={setSelectedCardId}
         categories={categoriasSaidas}
         initialValues={launchInitialValues}
+        competenciaAtual={chaveAtual}
         day={diaEdicao}
         onDayChange={setDiaEdicao}
         onOpenDayCalendar={() => abrirCalendario('dia_edicao', diaEdicao, meses.indexOf(mesSelecionado) + 1)}
@@ -2695,6 +2782,7 @@ function HomeScreenContent() {
         onClose={() => setModalCategoriasAberto(false)}
         theme={theme}
         categories={categoriasSaidas}
+        onCreate={abrirModalNovaCategoria}
         onEdit={abrirModalEditarCategoria}
         onDelete={(categoria) => abrirConfirmacaoExclusao('categoria', categoria, categoria)}
       />
@@ -2866,6 +2954,11 @@ function HomeScreenContent() {
         processingFile={processandoArquivo}
         onOpenExportPreview={abrirPreviewExportacao}
         onImportData={importarDadosBanco}
+        temaEscuro={temaEscuro}
+        seguirTemaDoSistema={themeMode === 'system'}
+        onAlternarTema={alternarTema}
+        onAlternarModoTemaSistema={alternarModoTemaSistema}
+        onSair={handleSair}
         backups={backupsDisponiveis}
         loadingBackups={carregandoBackups}
         restoringBackupId={restaurandoBackupId}

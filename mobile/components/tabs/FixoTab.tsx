@@ -2,7 +2,6 @@ import { memo } from 'react'
 import type { ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import type { FixoItem, Tema } from '../../app/types'
-import { formatarDiaMes } from '../../src/utils/dates'
 import { styles } from '../../src/theme/homeStyles'
 import AnelProgresso from '../common/AnelProgresso'
 import Icon from '../common/Icon'
@@ -11,7 +10,6 @@ import PressableScale from '../common/motion/PressableScale'
 
 type FixoTabProps = {
   theme: Tema
-  chaveAtual: string
   fixosOrdenados: FixoItem[]
   totalFixoPago: number
   totalFixoNaoPago: number
@@ -33,7 +31,6 @@ type FixoTabProps = {
  */
 function FixoTab({
   theme,
-  chaveAtual,
   fixosOrdenados,
   totalFixoPago,
   totalFixoNaoPago,
@@ -125,7 +122,7 @@ function FixoTab({
             key={item.id}
             theme={theme}
             titulo={item.nome}
-            meta={formatarDiaMes(item.dia, chaveAtual)}
+            meta={item.recorrenteId ? 'Repete todo mês' : 'Só neste mês'}
             valor={formatarValorVisivel(item.valor)}
             valorCor={item.pago ? theme.muted : theme.text}
             status={{

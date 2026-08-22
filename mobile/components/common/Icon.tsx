@@ -55,6 +55,8 @@ const GLYPHS = {
   planilha: 'grid-outline',
   documento: 'document-outline',
   abrir_link: 'open-outline',
+  desfazer: 'arrow-undo-outline',
+  refazer: 'arrow-redo-outline',
 } satisfies Record<string, IoniconName>
 
 export type IconName = keyof typeof GLYPHS

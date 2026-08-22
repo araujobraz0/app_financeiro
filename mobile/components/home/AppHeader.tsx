@@ -1,4 +1,5 @@
-// Cabecalho fixo do app: perfil a esquerda, acoes a direita.
+// Cabecalho fixo do app: foto a esquerda, mes no meio, acoes a direita.
+// Nome e e-mail moram so nas configuracoes — aqui o espaco e curto demais.
 //
 // Fica FORA do ScrollView de proposito — assim ele nao rola por construcao,
 // sem depender de posicionamento absoluto ou de listener de scroll.
@@ -12,8 +13,6 @@ import PressableScale from '../common/motion/PressableScale'
 
 type Props = {
   theme: Tema
-  nome: string
-  email: string
   avatarUri: string | null
   iniciais: string
   premiumAtivo: boolean
@@ -21,49 +20,55 @@ type Props = {
   competencia: string
   onAbrirPeriodo: () => void
   valoresOcultos: boolean
-  temaEscuro: boolean
   onAbrirPerfil: () => void
-  onAlternarTema: () => void
+  onAbrirConfiguracoes: () => void
   onAlternarValores: () => void
-  onSair: () => void
+  /** Desfazer / refazer a ultima edicao de dados. */
+  podeDesfazer: boolean
+  podeRefazer: boolean
+  onDesfazer: () => void
+  onRefazer: () => void
 }
 
 function AppHeader({
   theme,
-  nome,
-  email,
   avatarUri,
   iniciais,
   premiumAtivo,
   competencia,
   onAbrirPeriodo,
   valoresOcultos,
-  temaEscuro,
   onAbrirPerfil,
-  onAlternarTema,
+  onAbrirConfiguracoes,
   onAlternarValores,
-  onSair,
+  podeDesfazer,
+  podeRefazer,
+  onDesfazer,
+  onRefazer,
 }: Props) {
   const botao = (
     onPress: () => void,
     icone: Parameters<typeof Icon>[0]['name'],
     ativo = false,
-    rotulo = ''
+    rotulo = '',
+    desabilitado = false
   ) => (
     <PressableScale
-      onPress={onPress}
-      scaleTo={0.9}
+      onPress={desabilitado ? () => {} : onPress}
+      scaleTo={desabilitado ? 1 : 0.9}
       accessibilityRole="button"
       accessibilityLabel={rotulo}
+      accessibilityState={{ disabled: desabilitado }}
       style={[
         styles.botao,
         {
           backgroundColor: ativo ? theme.primary : theme.cardSoft,
           borderColor: ativo ? theme.primary : theme.border,
+          opacity: desabilitado ? 0.4 : 1,
         },
       ]}
     >
-      <Icon name={icone} size={17} color={ativo ? theme.textInverse : theme.muted} />
+      <Icon name={icone} size={16} color={ativo ? theme.textInverse : theme.muted} />
     </PressableScale>
   )
 
@@ -82,15 +87,6 @@ function AppHeader({
             </View>
           ) : null}
         </View>
-
-        <View style={styles.textos}>
-          <Text style={[styles.nome, { color: theme.text }]} numberOfLines={1}>
-            {nome || 'Bem-vindo'}
-          </Text>
-          <Text style={[styles.email, { color: theme.muted }]} numberOfLines={1}>
-            {email}
-          </Text>
-        </View>
       </PressableScale>
 
       {/* A competencia fica no cabecalho fixo: assim continua visivel por mais
@@ -107,10 +103,13 @@ function AppHeader({
         <Icon name="seta_baixo" size={12} color={theme.accent} />
       </PressableScale>
 
+      {/* Tema e sair moram nas configuracoes: o espaco aqui e curto e desfazer
+          /refazer precisam estar sempre a um toque, do lado do conteudo. */}
       <View style={styles.acoes}>
+        {botao(onDesfazer, 'desfazer', false, 'Desfazer', !podeDesfazer)}
+        {botao(onRefazer, 'refazer', false, 'Refazer', !podeRefazer)}
         {botao(onAlternarValores, valoresOcultos ? 'olho_fechado' : 'olho', valoresOcultos, 'Mostrar ou ocultar valores')}
-        {botao(onAlternarTema, temaEscuro ? 'sol' : 'lua', false, 'Alternar tema')}
-        {botao(onSair, 'sair', false, 'Sair')}
+        {botao(onAbrirConfiguracoes, 'configuracoes', false, 'Configurações')}
       </View>
     </View>
   )
@@ -127,7 +126,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
-  perfil: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 },
+  perfil: { flexShrink: 0 },
   avatar: {
     width: 42,
     height: 42,
@@ -150,24 +149,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  textos: { flex: 1, minWidth: 0 },
   competencia: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 4,
-    minHeight: 30,
-    paddingHorizontal: 10,
+    minHeight: 32,
+    paddingHorizontal: 12,
     borderRadius: 999,
     borderWidth: 1,
-    flexShrink: 0,
+    flexShrink: 1,
   },
-  competenciaTexto: { fontSize: 11, fontWeight: '800', letterSpacing: -0.1 },
-  nome: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
-  email: { fontSize: 11, fontWeight: '500', marginTop: 1 },
-  acoes: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
+  competenciaTexto: { fontSize: 12, fontWeight: '800', letterSpacing: -0.1 },
+  acoes: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 0 },
   botao: {
-    width: 34,
-    height: 34,
+    width: 32,
+    height: 32,
     borderRadius: 999,
     borderWidth: 1,
     alignItems: 'center',

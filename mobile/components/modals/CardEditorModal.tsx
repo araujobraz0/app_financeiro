@@ -80,6 +80,9 @@ export default function CardEditorModal({
         : 30 - diaFechamento + diaVencimento
       : null
 
+  /** Comprar logo depois do fechamento joga a compra para a fatura mais distante. */
+  const melhorDiaCompra = diaFechamento > 0 ? (diaFechamento % 31) + 1 : null
+
   const podeSalvar = name.trim().length > 0
 
   return (
@@ -108,6 +111,13 @@ export default function CardEditorModal({
         <Text style={[styles.previaLimite, { color: theme.muted }]}>
           Limite {moneyStringToNumber(limit) > 0 ? limit : 'não informado'}
         </Text>
+        {diaFechamento > 0 || diaVencimento > 0 ? (
+          <Text style={[styles.previaDatas, { color: theme.faint }]} numberOfLines={1}>
+            {diaFechamento > 0 ? `Fecha ${closing}` : 'Fechamento em aberto'}
+            {' · '}
+            {diaVencimento > 0 ? `vence ${due}` : 'vencimento em aberto'}
+          </Text>
+        ) : null}
       </View>
 
       <Campo
@@ -176,6 +186,16 @@ export default function CardEditorModal({
           </Text>
         </View>
       ) : null}
+
+      {melhorDiaCompra !== null ? (
+        <View style={[styles.explicacao, { backgroundColor: theme.greenSoft, borderColor: theme.green }]}>
+          <Icon name="carrinho" size={15} color={theme.green} />
+          <Text style={[styles.explicacaoTexto, { color: theme.green }]}>
+            Melhor dia de compra: dia {melhorDiaCompra}. Comprar logo depois do fechamento joga a
+            despesa para a fatura mais distante, que é o maior prazo que este cartão consegue dar.
+          </Text>
+        </View>
+      ) : null}
     </ModalSheet>
   )
 }
@@ -190,6 +210,7 @@ const styles = StyleSheet.create({
   chip: { width: 26, height: 19, borderRadius: 4, marginBottom: 10 },
   previaNome: { fontSize: 15, fontWeight: '800', letterSpacing: -0.2 },
   previaLimite: { fontSize: 11, fontWeight: '600', marginTop: 3 },
+  previaDatas: { fontSize: 10.5, fontWeight: '600', marginTop: 2 },
 
   duplo: { flexDirection: 'row', gap: 12 },
   metade: { flex: 1, minWidth: 0 },
@@ -201,7 +222,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 16,
     padding: 13,
-    marginTop: 2,
+    marginTop: 10,
   },
   explicacaoTexto: { flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 17 },
 })
