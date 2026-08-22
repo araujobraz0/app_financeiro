@@ -1,11 +1,10 @@
 import { memo } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import type { NoteItem, NoteModalMode, PixItem, Tema } from '../../app/types'
 import { styles } from '../../src/theme/homeStyles'
-import PressableScale from '../common/motion/PressableScale'
 import Icon from '../common/Icon'
-import ListRow from '../common/ListRow'
+import PressableScale from '../common/motion/PressableScale'
 
 type NotasPixCardProps = {
   theme: Tema
@@ -26,8 +25,31 @@ type NotasPixCardProps = {
   onExcluirNota: (id: string, titulo: string) => void
 }
 
+/** Iniciais do contato, para o circulo colorido do Pix. */
+function iniciaisDe(nome: string) {
+  const partes = String(nome || '').trim().split(/\s+/).filter(Boolean)
+  if (partes.length === 0) return '?'
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase()
+  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase()
+}
+
+const CORES_CONTATO = ['#2FA765', '#E0A82E', '#4A90C4', '#8B6FC7', '#E0685F', '#2FA79A']
+
+function corDe(id: string) {
+  let soma = 0
+  for (let i = 0; i < id.length; i += 1) soma += id.charCodeAt(i)
+  return CORES_CONTATO[soma % CORES_CONTATO.length]
+}
+
 /**
- * Chaves Pix salvas e anotacoes livres, em um unico card com duas listas.
+ * Chaves Pix e anotacoes.
+ *
+ * Antes eram duas listas verticais de linhas iguais, com cada item ocupando a
+ * largura inteira — muito espaco para conteudo curto, e nada distinguia um
+ * contato Pix de uma anotacao. Agora cada tipo usa a forma que lhe cabe:
+ * Pix vira uma faixa horizontal de contatos (como uma agenda), com o toque
+ * copiando a chave direto; anotacoes viram uma grade de dois blocos, no
+ * formato de mural, onde o texto e visivel sem precisar abrir.
  */
 function NotasPixCard({
   theme,
@@ -37,8 +59,6 @@ function NotasPixCard({
   highlightedItemId,
   registrarLayoutItem,
   renderHighlightOverlay,
-  renderTextoSecundario,
-  renderListaLinks,
   onNovaNota,
   onAbrirFiltro,
   onCopiarPix,
@@ -49,101 +69,226 @@ function NotasPixCard({
 }: NotasPixCardProps) {
   return (
     <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+      {/* ---------- Pix ---------- */}
       <View style={styles.manageHeaderRow}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.manageTitle, { color: theme.text }]}>Anotações e Pix</Text>
+          <Text style={[styles.manageTitle, { color: theme.text }]}>Chaves Pix</Text>
           <Text style={[styles.manageSub, { color: theme.muted }]}>
-            Guarde chaves Pix e lembretes importantes aqui.
+            {pixOrdenados.length === 0 ? 'Nenhuma chave salva' : 'Toque no contato para copiar a chave'}
+          </Text>
+        </View>
+        <PressableScale
+          onPress={() => onNovaNota('pix')}
+          style={[styles.smallActionBtn, { backgroundColor: theme.primary, borderColor: theme.primary }]}
+        >
+          <Icon name="adicionar" size={18} color={theme.textInverse} />
+        </PressableScale>
+      </View>
+
+      {pixOrdenados.length === 0 ? (
+        <PressableScale
+          onPress={() => onNovaNota('pix')}
+          style={[local.vazio, { borderColor: theme.borderStrong, backgroundColor: theme.cardSoft }]}
+        >
+          <Icon name="pix" size={22} color={theme.muted} />
+          <Text style={[local.vazioTexto, { color: theme.muted }]}>Salve uma chave Pix para copiar rápido</Text>
+        </PressableScale>
+      ) : (
+        <View style={local.gradeContatos}>
+          {pixOrdenados.map((item) => {
+            const copiado = copiedPixId === item.id
+            return (
+              <View
+                key={item.id}
+                onLayout={(e) => registrarLayoutItem(item.id, e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
+                style={[
+                  local.contato,
+                  {
+                    backgroundColor: theme.cardSoft,
+                    borderColor: highlightedItemId === item.id ? theme.accent : theme.border,
+                  },
+                ]}
+              >
+                {renderHighlightOverlay(item.id)}
+                <PressableScale onPress={() => onCopiarPix(item.id, item.chave)} style={local.contatoToque}>
+                  <View style={[local.circulo, { backgroundColor: copiado ? theme.green : corDe(item.id) }]}>
+                    {copiado ? (
+                      <Icon name="confirmar" size={17} color="#FFFFFF" />
+                    ) : (
+                      <Text style={local.circuloTexto}>{iniciaisDe(item.nome)}</Text>
+                    )}
+                  </View>
+                  <Text style={[local.contatoNome, { color: theme.text }]} numberOfLines={1}>
+                    {item.nome}
+                  </Text>
+                  <Text style={[local.contatoChave, { color: copiado ? theme.green : theme.muted }]} numberOfLines={1}>
+                    {copiado ? 'Copiado!' : item.chave}
+                  </Text>
+                </PressableScale>
+
+                <View style={local.contatoAcoes}>
+                  <PressableScale onPress={() => onEditarPix(item)} hitSlop={6} style={local.miniBtn}>
+                    <Icon name="editar" size={13} color={theme.faint} />
+                  </PressableScale>
+                  <PressableScale onPress={() => onExcluirPix(item.id, item.nome)} hitSlop={6} style={local.miniBtn}>
+                    <Icon name="excluir" size={15} color={theme.red} />
+                  </PressableScale>
+                </View>
+              </View>
+            )
+          })}
+        </View>
+      )}
+
+      {/* ---------- Anotacoes ---------- */}
+      <View style={[styles.manageHeaderRow, { marginTop: 22 }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.manageTitle, { color: theme.text }]}>Anotações</Text>
+          <Text style={[styles.manageSub, { color: theme.muted }]}>
+            {notasOrdenadas.length === 0
+              ? 'Nenhuma anotação'
+              : `${notasOrdenadas.length} ${notasOrdenadas.length === 1 ? 'anotação' : 'anotações'}`}
           </Text>
         </View>
         <View style={styles.categoryToolbar}>
-          <PressableScale onPress={() => onNovaNota('pix')} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}>
-            <Text style={[styles.smallActionBtnText, { color: theme.white }]}>+ Pix</Text>
-          </PressableScale>
           <PressableScale
             onPress={() => onNovaNota('nota')}
-            style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+            style={[styles.smallActionBtn, { backgroundColor: theme.primary, borderColor: theme.primary }]}
           >
-            <Text style={[styles.smallActionBtnText, { color: theme.text }]}>+ Nota</Text>
+            <Icon name="adicionar" size={18} color={theme.textInverse} />
           </PressableScale>
           <PressableScale
             onPress={onAbrirFiltro}
             style={[styles.smallActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
           >
-            <Icon name="filtrar" size={15} color={theme.text} />
+            <Icon name="ordenar" size={15} color={theme.text} />
           </PressableScale>
         </View>
       </View>
 
-      <Text style={[styles.sectionBlockTitle, { color: theme.text }]}>Pix salvos</Text>
-      {pixOrdenados.length === 0 ? (
-        <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft }]}>
-          <Text style={[styles.emptyChartText, { color: theme.muted }]}>Nenhum Pix salvo.</Text>
-        </View>
-      ) : (
-        pixOrdenados.map((item) => (
-          <ListRow
-            key={item.id}
-            theme={theme}
-            titulo={item.nome}
-            meta={item.chave}
-            onEditar={() => onEditarPix(item)}
-            onExcluir={() => onExcluirPix(item.id, item.nome)}
-            acoesExtras={
-              <PressableScale
-                onPress={() => onCopiarPix(item.id, item.chave)}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 999,
-                  borderWidth: 1,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: copiedPixId === item.id ? theme.greenSoft : theme.card,
-                  borderColor: copiedPixId === item.id ? theme.green : theme.border,
-                }}
-              >
-                <Icon
-                  name={copiedPixId === item.id ? 'confirmar' : 'copiar'}
-                  size={15}
-                  color={copiedPixId === item.id ? theme.green : theme.muted}
-                />
-              </PressableScale>
-            }
-            destacado={highlightedItemId === item.id}
-            overlay={renderHighlightOverlay(item.id)}
-            onLayout={(y, height) => registrarLayoutItem(item.id, y, height)}
-          >
-            {!!item.observacao && renderTextoSecundario(item.observacao, item.observacao, theme.muted)}
-            {renderListaLinks(item.links)}
-          </ListRow>
-        ))
-      )}
-
-      <Text style={[styles.sectionBlockTitle, { color: theme.text, marginTop: 18 }]}>Outras anotações</Text>
       {notasOrdenadas.length === 0 ? (
-        <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft }]}>
-          <Text style={[styles.emptyChartText, { color: theme.muted }]}>Nenhuma anotação salva.</Text>
-        </View>
+        <PressableScale
+          onPress={() => onNovaNota('nota')}
+          style={[local.vazio, { borderColor: theme.borderStrong, backgroundColor: theme.cardSoft }]}
+        >
+          <Icon name="nota" size={22} color={theme.muted} />
+          <Text style={[local.vazioTexto, { color: theme.muted }]}>Anote um lembrete</Text>
+        </PressableScale>
       ) : (
-        notasOrdenadas.map((item) => (
-          <ListRow
-            key={item.id}
-            theme={theme}
-            titulo={item.titulo}
-            onEditar={() => onEditarNota(item)}
-            onExcluir={() => onExcluirNota(item.id, item.titulo)}
-            destacado={highlightedItemId === item.id}
-            overlay={renderHighlightOverlay(item.id)}
-            onLayout={(y, height) => registrarLayoutItem(item.id, y, height)}
-          >
-            {renderTextoSecundario(item.conteudo, 'Sem conteúdo', theme.muted)}
-            {renderListaLinks(item.links)}
-          </ListRow>
-        ))
+        <View style={local.mural}>
+          {notasOrdenadas.map((item) => (
+            <View
+              key={item.id}
+              onLayout={(e) => registrarLayoutItem(item.id, e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
+              style={[
+                local.nota,
+                {
+                  backgroundColor: theme.cardSoft,
+                  borderColor: highlightedItemId === item.id ? theme.accent : theme.border,
+                },
+              ]}
+            >
+              {renderHighlightOverlay(item.id)}
+              <PressableScale onPress={() => onEditarNota(item)} scaleTo={0.98} style={local.notaToque}>
+                <Text style={[local.notaTitulo, { color: theme.text }]} numberOfLines={2}>
+                  {item.titulo}
+                </Text>
+                {item.conteudo ? (
+                  <Text style={[local.notaTexto, { color: theme.muted }]} numberOfLines={5}>
+                    {item.conteudo}
+                  </Text>
+                ) : null}
+                {item.links && item.links.length > 0 ? (
+                  <View style={[local.selo, { backgroundColor: theme.accentSoft }]}>
+                    <Icon name="link" size={11} color={theme.accent} />
+                    <Text style={[local.seloTexto, { color: theme.accent }]}>
+                      {item.links.length}
+                    </Text>
+                  </View>
+                ) : null}
+              </PressableScale>
+
+              <PressableScale
+                onPress={() => onExcluirNota(item.id, item.titulo)}
+                hitSlop={6}
+                style={[local.notaExcluir, { backgroundColor: theme.card, borderColor: theme.border }]}
+              >
+                <Icon name="excluir" size={13} color={theme.red} />
+              </PressableScale>
+            </View>
+          ))}
+        </View>
       )}
     </View>
   )
 }
+
+const local = StyleSheet.create({
+  vazio: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 18,
+    paddingVertical: 20,
+    alignItems: 'center',
+    gap: 7,
+  },
+  vazioTexto: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
+
+  gradeContatos: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  contato: {
+    position: 'relative',
+    overflow: 'hidden',
+    width: '47.6%',
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingTop: 14,
+    paddingBottom: 8,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+  },
+  contatoToque: { alignItems: 'center', width: '100%' },
+  circulo: { width: 42, height: 42, borderRadius: 999, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  circuloTexto: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  contatoNome: { fontSize: 13, fontWeight: '800', letterSpacing: -0.2, textAlign: 'center', width: '100%' },
+  contatoChave: { fontSize: 10, fontWeight: '600', marginTop: 2, textAlign: 'center', width: '100%' },
+  contatoAcoes: { flexDirection: 'row', gap: 4, marginTop: 8 },
+  miniBtn: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
+
+  mural: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  nota: {
+    position: 'relative',
+    overflow: 'hidden',
+    width: '47.6%',
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 13,
+    minHeight: 96,
+  },
+  notaToque: { width: '100%' },
+  notaTitulo: { fontSize: 13, fontWeight: '800', letterSpacing: -0.2, paddingRight: 22 },
+  notaTexto: { fontSize: 11, fontWeight: '500', lineHeight: 16, marginTop: 6 },
+  selo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999,
+    marginTop: 8,
+  },
+  seloTexto: { fontSize: 10, fontWeight: '800' },
+  notaExcluir: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+})
 
 export default memo(NotasPixCard)

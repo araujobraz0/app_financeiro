@@ -1,10 +1,10 @@
 import { memo } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import type { ShoppingWishItem, Tema } from '../../app/types'
 import { styles } from '../../src/theme/homeStyles'
+import Icon from '../common/Icon'
 import PressableScale from '../common/motion/PressableScale'
-import ListRow from '../common/ListRow'
 
 type ComprasDesejoCardProps = {
   theme: Tema
@@ -20,7 +20,11 @@ type ComprasDesejoCardProps = {
 }
 
 /**
- * Lista de itens que o usuario quer acompanhar antes de decidir comprar.
+ * Coisas para comprar.
+ *
+ * Uma lista de linhas largas era muito espaco para itens com pouco texto —
+ * nome, preco e loja. Em grade de dois, cabe o dobro na tela e a comparacao
+ * de precos entre os itens fica imediata, que e o ponto da secao.
  */
 function ComprasDesejoCard({
   theme,
@@ -34,54 +38,155 @@ function ComprasDesejoCard({
   onAlternarComprado,
   onExcluir,
 }: ComprasDesejoCardProps) {
+  const pendentes = itens.filter((item) => !item.comprado).length
+  const totalPendente = itens
+    .filter((item) => !item.comprado)
+    .reduce((acc, item) => acc + Number(item.precoAtual || 0), 0)
+
   return (
     <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
       <View style={styles.manageHeaderRow}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.manageTitle, { color: theme.text }]}>Coisas para comprar</Text>
+          <Text style={[styles.manageTitle, { color: theme.text }]}>Quero comprar</Text>
           <Text style={[styles.manageSub, { color: theme.muted }]}>
-            Itens que você quer acompanhar antes de decidir comprar.
+            {itens.length === 0
+              ? 'Nada na lista'
+              : `${pendentes} pendente${pendentes === 1 ? '' : 's'} · ${formatarValorVisivel(totalPendente)}`}
           </Text>
         </View>
-        <PressableScale onPress={onNovo} style={[styles.smallActionBtn, { backgroundColor: theme.primary }]}>
-          <Text style={[styles.smallActionBtnText, { color: theme.white }]}>+ Item</Text>
+        <PressableScale
+          onPress={onNovo}
+          style={[styles.smallActionBtn, { backgroundColor: theme.primary, borderColor: theme.primary }]}
+        >
+          <Icon name="adicionar" size={18} color={theme.textInverse} />
         </PressableScale>
       </View>
 
       {itens.length === 0 ? (
-        <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft }]}>
-          <Text style={[styles.emptyChartText, { color: theme.muted }]}>Nenhum item salvo.</Text>
-        </View>
+        <PressableScale
+          onPress={onNovo}
+          style={[local.vazio, { borderColor: theme.borderStrong, backgroundColor: theme.cardSoft }]}
+        >
+          <Icon name="carrinho" size={22} color={theme.muted} />
+          <Text style={[local.vazioTexto, { color: theme.muted }]}>
+            Anote o que você quer e acompanhe o preço
+          </Text>
+        </PressableScale>
       ) : (
-        itens.map((item) => (
-          <ListRow
-            key={item.id}
-            theme={theme}
-            titulo={item.nome}
-            valor={formatarValorVisivel(item.precoAtual)}
-            valorCor={item.comprado ? theme.muted : theme.text}
-            meta={[item.loja || 'Loja não informada', item.dataVista || 'Data não informada'].join(' · ')}
-            status={{
-              label: item.comprado ? 'Comprado' : 'Quero',
-              ativo: item.comprado,
-              onPress: () => onAlternarComprado(item.id, !item.comprado),
-            }}
-            onEditar={() => onEditar(item)}
-            onExcluir={() => onExcluir(item.id, item.nome)}
-            destacado={highlightedItemId === item.id}
-            overlay={renderHighlightOverlay(item.id)}
-            onLayout={(y, height) => registrarLayoutItem(item.id, y, height)}
-          >
-            {item.observacao ? (
-              <Text style={{ color: theme.muted, fontSize: 12, fontWeight: '500', marginTop: 4, lineHeight: 17 }}>
-                {item.observacao}
-              </Text>
-            ) : null}
-          </ListRow>
-        ))
+        <View style={local.grade}>
+          {itens.map((item) => (
+            <View
+              key={item.id}
+              onLayout={(e) => registrarLayoutItem(item.id, e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
+              style={[
+                local.item,
+                {
+                  backgroundColor: theme.cardSoft,
+                  borderColor: highlightedItemId === item.id ? theme.accent : theme.border,
+                  opacity: item.comprado ? 0.62 : 1,
+                },
+              ]}
+            >
+              {renderHighlightOverlay(item.id)}
+
+              <PressableScale onPress={() => onEditar(item)} scaleTo={0.98} style={local.itemToque}>
+                <Text
+                  style={[
+                    local.nome,
+                    { color: theme.text, textDecorationLine: item.comprado ? 'line-through' : 'none' },
+                  ]}
+                  numberOfLines={2}
+                >
+                  {item.nome}
+                </Text>
+                <Text style={[local.preco, { color: item.comprado ? theme.muted : theme.text }]} numberOfLines={1}>
+                  {formatarValorVisivel(item.precoAtual)}
+                </Text>
+                {item.loja ? (
+                  <Text style={[local.loja, { color: theme.muted }]} numberOfLines={1}>
+                    {item.loja}
+                  </Text>
+                ) : null}
+              </PressableScale>
+
+              <View style={local.rodape}>
+                <PressableScale
+                  onPress={() => onAlternarComprado(item.id, !item.comprado)}
+                  style={[
+                    local.marcar,
+                    {
+                      backgroundColor: item.comprado ? theme.greenSoft : theme.card,
+                      borderColor: item.comprado ? theme.green : theme.border,
+                    },
+                  ]}
+                >
+                  <Icon
+                    name="confirmar"
+                    size={12}
+                    color={item.comprado ? theme.green : theme.faint}
+                  />
+                  <Text
+                    style={[local.marcarTexto, { color: item.comprado ? theme.green : theme.muted }]}
+                    numberOfLines={1}
+                  >
+                    {item.comprado ? 'Comprado' : 'Marcar'}
+                  </Text>
+                </PressableScale>
+
+                <PressableScale onPress={() => onExcluir(item.id, item.nome)} hitSlop={6} style={local.excluir}>
+                  <Icon name="excluir" size={14} color={theme.red} />
+                </PressableScale>
+              </View>
+            </View>
+          ))}
+        </View>
       )}
     </View>
   )
 }
+
+const local = StyleSheet.create({
+  vazio: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 18,
+    paddingVertical: 22,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    gap: 7,
+  },
+  vazioTexto: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
+
+  grade: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  item: {
+    position: 'relative',
+    overflow: 'hidden',
+    width: '47.6%',
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 13,
+    justifyContent: 'space-between',
+    minHeight: 132,
+  },
+  itemToque: { width: '100%' },
+  nome: { fontSize: 13, fontWeight: '700', lineHeight: 18, letterSpacing: -0.2 },
+  preco: { fontSize: 17, fontWeight: '800', letterSpacing: -0.4, marginTop: 7 },
+  loja: { fontSize: 11, fontWeight: '500', marginTop: 2 },
+  rodape: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+  marcar: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    minHeight: 30,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  marcarTexto: { fontSize: 10, fontWeight: '800' },
+  excluir: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+})
 
 export default memo(ComprasDesejoCard)

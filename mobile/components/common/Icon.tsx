@@ -41,6 +41,10 @@ const GLYPHS = {
   aba_cartao: 'card',
   aba_fixo: 'repeat',
   aba_variavel: 'swap-horizontal',
+  // Tema
+  sol: 'sunny',
+  lua: 'moon',
+  busca: 'search',
 } satisfies Record<string, IoniconName>
 
 export type IconName = keyof typeof GLYPHS

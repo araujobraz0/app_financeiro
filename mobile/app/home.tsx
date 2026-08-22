@@ -5,7 +5,6 @@ import {
   InteractionManager,
   Alert,
   Animated,
-  Image,
   Linking,
   Keyboard,
   Platform,
@@ -25,11 +24,13 @@ import * as XLSX from 'xlsx'
 import { router } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import Svg, { Circle, G, Path } from 'react-native-svg'
 import PdfPreview from '../components/PdfPreview'
 import AppModal from '../components/common/AppModal'
 import * as Haptics from 'expo-haptics'
 import BottomTabItem from '../components/home/BottomTabItem'
+import AppHeader from '../components/home/AppHeader'
+import BuscaGlobal from '../components/home/BuscaGlobal'
+import PeriodoSelector from '../components/home/PeriodoSelector'
 import HomeSkeleton from '../components/home/HomeSkeleton'
 import PressableScale from '../components/common/motion/PressableScale'
 import AppearIn from '../components/common/motion/AppearIn'
@@ -68,7 +69,6 @@ import VariavelTab from '../components/tabs/VariavelTab'
 import CartaoTab from '../components/tabs/CartaoTab'
 import ResumoCards from '../components/home/ResumoCards'
 import GraficoCategoriasCard from '../components/home/GraficoCategoriasCard'
-import InvestimentosCard from '../components/home/InvestimentosCard'
 import ComprasDesejoCard from '../components/home/ComprasDesejoCard'
 import NotasPixCard from '../components/home/NotasPixCard'
 import {
@@ -110,7 +110,7 @@ import type { ExportData } from '../src/utils/export'
 import Icon from '../components/common/Icon'
 import type {
   EntradaItem, SaidaItem, FixoItem, NoteItem, PixItem, CardInstallment, CardItem,
-  ShoppingWishItem, DadosMes, BancoDeDados, InvestmentBaseMode, GlobalData,
+  ShoppingWishItem, DadosMes, BancoDeDados, GlobalData,
   AppData, PremiumEntitlement, AbaInferior, SortMode, SettingsThemeMode,
   TipoVariavelTab, TipoFormularioLancamento, QuickAddType, ModoModal, ModoCategoria,
   NoteModalMode, SearchResult, CardModalMode, SortTarget, DeleteTarget, CalendarTarget,
@@ -213,33 +213,6 @@ function ordenarLista<T extends { id?: string; nome?: string; valor?: number }>(
   return base.sort((a, b) => getItemTimestamp(b) - getItemTimestamp(a))
 }
 
-function EyeToggleIcon({ closed, color }: { closed: boolean; color: string }) {
-  if (closed) {
-    return (
-      <Svg width={20} height={20} viewBox='0 0 24 24' fill='none'>
-        <Path d='M4 12C6.2 9.3 8.8 8 12 8C15.2 8 17.8 9.3 20 12' stroke={color} strokeWidth={2.1} strokeLinecap='round' strokeLinejoin='round' />
-        <Path d='M5.5 16.6L7.2 14.7' stroke={color} strokeWidth={2} strokeLinecap='round' />
-        <Path d='M10.2 18L10.8 15.5' stroke={color} strokeWidth={2} strokeLinecap='round' />
-        <Path d='M13.8 18L13.2 15.5' stroke={color} strokeWidth={2} strokeLinecap='round' />
-        <Path d='M18.5 16.6L16.8 14.7' stroke={color} strokeWidth={2} strokeLinecap='round' />
-      </Svg>
-    )
-  }
-
-  return (
-    <Svg width={20} height={20} viewBox='0 0 24 24' fill='none'>
-      <Path
-        d='M2 12C3.9 8.7 7.5 6.5 12 6.5C16.5 6.5 20.1 8.7 22 12C20.1 15.3 16.5 17.5 12 17.5C7.5 17.5 3.9 15.3 2 12Z'
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      />
-      <Circle cx={12} cy={12} r={3.2} stroke={color} strokeWidth={2} />
-    </Svg>
-  )
-}
-
 function HomeScreenContent() {
   const insets = useSafeAreaInsets()
   const dataAtual = new Date()
@@ -277,6 +250,28 @@ function HomeScreenContent() {
   const [imagemParaCortar, setImagemParaCortar] = useState<string | null>(null)
   const [anoSelecionado, setAnoSelecionado] = useState(anoAtual)
   const [mesSelecionado, setMesSelecionado] = useState(meses[mesAtualIndex])
+
+  // Navegacao mes a mes: vira o ano sozinho ao passar de dezembro/janeiro.
+  const irParaMesVizinho = (passo: -1 | 1) => {
+    const indice = meses.indexOf(mesSelecionado)
+    const alvo = indice + passo
+    if (alvo < 0) {
+      setMesSelecionado(meses[11])
+      setAnoSelecionado((ano) => ano - 1)
+    } else if (alvo > 11) {
+      setMesSelecionado(meses[0])
+      setAnoSelecionado((ano) => ano + 1)
+    } else {
+      setMesSelecionado(meses[alvo])
+    }
+  }
+
+  const voltarParaMesAtual = () => {
+    setAnoSelecionado(anoAtual)
+    setMesSelecionado(meses[mesAtualIndex])
+  }
+
+  const ehMesCorrente = anoSelecionado === anoAtual && mesSelecionado === meses[mesAtualIndex]
   const listaAnos = useMemo(() => listaAnosComDados(appData.bancoDeDados), [appData.bancoDeDados])
   const [anoModalAberto, setAnoModalAberto] = useState(false)
   const [mesModalAberto, setMesModalAberto] = useState(false)
@@ -356,7 +351,6 @@ function HomeScreenContent() {
   const [wishInitialValues, setWishInitialValues] = useState<ShoppingWishFormValues>(() => emptyShoppingWishValues())
   const [compraDesejoData, setCompraDesejoData] = useState('')
   const [compraDesejoComprado, setCompraDesejoComprado] = useState(false)
-  const [investmentManualInput, setInvestmentManualInput] = useState('10')
   const [modalPreviewImportacaoAberto, setModalPreviewImportacaoAberto] = useState(false)
   const [arquivoImportacaoNome, setArquivoImportacaoNome] = useState('')
   const [previewImportacao, setPreviewImportacao] = useState<{ entradas: EntradaItem[]; saidas: SaidaItem[] }>({ entradas: [], saidas: [] })
@@ -385,7 +379,6 @@ function HomeScreenContent() {
   const itemLayoutsRef = useRef<Record<string, { y: number; height: number }>>({})
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const highlightFadeAnim = useRef(new Animated.Value(0)).current
-  const investmentManualFieldYRef = useRef(0)
   const salaryInputRef = useRef<TextInput | null>(null)
   const mainScrollYRef = useRef(0)
   const appStateRef = useRef(AppState.currentState)
@@ -403,33 +396,7 @@ function HomeScreenContent() {
   const globalData = appData.global
   const ocultarValores = Boolean(globalData.hideValues)
 
-  const clampInvestmentPercentageValue = (valor: number) => {
-    const numero = Number.isFinite(valor) ? valor : 0
-    return Math.min(50, Math.max(0, Math.round(numero * 10) / 10))
-  }
-
-  const percentualInvestimento = clampInvestmentPercentageValue(Number(globalData.investmentPercentage ?? 10))
-  const baseInvestimentoModo: InvestmentBaseMode = globalData.investmentBaseMode === 'salary_plus_entries' ? 'salary_plus_entries' : 'salary'
-  const percentualInvestimentoExibicao = percentualInvestimento
-
-  useEffect(() => {
-    setInvestmentManualInput(
-      Number.isInteger(percentualInvestimento)
-        ? String(percentualInvestimento)
-        : String(percentualInvestimento).replace('.', ',')
-    )
-  }, [percentualInvestimento])
-
   const formatarValorVisivel = (valor: number) => (ocultarValores ? '••••••' : formatarMoeda(valor))
-  const formatarPercentualVisivel = (valor: number) => {
-    if (ocultarValores) return '•••%'
-    const valorSeguro = Number(valor || 0)
-    const texto = Number.isInteger(valorSeguro)
-      ? valorSeguro.toFixed(0)
-      : valorSeguro.toFixed(1).replace('.', ',')
-    return `${texto}%`
-  }
-
   const blurFocusedInput = () => {
     try {
       const inputState = TextInput.State as any
@@ -447,15 +414,6 @@ function HomeScreenContent() {
 
   const registrarLayoutItem = (id: string, y: number, height = 0) => {
     itemLayoutsRef.current[id] = { y, height }
-  }
-
-  const scrollToInvestmentManualField = () => {
-    setTimeout(() => {
-      mainScrollRef.current?.scrollTo({
-        y: Math.max(mainScrollYRef.current + 150, 0),
-        animated: true,
-      })
-    }, 90)
   }
 
   const scrollToSalaryEditField = () => {
@@ -761,8 +719,6 @@ function HomeScreenContent() {
   )
   const totalSaidas = useMemo(() => saidas.reduce((acc, item) => acc + Number(item.valor || 0), 0), [saidas])
   const saldoAtual = salario + totalEntradas - totalFixoPago - totalSaidas
-  const baseInvestimentoValor = baseInvestimentoModo === 'salary_plus_entries' ? salario + totalEntradas : salario
-  const valorInvestimentoSugerido = (baseInvestimentoValor * percentualInvestimento) / 100
 
   const totaisCategorias = useMemo(() => {
     const mapa: Record<string, number> = {}
@@ -2511,11 +2467,6 @@ function HomeScreenContent() {
     }))
   }
 
-  const atualizarPercentualInvestimento = (valor: number) => {
-    const percentualNormalizado = clampInvestmentPercentageValue(valor)
-    atualizarPreferenciasInvestimento({ investmentPercentage: percentualNormalizado })
-  }
-
   const isParcelaFormulario = String(tipoFormularioLancamento) === 'parcela'
   const isEntradaFormulario = String(tipoFormularioLancamento) === 'entrada'
   const isSaidaFormulario = String(tipoFormularioLancamento) === 'saida'
@@ -2546,6 +2497,21 @@ function HomeScreenContent() {
       <StatusBar style={temaEscuro ? 'light' : 'dark'} />
       <View style={{ flex: 1 }}>
 
+      <AppHeader
+        theme={theme}
+        nome={nome}
+        email={email}
+        avatarUri={avatarEhImagem(avatarPerfil) ? avatarPerfil : null}
+        iniciais={iniciais}
+        premiumAtivo={premiumValido}
+        valoresOcultos={ocultarValores}
+        temaEscuro={temaEscuro}
+        onAbrirPerfil={() => setModalConfiguracoesAberto(true)}
+        onAlternarTema={alternarTema}
+        onAlternarValores={() => atualizarPreferenciasInvestimento({ hideValues: !ocultarValores })}
+        onSair={handleSair}
+      />
+
       <ScrollView
         ref={mainScrollRef}
         onScroll={(event) => {
@@ -2559,74 +2525,7 @@ function HomeScreenContent() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps='handled'
       >
-        <View style={styles.topRow}>
-          <View style={[styles.avatar, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-            {avatarEhImagem(avatarPerfil) ? (
-              <Image source={{ uri: avatarPerfil }} style={styles.avatarImage} />
-            ) : (
-              <Text style={[styles.avatarText, { color: theme.text }]}>{iniciais || 'U'}</Text>
-            )}
-          </View>
-
-          <View style={styles.topActions}>
-            <PressableScale style={[styles.themeButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => setModalConfiguracoesAberto(true)}><Text style={[styles.themeButtonText, { color: theme.text }]}>⚙</Text></PressableScale>
-            <PressableScale style={[styles.themeButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={alternarTema}>
-              <Text style={[styles.themeButtonText, { color: theme.text }]}>{temaEscuro ? '☀' : '☾'}</Text>
-            </PressableScale>
-            <PressableScale
-              style={[
-                styles.themeButton,
-                styles.valueToggleButton,
-                { backgroundColor: ocultarValores ? theme.primary : theme.card, borderColor: ocultarValores ? theme.primary : theme.border },
-              ]}
-              onPress={() => atualizarPreferenciasInvestimento({ hideValues: !ocultarValores })}
-            >
-              <EyeToggleIcon closed={ocultarValores} color={ocultarValores ? theme.white : theme.text} />
-            </PressableScale>
-            <PressableScale style={[styles.logoutButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={handleSair}>
-              <Text style={[styles.logoutButtonText, { color: theme.text }]}>Sair</Text>
-            </PressableScale>
-          </View>
-        </View>
-
-        <Text style={[styles.eyebrow, { color: theme.muted }]}>Controle Financeiro</Text>
-        <Text style={[styles.title, { color: theme.text }]}>Olá, {nome}</Text>
-        <Text style={[styles.subtitle, { color: theme.muted }]} numberOfLines={1}>{email}</Text>
-
-        <View
-          style={[
-            styles.homePremiumBadgeWrap,
-            {
-              backgroundColor: premiumValido ? theme.green : theme.cardSoft,
-              borderColor: premiumValido ? theme.green : theme.border,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.homePremiumBadgeText,
-              { color: premiumValido ? theme.white : theme.text },
-            ]}
-          >
-            {premiumValido ? 'Premium ativo' : 'Premium inativo'}
-          </Text>
-        </View>
-
-        <View style={[styles.brandHeroCard, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: theme.shadow }]}>
-          <View style={[styles.brandHeroAccentLine, { backgroundColor: theme.primary }]} />
-          <View style={[styles.brandHeroIconShell, { backgroundColor: theme.backgroundSoft, borderColor: theme.borderStrong }]}>
-            <Image source={require('../assets/images/icon-removebg.png')} style={styles.brandHeroIcon} resizeMode='contain' />
-          </View>
-          <View style={styles.brandHeroTextWrap}>
-            <View style={[styles.brandHeroBadge, { backgroundColor: theme.backgroundSoft, borderColor: theme.border }]}> 
-              <Text style={[styles.brandHeroEyebrow, { color: theme.primary }]}>Brazllet</Text>
-            </View>
-            <Text style={[styles.brandHeroTitle, { color: theme.text }]}>Seu mês, mais elegante</Text>
-            <Text style={[styles.brandHeroSub, { color: theme.muted }]}>Resumo visual premium em menos espaço.</Text>
-          </View>
-        </View>
-
-        <View style={styles.searchWrap}><TextInput value={buscaGlobal} onChangeText={setBuscaGlobal} placeholder='Busca global no app' placeholderTextColor={theme.muted} style={[styles.searchInput, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]} /></View>
+        <BuscaGlobal theme={theme} valor={buscaGlobal} onChange={setBuscaGlobal} />
         {resultadosBuscaGlobal.length > 0 && (
           <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 0, marginBottom: 8 }]}>
             <Text style={[styles.manageTitle, { color: theme.text, marginBottom: 8 }]}>Busca global</Text>
@@ -2643,23 +2542,17 @@ function HomeScreenContent() {
           </View>
         )}
 
-        <View style={styles.selectorGroup}>
-          <PressableScale style={[styles.dropdownButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => setAnoModalAberto(true)}>
-            <Text style={[styles.dropdownLabel, { color: theme.muted }]}>Ano</Text>
-            <View style={styles.dropdownValueRow}>
-              <Text style={[styles.dropdownValue, { color: theme.text }]}>{anoSelecionado}</Text>
-              <Text style={[styles.dropdownIcon, { color: theme.muted }]}>⌄</Text>
-            </View>
-          </PressableScale>
-
-          <PressableScale style={[styles.dropdownButton, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => setMesModalAberto(true)}>
-            <Text style={[styles.dropdownLabel, { color: theme.muted }]}>Mês</Text>
-            <View style={styles.dropdownValueRow}>
-              <Text style={[styles.dropdownValue, { color: theme.text }]}>{mesSelecionado}</Text>
-              <Text style={[styles.dropdownIcon, { color: theme.muted }]}>⌄</Text>
-            </View>
-          </PressableScale>
-        </View>
+        <PeriodoSelector
+          theme={theme}
+          mes={mesSelecionado}
+          ano={anoSelecionado}
+          onAbrirMes={() => setMesModalAberto(true)}
+          onAbrirAno={() => setAnoModalAberto(true)}
+          onAnterior={() => irParaMesVizinho(-1)}
+          onProximo={() => irParaMesVizinho(1)}
+          onHoje={voltarParaMesAtual}
+          ehMesAtual={ehMesCorrente}
+        />
 
         {abaInferior === 'home' && (
           <>
@@ -2683,26 +2576,6 @@ function HomeScreenContent() {
                 theme={theme}
                 dadosPizza={dadosPizza}
                 formatarValorVisivel={formatarValorVisivel}
-              />
-            </AppearIn>
-
-            <AppearIn index={4}>
-              <InvestimentosCard
-                theme={theme}
-                percentualExibicao={percentualInvestimentoExibicao}
-                baseModo={baseInvestimentoModo}
-                baseValor={baseInvestimentoValor}
-                valorSugerido={valorInvestimentoSugerido}
-                manualInput={investmentManualInput}
-                onManualInputChange={setInvestmentManualInput}
-                onPercentualChange={atualizarPercentualInvestimento}
-                onPreferenciasChange={atualizarPreferenciasInvestimento}
-                onManualFieldLayout={(y) => {
-                  investmentManualFieldYRef.current = y
-                }}
-                onManualFieldFocus={scrollToInvestmentManualField}
-                formatarValorVisivel={formatarValorVisivel}
-                formatarPercentualVisivel={formatarPercentualVisivel}
               />
             </AppearIn>
 
