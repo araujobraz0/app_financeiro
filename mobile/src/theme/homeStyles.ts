@@ -98,7 +98,6 @@ export const styles = StyleSheet.create({
   modalScrollContentWithFooter: { paddingBottom: 26 },
   modalCardWithFixedFooter: { overflow: 'hidden' },
   modalActionsSticky: { borderTopWidth: 1, paddingTop: 1, paddingHorizontal: 2, paddingBottom: 10 },
-  searchHighlightCard: { overflow: 'visible' },
 
   modalCardSettings: {
     paddingBottom: 24,

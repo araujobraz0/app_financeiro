@@ -1,11 +1,11 @@
 import { memo } from 'react'
-import type { ReactNode } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { CardInstallment, CardItem, Tema } from '../../app/types'
 import { corDoCartao } from '../../src/utils/cardColor'
 import { formatarDiaMes } from '../../src/utils/dates'
 import { styles } from '../../src/theme/homeStyles'
 import Icon from '../common/Icon'
+import CaixaDestacavel from '../common/motion/CaixaDestacavel'
 import PressableScale from '../common/motion/PressableScale'
 import CartaoVisual from './CartaoVisual'
 
@@ -39,7 +39,6 @@ type CartaoTabProps = {
   highlightedItemId: string | null
   formatarValorVisivel: (valor: number) => string
   registrarItem: (id: string) => (node: View | null) => void
-  renderHighlightOverlay: (id: string, raio?: number) => ReactNode
   onNovoCartao: () => void
   onGerenciarCartoes: () => void
   onAbrirFiltro: () => void
@@ -82,7 +81,6 @@ function CartaoTab({
   highlightedItemId,
   formatarValorVisivel,
   registrarItem,
-  renderHighlightOverlay,
   onNovoCartao,
   onGerenciarCartoes,
   onAbrirFiltro,
@@ -187,17 +185,14 @@ function CartaoTab({
 
       {/* ---------- 2. A fatura do cartao selecionado ---------- */}
       {selectedCard && (
-        <View
+        <CaixaDestacavel
           ref={registrarItem(selectedCard.id)}
+          theme={theme}
+          destacado={highlightedItemId === selectedCard.id}
+          corBorda={theme.border}
           collapsable={false}
-          style={[
-            styles.manageCard,
-            highlightedItemId === selectedCard.id && styles.searchHighlightCard,
-            { backgroundColor: theme.card, borderColor: theme.border },
-          ]}
+          style={[styles.manageCard, { backgroundColor: theme.card }]}
         >
-          {renderHighlightOverlay(selectedCard.id, 24)}
-
           <Text style={[styles.smallLabel, { color: theme.muted, textAlign: 'left' }]}>
             Fatura de {selectedCard.nome}
           </Text>
@@ -302,7 +297,7 @@ function CartaoTab({
               </PressableScale>
             </View>
           ) : null}
-        </View>
+        </CaixaDestacavel>
       )}
 
       {/* ---------- 3. Assinaturas ----------
@@ -440,20 +435,15 @@ function CartaoTab({
               const quitada = restantes === 0
 
               return (
-                <View
+                <CaixaDestacavel
                   key={item.id}
                   ref={registrarItem(item.id)}
+                  theme={theme}
+                  destacado={highlightedItemId === item.id}
+                  corBorda={theme.border}
                   collapsable={false}
-                  style={[
-                    local.compra,
-                    {
-                      backgroundColor: theme.cardSoft,
-                      borderColor: highlightedItemId === item.id ? theme.accent : theme.border,
-                    },
-                  ]}
+                  style={[local.compra, { backgroundColor: theme.cardSoft }]}
                 >
-                  {renderHighlightOverlay(item.id, 18)}
-
                   <View style={local.compraTopo}>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={[local.compraNome, { color: theme.text }]} numberOfLines={2}>
@@ -531,7 +521,7 @@ function CartaoTab({
                       ]}
                     />
                   </View>
-                </View>
+                </CaixaDestacavel>
               )
             })}
           </View>

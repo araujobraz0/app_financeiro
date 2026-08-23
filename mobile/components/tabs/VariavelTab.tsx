@@ -1,5 +1,4 @@
 import { memo } from 'react'
-import type { ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import type { EntradaItem, SaidaItem, Tema, TipoVariavelTab } from '../../app/types'
 import { formatarMoeda } from '../../src/utils/currency'
@@ -27,7 +26,6 @@ type VariavelTabProps = {
   highlightedItemId: string | null
   formatarValorVisivel: (valor: number) => string
   registrarItem: (id: string) => (node: View | null) => void
-  renderHighlightOverlay: (id: string, raio?: number) => ReactNode
   /** Categorias com teto mensal, ja com quanto foi gasto. */
   limitesDoMes: { categoria: string; limite: number; gasto: number; proporcao: number }[]
   onNovaCategoria: () => void
@@ -61,7 +59,6 @@ function VariavelTab({
   highlightedItemId,
   formatarValorVisivel,
   registrarItem,
-  renderHighlightOverlay,
   limitesDoMes,
   onNovaCategoria,
   onGerenciarCategorias,
@@ -237,7 +234,6 @@ function VariavelTab({
                 onEditar={() => onEditarEntrada(item)}
                 onExcluir={() => onExcluirEntrada(item.id, item.nome)}
                 destacado={highlightedItemId === item.id}
-                overlay={renderHighlightOverlay(item.id)}
                 refItem={registrarItem(item.id)}
               />
             ))
@@ -259,7 +255,6 @@ function VariavelTab({
               onEditar={() => onEditarSaida(item)}
               onExcluir={() => onExcluirSaida(item.id, item.nome)}
               destacado={highlightedItemId === item.id}
-              overlay={renderHighlightOverlay(item.id)}
               refItem={registrarItem(item.id)}
             />
           ))

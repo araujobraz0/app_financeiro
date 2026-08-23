@@ -1,5 +1,4 @@
 import { memo } from 'react'
-import type { ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import type { FixoItem, Tema } from '../../app/types'
 import { styles } from '../../src/theme/homeStyles'
@@ -16,7 +15,6 @@ type FixoTabProps = {
   highlightedItemId: string | null
   formatarValorVisivel: (valor: number) => string
   registrarItem: (id: string) => (node: View | null) => void
-  renderHighlightOverlay: (id: string, raio?: number) => ReactNode
   onAbrirFiltro: () => void
   onAlternarPago: (id: string) => void
   onEditar: (item: FixoItem) => void
@@ -37,7 +35,6 @@ function FixoTab({
   highlightedItemId,
   formatarValorVisivel,
   registrarItem,
-  renderHighlightOverlay,
   onAbrirFiltro,
   onAlternarPago,
   onEditar,
@@ -133,7 +130,6 @@ function FixoTab({
             onEditar={() => onEditar(item)}
             onExcluir={() => onExcluir(item.id, item.nome)}
             destacado={highlightedItemId === item.id}
-            overlay={renderHighlightOverlay(item.id)}
             refItem={registrarItem(item.id)}
           />
         ))

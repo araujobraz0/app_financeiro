@@ -13,6 +13,7 @@ import { StyleSheet, Text, View } from 'react-native'
 
 import type { Tema } from '../../app/types'
 import Icon from './Icon'
+import CaixaDestacavel from './motion/CaixaDestacavel'
 import PressableScale from './motion/PressableScale'
 
 type Status = {
@@ -35,7 +36,6 @@ type Props = {
   progresso?: number
   progressoCor?: string
   destacado?: boolean
-  overlay?: ReactNode
   /** Referencia do card, para a busca medir onde ele esta na rolagem. */
   refItem?: (node: View | null) => void
   /** Conteudo extra abaixo do titulo (links, observacoes). */
@@ -62,7 +62,6 @@ export default function ListRow({
   progresso,
   progressoCor,
   destacado = false,
-  overlay,
   refItem,
   children,
   acoesExtras,
@@ -138,17 +137,14 @@ export default function ListRow({
 
   if (compacto) {
     return (
-      <View
+      <CaixaDestacavel
         ref={refItem}
+        theme={theme}
+        destacado={destacado}
+        corBorda={theme.border}
         collapsable={false}
-        style={[
-          styles.card,
-          styles.cardCompacto,
-          { backgroundColor: theme.cardSoft, borderColor: destacado ? theme.accent : theme.border },
-        ]}
+        style={[styles.card, styles.cardCompacto, { backgroundColor: theme.cardSoft }]}
       >
-        {overlay}
-
         <View style={styles.linhaCompacta}>
           {/* O texto encolhe e quebra em duas linhas; o valor nunca encolhe,
               entao nao ha como sobrar reticencias em cima do numero. */}
@@ -174,21 +170,19 @@ export default function ListRow({
 
         {children}
         {barraProgresso}
-      </View>
+      </CaixaDestacavel>
     )
   }
 
   return (
-    <View
+    <CaixaDestacavel
       ref={refItem}
+      theme={theme}
+      destacado={destacado}
+      corBorda={theme.border}
       collapsable={false}
-      style={[
-        styles.card,
-        { backgroundColor: theme.cardSoft, borderColor: destacado ? theme.accent : theme.border },
-      ]}
+      style={[styles.card, { backgroundColor: theme.cardSoft }]}
     >
-      {overlay}
-
       <Text style={[styles.titulo, { color: theme.text }]} numberOfLines={2}>
         {titulo}
       </Text>
@@ -215,7 +209,7 @@ export default function ListRow({
       ) : null}
 
       {barraProgresso}
-    </View>
+    </CaixaDestacavel>
   )
 }
 

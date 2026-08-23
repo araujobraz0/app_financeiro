@@ -1,9 +1,9 @@
 import { memo, useMemo } from 'react'
-import type { ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import type { ShoppingWishItem, Tema } from '../../app/types'
 import { styles } from '../../src/theme/homeStyles'
 import Icon from '../common/Icon'
+import CaixaDestacavel from '../common/motion/CaixaDestacavel'
 import PressableScale from '../common/motion/PressableScale'
 
 type ComprasDesejoCardProps = {
@@ -14,7 +14,6 @@ type ComprasDesejoCardProps = {
   highlightedItemId: string | null
   formatarValorVisivel: (valor: number) => string
   registrarItem: (id: string) => (node: View | null) => void
-  renderHighlightOverlay: (id: string, raio?: number) => ReactNode
   onNovo: () => void
   onEditar: (item: ShoppingWishItem) => void
   onAlternarComprado: (id: string, comprado: boolean) => void
@@ -37,7 +36,6 @@ function ComprasDesejoCard({
   highlightedItemId,
   formatarValorVisivel,
   registrarItem,
-  renderHighlightOverlay,
   onNovo,
   onEditar,
   onAlternarComprado,
@@ -101,21 +99,15 @@ function ComprasDesejoCard({
             const cor = item.comprado ? theme.muted : cabe ? theme.green : theme.accent
 
             return (
-              <View
+              <CaixaDestacavel
                 key={item.id}
                 ref={registrarItem(item.id)}
+                theme={theme}
+                destacado={highlightedItemId === item.id}
+                corBorda={theme.border}
                 collapsable={false}
-                style={[
-                  local.item,
-                  {
-                    backgroundColor: theme.cardSoft,
-                    borderColor: highlightedItemId === item.id ? theme.accent : theme.border,
-                  },
-                  item.comprado && local.itemComprado,
-                ]}
+                style={[local.item, { backgroundColor: theme.cardSoft }, item.comprado && local.itemComprado]}
               >
-                {renderHighlightOverlay(item.id, 18)}
-
                 {/* Faixa de cor no topo: da para varrer a grade e ver quais ja
                     dao, sem ler nenhum numero. */}
                 <View style={[local.faixa, { backgroundColor: cor }]} pointerEvents="none" />
@@ -201,7 +193,7 @@ function ComprasDesejoCard({
                     <Icon name="excluir" size={13} color={theme.red} />
                   </PressableScale>
                 </View>
-              </View>
+              </CaixaDestacavel>
             )
           })}
         </View>

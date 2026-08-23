@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native'
 import type { NoteItem, NoteModalMode, PixItem, Tema } from '../../app/types'
 import { styles } from '../../src/theme/homeStyles'
 import Icon from '../common/Icon'
+import CaixaDestacavel from '../common/motion/CaixaDestacavel'
 import PressableScale from '../common/motion/PressableScale'
 
 type NotasPixCardProps = {
@@ -13,7 +14,6 @@ type NotasPixCardProps = {
   copiedPixId: string | null
   highlightedItemId: string | null
   registrarItem: (id: string) => (node: View | null) => void
-  renderHighlightOverlay: (id: string, raio?: number) => ReactNode
   renderTextoSecundario: (texto: string | undefined, fallback: string, color: string) => ReactNode
   renderListaLinks: (links?: string[]) => ReactNode
   onNovaNota: (tipo: NoteModalMode) => void
@@ -60,7 +60,6 @@ function NotasPixCard({
   copiedPixId,
   highlightedItemId,
   registrarItem,
-  renderHighlightOverlay,
   onNovaNota,
   onAbrirFiltro,
   onCopiarPix,
@@ -101,19 +100,15 @@ function NotasPixCard({
           {pixOrdenados.map((item) => {
             const copiado = copiedPixId === item.id
             return (
-              <View
+              <CaixaDestacavel
                 key={item.id}
                 ref={registrarItem(item.id)}
-              collapsable={false}
-                style={[
-                  local.contato,
-                  {
-                    backgroundColor: theme.cardSoft,
-                    borderColor: highlightedItemId === item.id ? theme.accent : theme.border,
-                  },
-                ]}
+                theme={theme}
+                destacado={highlightedItemId === item.id}
+                corBorda={theme.border}
+                collapsable={false}
+                style={[local.contato, { backgroundColor: theme.cardSoft }]}
               >
-                {renderHighlightOverlay(item.id, 16)}
                 <PressableScale onPress={() => onCopiarPix(item.id, item.chave)} style={local.contatoToque}>
                   <View style={[local.circulo, { backgroundColor: copiado ? theme.green : corDe(item.id) }]}>
                     {copiado ? (
@@ -155,7 +150,7 @@ function NotasPixCard({
                     <Icon name="abrir_link" size={11} color={theme.accent} />
                   </PressableScale>
                 ) : null}
-              </View>
+              </CaixaDestacavel>
             )
           })}
         </View>
@@ -198,19 +193,15 @@ function NotasPixCard({
       ) : (
         <View style={local.mural}>
           {notasOrdenadas.map((item) => (
-            <View
+            <CaixaDestacavel
               key={item.id}
               ref={registrarItem(item.id)}
+              theme={theme}
+              destacado={highlightedItemId === item.id}
+              corBorda={theme.border}
               collapsable={false}
-              style={[
-                local.nota,
-                {
-                  backgroundColor: theme.cardSoft,
-                  borderColor: highlightedItemId === item.id ? theme.accent : theme.border,
-                },
-              ]}
+              style={[local.nota, { backgroundColor: theme.cardSoft }]}
             >
-              {renderHighlightOverlay(item.id, 18)}
               <PressableScale onPress={() => onEditarNota(item)} scaleTo={0.98} style={local.notaToque}>
                 <Text style={[local.notaTitulo, { color: theme.text }]} numberOfLines={2}>
                   {item.titulo}
@@ -244,7 +235,7 @@ function NotasPixCard({
               >
                 <Icon name="excluir" size={13} color={theme.red} />
               </PressableScale>
-            </View>
+            </CaixaDestacavel>
           ))}
         </View>
       )}

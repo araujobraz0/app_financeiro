@@ -25,7 +25,6 @@ import { StatusBar } from 'expo-status-bar'
 import PdfPreview from '../components/PdfPreview'
 import AppModal from '../components/common/AppModal'
 import * as Haptics from 'expo-haptics'
-import DestaqueBusca from '../components/common/motion/DestaqueBusca'
 import BottomTabItem from '../components/home/BottomTabItem'
 import Calendario from '../components/common/Calendario'
 import SeletorCompetencia from '../components/common/SeletorCompetencia'
@@ -420,17 +419,6 @@ function HomeScreenContent() {
       }, 80)
     })
   }
-
-  /**
-   * Moldura do item encontrado na busca.
-   *
-   * O raio vem de quem chama: os cartoes do app usam raios diferentes (16 nas
-   * listas, 18 nas grades, 24 nos paineis) e uma moldura de raio fixo passava
-   * reta pela quina arredondada do cartao.
-   */
-  const renderHighlightOverlay = (id: string, raio = 16) => (
-    <DestaqueBusca theme={theme} ativo={highlightedItemId === id} raio={raio} />
-  )
 
   const destacarEIrParaItem = (id: string) => {
     setHighlightedItemId(id)
@@ -2835,7 +2823,6 @@ function HomeScreenContent() {
                 highlightedItemId={highlightedItemId}
                 formatarValorVisivel={formatarValorVisivel}
                 registrarItem={registrarItem}
-                renderHighlightOverlay={renderHighlightOverlay}
                 onNovo={() => abrirNovaCompraDesejo()}
                 onEditar={abrirNovaCompraDesejo}
                 onAlternarComprado={alternarCompraDesejoComprado}
@@ -2851,7 +2838,6 @@ function HomeScreenContent() {
                 copiedPixId={copiedPixId}
                 highlightedItemId={highlightedItemId}
                 registrarItem={registrarItem}
-                renderHighlightOverlay={renderHighlightOverlay}
                 renderTextoSecundario={renderTextoSecundario}
                 renderListaLinks={renderListaLinks}
                 onAbrirLink={abrirLinkComConfirmacao}
@@ -2876,7 +2862,6 @@ function HomeScreenContent() {
             highlightedItemId={highlightedItemId}
             formatarValorVisivel={formatarValorVisivel}
             registrarItem={registrarItem}
-            renderHighlightOverlay={renderHighlightOverlay}
             onAbrirFiltro={() => abrirFiltro('fixo')}
             onAlternarPago={alternarPagoFixo}
             onEditar={abrirEditarFixo}
@@ -2901,7 +2886,6 @@ function HomeScreenContent() {
             highlightedItemId={highlightedItemId}
             formatarValorVisivel={formatarValorVisivel}
             registrarItem={registrarItem}
-            renderHighlightOverlay={renderHighlightOverlay}
             limitesDoMes={limitesDoMes}
             onNovaCategoria={abrirModalNovaCategoria}
             onGerenciarCategorias={() => setModalCategoriasAberto(true)}
@@ -2940,7 +2924,6 @@ function HomeScreenContent() {
             highlightedItemId={highlightedItemId}
             formatarValorVisivel={formatarValorVisivel}
             registrarItem={registrarItem}
-            renderHighlightOverlay={renderHighlightOverlay}
             onNovoCartao={abrirModalNovoCartao}
             onGerenciarCartoes={abrirGerenciarCartoes}
             onAbrirFiltro={() => abrirFiltro('cartao')}
