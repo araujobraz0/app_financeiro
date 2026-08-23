@@ -101,7 +101,7 @@ import {
   meses,
   parseDiaMesInput,
 } from '../src/utils/dates'
-import { addMonthsToCompetencia } from '../src/utils/competency'
+import { addMonthsToCompetencia, competenciaToNumber } from '../src/utils/competency'
 import {
   alternarPago as alternarPagoRecorrente,
   criarFixo as criarFixoRecorrente,
@@ -730,6 +730,48 @@ function HomeScreenContent() {
   )
   const totalSaidas = useMemo(() => saidas.reduce((acc, item) => acc + Number(item.valor || 0), 0), [saidas])
   const saldoAtual = salario + totalEntradas - totalFixoPago - totalSaidas
+
+  /**
+   * Quanto sobrou (ou faltou) somando todos os meses ate este.
+   *
+   * O app so olhava um mes por vez, e cada mes comecava do zero: sobravam
+   * R$ 800 em agosto e setembro nao sabia disso. "Saldo do mes: R$ 200"
+   * parecia aperto quando na verdade havia R$ 1.000 na conta. Aqui o que
+   * sobrou de tras vem junto.
+   *
+   * Meses futuros ficam de fora — dinheiro que ainda nao entrou nao conta.
+   */
+  const saldoAcumulado = useMemo(() => {
+    const limite = competenciaToNumber(chaveAtual)
+
+    return Object.keys(bancoDeDados)
+      .filter((chave) => competenciaToNumber(chave) <= limite)
+      .reduce((total, chave) => {
+        const mes = bancoDeDados[chave]
+        if (!mes) return total
+
+        const entradasDoMes = (mes.entradas || []).reduce((soma, item) => soma + Number(item.valor || 0), 0)
+        const saidasDoMes = (mes.saidas || []).reduce((soma, item) => soma + Number(item.valor || 0), 0)
+        // Mesma regra do saldo do mes: so o fixo ja pago sai da conta.
+        const fixosPagos = fixosDoMes(globalData.fixosRecorrentes || [], mes.fixoPagos, chave)
+          .filter((item) => item.pago)
+          .reduce((soma, item) => soma + Number(item.valor || 0), 0)
+
+        // Mes sem nada lancado nao entra, nem que tenha salario.
+        //
+        // O app cria cinco anos de competencias de uma vez, e quando o salario
+        // e fixo todas nascem com ele preenchido. Sem este corte, meses que o
+        // usuario nunca abriu somariam salario cheio e zero gasto — o
+        // acumulado viraria um numero inventado, alto e convincente.
+        const houveMovimento = entradasDoMes > 0 || saidasDoMes > 0 || fixosPagos > 0
+        if (!houveMovimento) return total
+
+        return total + Number(mes.salario || 0) + entradasDoMes - saidasDoMes - fixosPagos
+      }, 0)
+  }, [bancoDeDados, chaveAtual, globalData.fixosRecorrentes])
+
+  /** Quanto vinha de tras, antes do que aconteceu neste mes. */
+  const saldoAnterior = saldoAcumulado - saldoAtual
 
   const totaisCategorias = useMemo(() => {
     const mapa: Record<string, number> = {}
@@ -2726,6 +2768,8 @@ function HomeScreenContent() {
               theme={theme}
               salario={salario}
               saldoAtual={saldoAtual}
+              saldoAcumulado={saldoAcumulado}
+              saldoAnterior={saldoAnterior}
               totalEntradas={totalEntradas}
               totalSaidas={totalSaidas}
               salarioEmEdicao={salarioEmEdicao}
@@ -2747,7 +2791,8 @@ function HomeScreenContent() {
 
             <AppearIn index={5}>
               <ComprasDesejoCard
-                theme={theme}
+                saldoAcumulado={saldoAcumulado}
+              theme={theme}
                 itens={comprasDesejoVisiveis}
                 highlightedItemId={highlightedItemId}
                 formatarValorVisivel={formatarValorVisivel}

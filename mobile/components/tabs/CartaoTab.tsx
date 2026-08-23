@@ -2,11 +2,11 @@ import { memo } from 'react'
 import type { ReactNode } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import type { CardInstallment, CardItem, Tema } from '../../app/types'
+import { corDoCartao } from '../../src/utils/cardColor'
 import { formatarDiaMes } from '../../src/utils/dates'
 import { styles } from '../../src/theme/homeStyles'
 import Icon from '../common/Icon'
 import PressableScale from '../common/motion/PressableScale'
-import ListRow from '../common/ListRow'
 import CartaoVisual from './CartaoVisual'
 
 type CartaoTabProps = {
@@ -341,18 +341,62 @@ function CartaoTab({
               </Text>
             </PressableScale>
           ) : (
-            assinaturas.map((item) => (
-              <ListRow
-                key={item.id}
-                theme={theme}
-                titulo={item.nome}
-                meta="Todo mês"
-                valor={formatarValorVisivel(item.valor)}
-                compacto
-                onEditar={() => onEditarAssinatura(item)}
-                onExcluir={() => onExcluirAssinatura(item.id, item.nome)}
-              />
-            ))
+            /* Ladrilhos em vez de lista: assinatura se reconhece pela marca,
+               nao pelo texto. Cada uma vira um bloco com a inicial num quadro
+               colorido — como os icones de app que voce ja associa a elas. */
+            <View style={local.gradeAssinaturas}>
+              {assinaturas.map((item) => {
+                const cor = corDoCartao(item.id)
+
+                return (
+                  <PressableScale
+                    key={item.id}
+                    onPress={() => onEditarAssinatura(item)}
+                    scaleTo={0.96}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Editar ${item.nome}`}
+                    style={[local.assinatura, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+                  >
+                    <View style={[local.assinaturaMarca, { backgroundColor: cor.base }]}>
+                      <Text style={local.assinaturaInicial}>
+                        {item.nome.trim().charAt(0).toUpperCase() || '?'}
+                      </Text>
+                      <View style={[local.assinaturaBrilho, { backgroundColor: cor.luz }]} pointerEvents="none" />
+                    </View>
+
+                    <Text style={[local.assinaturaNome, { color: theme.text }]} numberOfLines={1}>
+                      {item.nome}
+                    </Text>
+                    <Text style={[local.assinaturaValor, { color: theme.text }]} numberOfLines={1}>
+                      {formatarValorVisivel(item.valor)}
+                    </Text>
+                    <Text style={[local.assinaturaPeriodo, { color: theme.muted }]}>por mês</Text>
+
+                    <PressableScale
+                      onPress={() => onExcluirAssinatura(item.id, item.nome)}
+                      scaleTo={0.88}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Excluir ${item.nome}`}
+                      style={[local.assinaturaExcluir, { backgroundColor: theme.card, borderColor: theme.border }]}
+                    >
+                      <Icon name="excluir" size={12} color={theme.red} />
+                    </PressableScale>
+                  </PressableScale>
+                )
+              })}
+
+              <PressableScale
+                onPress={onNovaAssinatura}
+                scaleTo={0.96}
+                accessibilityRole="button"
+                accessibilityLabel="Nova assinatura"
+                style={[local.assinaturaNova, { borderColor: theme.borderStrong }]}
+              >
+                <Icon name="adicionar" size={20} color={theme.muted} />
+                <Text style={[local.assinaturaNovaTexto, { color: theme.muted }]}>Adicionar</Text>
+              </PressableScale>
+            </View>
           )}
         </View>
       ) : null}
@@ -498,6 +542,61 @@ function CartaoTab({
 }
 
 const local = StyleSheet.create({
+  gradeAssinaturas: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  assinatura: {
+    width: '48%',
+    minWidth: 0,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+  assinaturaMarca: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  assinaturaInicial: { color: '#FFFFFF', fontSize: 18, fontWeight: '800', zIndex: 1 },
+  assinaturaBrilho: {
+    position: 'absolute',
+    top: -14,
+    right: -12,
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    opacity: 0.55,
+  },
+  assinaturaNome: { fontSize: 12.5, fontWeight: '800', letterSpacing: -0.2 },
+  assinaturaValor: { fontSize: 15, fontWeight: '800', letterSpacing: -0.4, marginTop: 3 },
+  assinaturaPeriodo: { fontSize: 9.5, fontWeight: '600', marginTop: 1 },
+  assinaturaExcluir: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  assinaturaNova: {
+    width: '48%',
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    paddingVertical: 12,
+    minHeight: 118,
+  },
+  assinaturaNovaTexto: { fontSize: 11.5, fontWeight: '800' },
   vazioAssinatura: {
     alignItems: 'center',
     justifyContent: 'center',

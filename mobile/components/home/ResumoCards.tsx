@@ -12,6 +12,10 @@ type ResumoCardsProps = {
   theme: Tema
   salario: number
   saldoAtual: number
+  /** Somatorio de todos os meses ate este: o que existe de verdade hoje. */
+  saldoAcumulado: number
+  /** Quanto vinha de tras, antes deste mes. */
+  saldoAnterior: number
   totalEntradas: number
   totalSaidas: number
   salarioEmEdicao: boolean
@@ -39,6 +43,8 @@ function ResumoCards({
   theme,
   salario,
   saldoAtual,
+  saldoAcumulado,
+  saldoAnterior,
   totalEntradas,
   totalSaidas,
   salarioEmEdicao,
@@ -51,6 +57,8 @@ function ResumoCards({
 }: ResumoCardsProps) {
   const positivo = saldoAtual >= 0
   const corSaldo = positivo ? theme.green : theme.red
+  const corAcumulado = saldoAcumulado >= 0 ? theme.green : theme.red
+  const temHistorico = Math.abs(saldoAnterior) >= 0.01
 
   return (
     <AppearIn index={0}>
@@ -108,6 +116,36 @@ function ResumoCards({
             adjustsFontSizeToFit
             style={[styles.valorSaldo, { color: corSaldo }]}
           />
+
+          {/* O que sobrou de tras vem junto: sem isto, um mes apertado parecia
+              aperto de verdade mesmo com dinheiro guardado dos anteriores. */}
+          {temHistorico ? (
+            <View style={[styles.acumulado, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+              <View style={styles.acumuladoLinha}>
+                <Text style={[styles.acumuladoRotulo, { color: theme.muted }]}>De meses anteriores</Text>
+                <AnimatedValue
+                  value={saldoAnterior}
+                  format={formatarMoeda}
+                  hidden={ocultarValores}
+                  numberOfLines={1}
+                  style={[styles.acumuladoValor, { color: saldoAnterior >= 0 ? theme.green : theme.red }]}
+                />
+              </View>
+
+              <View style={[styles.acumuladoDivisor, { backgroundColor: theme.border }]} />
+
+              <View style={styles.acumuladoLinha}>
+                <Text style={[styles.acumuladoTotalRotulo, { color: theme.text }]}>Total acumulado</Text>
+                <AnimatedValue
+                  value={saldoAcumulado}
+                  format={formatarMoeda}
+                  hidden={ocultarValores}
+                  numberOfLines={1}
+                  style={[styles.acumuladoTotal, { color: corAcumulado }]}
+                />
+              </View>
+            </View>
+          ) : null}
         </View>
 
         {/* Entradas x saidas — par comparavel */}
@@ -175,6 +213,25 @@ const styles = StyleSheet.create({
   divisor: { height: 1, marginVertical: 16 },
 
   blocoSaldo: { alignItems: 'center' },
+  acumulado: {
+    alignSelf: 'stretch',
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 13,
+    marginTop: 14,
+  },
+  acumuladoLinha: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  acumuladoRotulo: { fontSize: 10.5, fontWeight: '700', flexShrink: 1 },
+  acumuladoValor: { fontSize: 12, fontWeight: '700', flexShrink: 0 },
+  acumuladoDivisor: { height: 1, marginVertical: 8 },
+  acumuladoTotalRotulo: { fontSize: 11.5, fontWeight: '800', flexShrink: 1 },
+  acumuladoTotal: { fontSize: 15, fontWeight: '800', letterSpacing: -0.4, flexShrink: 0 },
   rotuloSaldo: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 8 },
   valorSaldo: { fontSize: 38, fontWeight: '800', letterSpacing: -1.5, textAlign: 'center' },
 
