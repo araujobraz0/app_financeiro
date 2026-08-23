@@ -12,6 +12,8 @@ export type FalaInterpretada = {
   valor: number
   /** Categoria adivinhada pelo nome. Null quando nada bateu. */
   categoria: string | null
+  /** Dia do mes dito na frase ("ontem", "dia 12"). Null = hoje. */
+  dia: number | null
   /** Texto cru, para a tela mostrar o que ouviu. */
   transcricao: string
 }
@@ -50,6 +52,7 @@ const RUIDO = [
   'gastei', 'gasto', 'paguei', 'pagar', 'comprei', 'comprar', 'lancar',
   'lance', 'anotar', 'anota', 'adicionar', 'adiciona', 'registrar', 'registra',
   'entrada', 'saida', 'recebi', 'ganhei',
+  'hoje', 'ontem', 'anteontem', 'dia',
 ]
 
 /**
@@ -204,6 +207,48 @@ function extrairValor(palavras: string[]) {
   return null
 }
 
+/** Dia do mes a partir de hoje, andando para tras. */
+function diaRelativo(passos: number) {
+  const data = new Date()
+  data.setDate(data.getDate() + passos)
+  return data.getDate()
+}
+
+/**
+ * Tira da frase o dia em que a coisa aconteceu.
+ *
+ * Sai antes do valor de proposito: em "dia 12 gastei 50" o 12 seria lido
+ * como preco, e o lancamento nasceria errado.
+ */
+function extrairDia(palavras: string[]): { dia: number | null; resto: string[] } {
+  const sem = (i: number, quantas: number) => [
+    ...palavras.slice(0, i),
+    ...palavras.slice(i + quantas),
+  ]
+
+  for (let i = 0; i < palavras.length; i += 1) {
+    const palavra = palavras[i]
+
+    if (palavra === 'hoje') return { dia: diaRelativo(0), resto: sem(i, 1) }
+    if (palavra === 'ontem') return { dia: diaRelativo(-1), resto: sem(i, 1) }
+    if (palavra === 'anteontem') return { dia: diaRelativo(-2), resto: sem(i, 1) }
+
+    if (palavra === 'dia') {
+      const emDigitos = palavras[i + 1]?.match(/^(\d{1,2})$/)
+      if (emDigitos) {
+        const numero = Number(emDigitos[1])
+        if (numero >= 1 && numero <= 31) return { dia: numero, resto: sem(i, 2) }
+      }
+      const extenso = lerNumeroPorExtenso(palavras, i + 1)
+      if (extenso && extenso.valor >= 1 && extenso.valor <= 31) {
+        return { dia: extenso.valor, resto: sem(i, 1 + extenso.consumidas) }
+      }
+    }
+  }
+
+  return { dia: null, resto: palavras }
+}
+
 /** Onde comecam os centavos depois do valor cheio, se houver. */
 function inicioDosCentavos(palavras: string[], indice: number) {
   let i = indice
@@ -244,8 +289,8 @@ export function interpretarFala(
   const limpo = limparFrase(transcricao)
   if (!limpo) return null
 
-  const palavras = limpo.split(' ')
-  const achado = extrairValor(palavras)
+  const comDia = extrairDia(limpo.split(' '))
+  const achado = extrairValor(comDia.resto)
   if (!achado) return null
 
   const ehEntrada = PALAVRAS_ENTRADA.some((termo) => limpo.includes(normalizar(termo)))
@@ -263,14 +308,24 @@ export function interpretarFala(
   const categoria = naFrase?.categoria || acharCategoria(nomeBruto || limpo, categorias)
 
   // Sem nome sobrando, a categoria vira o nome — "gastei 50" no mercado fica
-  // "Mercado", que diz mais que um lancamento em branco.
-  const nome = nomeBruto || categoria || (ehEntrada ? 'Entrada' : 'Saída')
+  // "Mercado", que diz mais que um lancamento em branco. E quando o nome e a
+  // propria categoria, vale a grafia dela: "mercados 30" fica "Mercado".
+  const ehAPropriaCategoria =
+    !!categoria &&
+    nomeBruto.split(' ').length === normalizar(categoria).split(' ').length &&
+    nomeBruto
+      .split(' ')
+      .every((palavra, i) => mesmaPalavra(palavra, normalizar(categoria).split(' ')[i]))
+
+  const nome =
+    (ehAPropriaCategoria ? categoria : nomeBruto) || categoria || (ehEntrada ? 'Entrada' : 'Saída')
 
   return {
     tipo: ehEntrada ? 'entrada' : 'saida',
     nome: nome.charAt(0).toUpperCase() + nome.slice(1),
     valor: Math.round(achado.valor * 100) / 100,
     categoria,
+    dia: comDia.dia,
     transcricao: String(transcricao || '').trim(),
   }
 }
@@ -318,6 +373,14 @@ function montarNome(palavras: string[], acentos: Record<string, string>) {
   return uteis.slice(inicio, fim).join(' ').trim()
 }
 
+/** Mesma palavra, tolerando o plural: "mercados" e "mercado" sao uma so. */
+function mesmaPalavra(a: string, b: string) {
+  if (!a || !b) return false
+  if (a === b) return true
+  const semPlural = (palavra: string) => palavra.replace(/(oes|aes|ns|es|s)$/, '')
+  return semPlural(a) === semPlural(b) && semPlural(a).length > 2
+}
+
 /**
  * Onde a categoria aparece na frase, palavra por palavra.
  *
@@ -334,10 +397,30 @@ function acharCategoriaNasPalavras(palavras: string[], categorias: string[]) {
   for (const candidato of candidatos) {
     const total = candidato.termos.length
     for (let i = 0; i + total <= palavras.length; i += 1) {
-      if (candidato.termos.every((termo, j) => palavras[i + j] === termo)) {
+      if (candidato.termos.every((termo, j) => mesmaPalavra(palavras[i + j], termo))) {
         return { categoria: candidato.categoria, inicio: i, fim: i + total }
       }
     }
+  }
+
+  return null
+}
+
+/**
+ * Categoria que este nome ja teve antes.
+ *
+ * "Padaria" nao e categoria nenhuma, mas se da primeira vez ela foi anotada
+ * como Comida, toda padaria dita depois entra em Comida sozinha. A busca cai
+ * para palavra solta porque "padaria do bairro" e a mesma padaria.
+ */
+export function categoriaLembrada(nome: string, memoria?: Record<string, string>) {
+  if (!memoria) return null
+  const chave = normalizar(nome)
+  if (memoria[chave]) return memoria[chave]
+
+  const palavras = chave.split(' ').filter((palavra) => palavra.length > 2)
+  for (const palavra of palavras) {
+    if (memoria[palavra]) return memoria[palavra]
   }
 
   return null
@@ -392,30 +475,45 @@ function separaAqui(palavras: string[], i: number) {
  */
 export function interpretarVarias(
   transcricao: string,
-  categorias: string[]
+  categorias: string[],
+  /** Nome ja visto -> categoria escolhida, para nao perguntar duas vezes. */
+  memoria?: Record<string, string>
 ): FalaInterpretada[] {
   const limpo = limparFrase(transcricao)
   if (!limpo) return []
 
   const acentos = mapaDeAcentos(transcricao)
   const palavras = limpo.split(' ')
-  const pedacos: string[][] = [[]]
+  // Cada pedaco guarda tambem a emenda que o fechou: se ele nao virar
+  // lancamento sozinho, essa emenda volta junto com as palavras para o
+  // pedaco seguinte — "mercado e padaria 50" e um item so, nao meio item.
+  const pedacos: { palavras: string[]; emenda: string }[] = [{ palavras: [], emenda: '' }]
   palavras.forEach((palavra, i) => {
+    const ultimo = pedacos[pedacos.length - 1]
     if (separaAqui(palavras, i)) {
-      if (pedacos[pedacos.length - 1].length) pedacos.push([])
+      if (ultimo.palavras.length) {
+        ultimo.emenda = palavra
+        pedacos.push({ palavras: [], emenda: '' })
+      }
       return
     }
-    pedacos[pedacos.length - 1].push(palavra)
+    ultimo.palavras.push(palavra)
   })
 
   const achados: FalaInterpretada[] = []
   let tipoAnterior: 'entrada' | 'saida' | null = null
+  let sobra: string[] = []
 
   pedacos.forEach((pedaco) => {
-    if (!pedaco.length) return
-    const frase = pedaco.join(' ')
+    if (!pedaco.palavras.length) return
+    const juntas = [...sobra, ...pedaco.palavras]
+    sobra = []
+    const frase = juntas.join(' ')
     const lido = interpretarFala(frase, categorias, acentos)
-    if (!lido) return
+    if (!lido) {
+      sobra = pedaco.emenda ? [...juntas, pedaco.emenda] : juntas
+      return
+    }
 
     // "recebi 500 de freela e 200 de aula": o segundo pedaco nao repete o
     // "recebi", entao herda o tipo de quem veio antes.
@@ -425,14 +523,20 @@ export function interpretarVarias(
     const tipo = temMarca || !tipoAnterior ? lido.tipo : tipoAnterior
 
     tipoAnterior = tipo
-    achados.push({ ...lido, tipo, transcricao: String(transcricao || '').trim() })
+    achados.push({
+      ...lido,
+      tipo,
+      categoria: lido.categoria || categoriaLembrada(lido.nome, memoria),
+      transcricao: String(transcricao || '').trim(),
+    })
   })
 
   // Nenhum pedaco deu certo sozinho: tenta a frase inteira, que pode ser um
   // lancamento so com um "e" no meio do nome.
   if (!achados.length) {
     const unico = interpretarFala(transcricao, categorias)
-    return unico ? [unico] : []
+    if (!unico) return []
+    return [{ ...unico, categoria: unico.categoria || categoriaLembrada(unico.nome, memoria) }]
   }
 
   return achados

@@ -2,8 +2,11 @@
 //
 // O caminho normal — abrir, escolher tipo, digitar nome, escolher categoria,
 // digitar valor, salvar — sao quatro toques e duas digitacoes por lancamento.
-// Aqui a feira inteira cabe numa conversa: o microfone fica aberto, cada frase
-// vira um item na lista e no fim tudo entra de uma vez.
+// Aqui a feira inteira cabe numa conversa: cada frase vira um item na lista e
+// no fim tudo entra de uma vez.
+//
+// O microfone nao fica aberto para sempre: depois de um tempo em silencio ele
+// se recolhe sozinho, e um toque retoma de onde parou — a lista continua.
 //
 // O campo de texto nao e so um consolo para quem nao tem reconhecimento: no
 // iPhone, o microfone do proprio teclado dita para dentro dele. Entao a
@@ -34,23 +37,32 @@ type Props = {
   onClose: () => void
   theme: Tema
   categorias: string[]
+  /** Nome ja conhecido -> categoria, para nao perguntar de novo. */
+  memoriaCategorias: Record<string, string>
+  onAprenderCategoria: (nome: string, categoria: string) => void
   onConfirmar: (lancamentos: FalaInterpretada[]) => void
 }
 
 /** Item ja capturado. O `chave` existe so para a lista nao se confundir. */
 type ItemFalado = FalaInterpretada & { chave: string }
 
-const ALTURAS = [10, 20, 30, 22, 34, 18, 12]
+/** Silencio que encerra a escuta. Mais que isto e microfone aberto a toa. */
+const OCIOSO_MS = 15000
+
+const ALTURAS = [8, 16, 22, 14, 20, 10]
 
 export default function LancamentoPorVozModal({
   visible,
   onClose,
   theme,
   categorias,
+  memoriaCategorias,
+  onAprenderCategoria,
   onConfirmar,
 }: Props) {
   const [ouvindo, setOuvindo] = useState(false)
   const [itens, setItens] = useState<ItemFalado[]>([])
+  const [escolhendo, setEscolhendo] = useState<string | null>(null)
   const [ultimaFrase, setUltimaFrase] = useState('')
   const [texto, setTexto] = useState('')
   const [erro, setErro] = useState('')
@@ -60,9 +72,15 @@ export default function LancamentoPorVozModal({
   // Enquanto isto for verdade o microfone volta sozinho depois de cada frase:
   // e o que permite falar "mercado 50", ver aparecer, e emendar "uber 20".
   const seguirRef = useRef(false)
+  const ociosoRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const contadorRef = useRef(0)
   // O callback de erro precisa saber se ja ha itens, e ele nasce antes deles.
   const itensRef = useRef<ItemFalado[]>([])
+  // O microfone se reabre de dentro do proprio callback, entao o que ele
+  // enxerga e sempre o render em que a escuta comecou. Sem estas duas
+  // referencias, a categoria ensinada agora nao valia para a proxima frase.
+  const memoriaRef = useRef(memoriaCategorias)
+  const categoriasRef = useRef(categorias)
 
   const podeOuvir = navegadorOuve()
   const somaEntradas = itens
@@ -76,11 +94,17 @@ export default function LancamentoPorVozModal({
     itensRef.current = itens
   }, [itens])
 
+  useEffect(() => {
+    memoriaRef.current = memoriaCategorias
+    categoriasRef.current = categorias
+  }, [memoriaCategorias, categorias])
+
   // Cada abertura comeca limpa — e ja escutando, onde da.
   useEffect(() => {
     if (!visible) {
       parar()
       setItens([])
+      setEscolhendo(null)
       setTexto('')
       setUltimaFrase('')
       setErro('')
@@ -93,25 +117,49 @@ export default function LancamentoPorVozModal({
 
   // Se a tela inteira sair de cena o efeito de cima nao roda: sem isto o
   // microfone continuava aberto depois de fechar.
-  useEffect(() => () => pararRef.current(), [])
+  useEffect(
+    () => () => {
+      pararRef.current()
+      if (ociosoRef.current) clearTimeout(ociosoRef.current)
+    },
+    []
+  )
+
+  const limparOcioso = () => {
+    if (ociosoRef.current) clearTimeout(ociosoRef.current)
+    ociosoRef.current = null
+  }
+
+  /** Recomeca a contagem do silencio. Cada frase dita adia o fechamento. */
+  const armarOcioso = () => {
+    limparOcioso()
+    ociosoRef.current = setTimeout(() => {
+      parar()
+      setAviso('Pausei o microfone depois do silêncio. Toque para falar mais.')
+    }, OCIOSO_MS)
+  }
 
   /** Guarda o que a frase tiver dentro. Devolve quantos itens entraram. */
   const guardar = (frase: string) => {
-    const lidos = interpretarVarias(frase, categorias)
+    const lidos = interpretarVarias(frase, categoriasRef.current, memoriaRef.current)
     if (!lidos.length) {
       setAviso(`Não achei valor em "${frase.trim()}".`)
       return 0
     }
 
+    const novos = lidos.map((lido) => {
+      contadorRef.current += 1
+      return { ...lido, chave: `f${contadorRef.current}` }
+    })
+
     setAviso('')
-    setItens((antes) => [
-      ...antes,
-      ...lidos.map((lido) => {
-        contadorRef.current += 1
-        return { ...lido, chave: `f${contadorRef.current}` }
-      }),
-    ])
-    return lidos.length
+    setItens((antes) => [...antes, ...novos])
+
+    // Nome que o app nunca viu: pergunta a categoria agora, uma vez so.
+    const semCategoria = novos.find((item) => item.tipo === 'saida' && !item.categoria)
+    if (semCategoria) setEscolhendo(semCategoria.chave)
+
+    return novos.length
   }
 
   const escutarUmaVez = () => {
@@ -119,12 +167,18 @@ export default function LancamentoPorVozModal({
       onTexto: (frase) => {
         setUltimaFrase(frase)
         guardar(frase)
+        armarOcioso()
       },
       onErro: (motivo) => {
         seguirRef.current = false
+        limparOcioso()
         // Silencio depois de ja ter anotado alguma coisa nao e erro: e o fim
         // natural da conversa.
-        if (motivo !== 'no-speech' || !itensRef.current.length) setErro(explicarErro(motivo))
+        if (motivo === 'no-speech' && itensRef.current.length) {
+          setAviso('Pausei o microfone depois do silêncio. Toque para falar mais.')
+        } else {
+          setErro(explicarErro(motivo))
+        }
       },
       onFim: () => {
         if (!seguirRef.current) {
@@ -142,13 +196,16 @@ export default function LancamentoPorVozModal({
 
   const iniciar = () => {
     setErro('')
+    setAviso('')
     seguirRef.current = true
     setOuvindo(true)
+    armarOcioso()
     escutarUmaVez()
   }
 
   const parar = () => {
     seguirRef.current = false
+    limparOcioso()
     pararRef.current()
     pararRef.current = () => {}
     setOuvindo(false)
@@ -160,28 +217,50 @@ export default function LancamentoPorVozModal({
     if (guardar(texto)) setTexto('')
   }
 
-  const remover = (chave: string) =>
+  const remover = (chave: string) => {
     setItens((antes) => antes.filter((item) => item.chave !== chave))
+    setEscolhendo((atual) => (atual === chave ? null : atual))
+  }
+
+  /** Escolhe a categoria do item e ensina o nome para as proximas vezes. */
+  const definirCategoria = (chave: string, categoria: string) => {
+    const alvo = itens.find((item) => item.chave === chave)
+    if (alvo) onAprenderCategoria(alvo.nome, categoria)
+
+    const atualizados = itens.map((item) => (item.chave === chave ? { ...item, categoria } : item))
+    setItens(atualizados)
+
+    // Emenda na proxima pergunta, se ainda houver alguma.
+    const proximo = atualizados.find((item) => item.tipo === 'saida' && !item.categoria)
+    setEscolhendo(proximo ? proximo.chave : null)
+  }
 
   const confirmar = () => {
     if (!itens.length) return
+
+    // Em vez de um botao morto, leva direto para a pergunta que falta.
+    const semCategoria = itens.find((item) => item.tipo === 'saida' && !item.categoria)
+    if (semCategoria) {
+      setEscolhendo(semCategoria.chave)
+      setAviso(`Falta dizer onde entra "${semCategoria.nome}".`)
+      return
+    }
+
     onConfirmar(itens.map(({ chave: _chave, ...resto }) => resto))
   }
 
   const pulso = useSharedValue(0)
   useEffect(() => {
     pulso.value = ouvindo
-      ? withRepeat(withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.quad) }), -1, true)
-      : withTiming(0, { duration: 260 })
+      ? withRepeat(withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.quad) }), -1, true)
+      : withTiming(0, { duration: 280 })
   }, [ouvindo, pulso])
 
-  const haloExterno = useAnimatedStyle(() => ({
-    opacity: 0.08 + pulso.value * 0.16,
-    transform: [{ scale: 0.9 + pulso.value * 0.24 }],
-  }))
-  const haloInterno = useAnimatedStyle(() => ({
-    opacity: 0.16 + pulso.value * 0.28,
-    transform: [{ scale: 1 + pulso.value * 0.14 }],
+  // Um anel so, e que cresce dentro da propria caixa: o par de halos antigo
+  // passava do tamanho do bloco e era cortado pelo campo de cima.
+  const anel = useAnimatedStyle(() => ({
+    opacity: 0.12 + pulso.value * 0.2,
+    transform: [{ scale: 1 + pulso.value * 0.16 }],
   }))
 
   return (
@@ -190,7 +269,7 @@ export default function LancamentoPorVozModal({
       visible={visible}
       onClose={onClose}
       titulo="Lançar falando"
-      subtitulo="Fale um item por vez — o microfone continua aberto e vai anotando."
+      subtitulo="Diga um item por vez. Ele anota e continua ouvindo."
       acoes={[
         { label: 'Cancelar', onPress: onClose },
         {
@@ -212,11 +291,7 @@ export default function LancamentoPorVozModal({
           >
             <Animated.View
               pointerEvents="none"
-              style={[styles.haloExterno, { backgroundColor: theme.primary }, haloExterno]}
-            />
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.halo, { backgroundColor: theme.primary }, haloInterno]}
+              style={[styles.anel, { backgroundColor: theme.primary }, anel]}
             />
             <View
               style={[
@@ -235,23 +310,25 @@ export default function LancamentoPorVozModal({
             </View>
           </PressableScale>
 
-          <Onda ativo={ouvindo} cor={ouvindo ? theme.primary : theme.border} />
+          <View style={styles.abaixoDoMicrofone}>
+            <Onda ativo={ouvindo} cor={theme.primary} />
 
-          <Text style={[styles.estado, { color: ouvindo ? theme.primary : theme.muted }]}>
-            {ouvindo
-              ? itens.length
-                ? 'Pode falar o próximo'
-                : 'Ouvindo... pode falar'
-              : itens.length
-                ? 'Toque para falar mais'
-                : 'Toque e fale'}
-          </Text>
-
-          {ultimaFrase ? (
-            <Text style={[styles.ouvido, { color: theme.faint }]} numberOfLines={2}>
-              &quot;{ultimaFrase}&quot;
+            <Text style={[styles.estado, { color: ouvindo ? theme.primary : theme.muted }]}>
+              {ouvindo
+                ? itens.length
+                  ? 'Pode falar o próximo'
+                  : 'Ouvindo... pode falar'
+                : itens.length
+                  ? 'Toque para continuar a lista'
+                  : 'Toque e fale'}
             </Text>
-          ) : null}
+
+            {ultimaFrase ? (
+              <Text style={[styles.ouvido, { color: theme.faint }]} numberOfLines={2}>
+                &quot;{ultimaFrase}&quot;
+              </Text>
+            ) : null}
+          </View>
         </View>
       ) : null}
 
@@ -319,56 +396,134 @@ export default function LancamentoPorVozModal({
             </View>
           </View>
 
-          {itens.map((item, i) => (
-            <AppearIn key={item.chave} index={i} distance={10}>
-              <View
-                style={[styles.item, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
-              >
+          {itens.map((item, i) => {
+            const precisa = item.tipo === 'saida' && !item.categoria
+            const aberto = escolhendo === item.chave
+
+            return (
+              <AppearIn key={item.chave} index={i} distance={10}>
                 <View
                   style={[
-                    styles.trilhoTipo,
-                    { backgroundColor: item.tipo === 'entrada' ? theme.green : theme.red },
+                    styles.item,
+                    {
+                      backgroundColor: theme.cardSoft,
+                      borderColor: precisa ? theme.accent : theme.border,
+                    },
                   ]}
-                />
+                >
+                  <View style={styles.itemLinha}>
+                    <View
+                      style={[
+                        styles.trilhoTipo,
+                        { backgroundColor: item.tipo === 'entrada' ? theme.green : theme.red },
+                      ]}
+                    />
 
-                <View style={styles.itemTextos}>
-                  <Text style={[styles.itemNome, { color: theme.text }]} numberOfLines={1}>
-                    {item.nome}
-                  </Text>
-                  <Text style={[styles.itemCategoria, { color: theme.muted }]} numberOfLines={1}>
-                    {item.tipo === 'entrada'
-                      ? 'Entrada'
-                      : item.categoria || categorias[0] || 'Sem categoria'}
-                  </Text>
+                    <View style={styles.itemTextos}>
+                      <Text style={[styles.itemNome, { color: theme.text }]} numberOfLines={1}>
+                        {item.nome}
+                      </Text>
+
+                      {item.tipo === 'entrada' ? (
+                        <Text style={[styles.itemCategoria, { color: theme.muted }]}>Entrada</Text>
+                      ) : (
+                        <PressableScale
+                          onPress={() => setEscolhendo(aberto ? null : item.chave)}
+                          scaleTo={0.96}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Categoria de ${item.nome}`}
+                          style={styles.categoriaToque}
+                        >
+                          <Text
+                            style={[
+                              styles.itemCategoria,
+                              { color: precisa ? theme.accent : theme.muted },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {item.categoria || 'Qual categoria?'}
+                          </Text>
+                          <Icon
+                            name={aberto ? 'seta_cima' : 'seta_baixo'}
+                            size={11}
+                            color={precisa ? theme.accent : theme.faint}
+                          />
+                        </PressableScale>
+                      )}
+                    </View>
+
+                    <View style={styles.itemDireita}>
+                      <Text
+                        style={[
+                          styles.itemValor,
+                          { color: item.tipo === 'entrada' ? theme.green : theme.red },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {formatarMoeda(item.valor)}
+                      </Text>
+                      {item.dia ? (
+                        <Text style={[styles.itemDia, { color: theme.faint }]}>dia {item.dia}</Text>
+                      ) : null}
+                    </View>
+
+                    <PressableScale
+                      onPress={() => remover(item.chave)}
+                      scaleTo={0.9}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Tirar ${item.nome} da lista`}
+                      style={[styles.tirar, { borderColor: theme.border }]}
+                    >
+                      <Icon name="excluir" size={14} color={theme.muted} />
+                    </PressableScale>
+                  </View>
+
+                  {aberto ? (
+                    <View style={[styles.escolha, { borderTopColor: theme.border }]}>
+                      <Text style={[styles.escolhaTitulo, { color: theme.muted }]}>
+                        Onde entra &quot;{item.nome}&quot;? Da próxima vez eu já sei.
+                      </Text>
+                      <View style={styles.chips}>
+                        {categorias.map((categoria) => {
+                          const ativa = item.categoria === categoria
+                          return (
+                            <PressableScale
+                              key={categoria}
+                              onPress={() => definirCategoria(item.chave, categoria)}
+                              scaleTo={0.95}
+                              accessibilityRole="button"
+                              style={[
+                                styles.chip,
+                                {
+                                  backgroundColor: ativa ? theme.primary : theme.card,
+                                  borderColor: ativa ? theme.primary : theme.border,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.chipTexto,
+                                  { color: ativa ? theme.textInverse : theme.text },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {categoria}
+                              </Text>
+                            </PressableScale>
+                          )
+                        })}
+                      </View>
+                    </View>
+                  ) : null}
                 </View>
-
-                <Text
-                  style={[
-                    styles.itemValor,
-                    { color: item.tipo === 'entrada' ? theme.green : theme.red },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {formatarMoeda(item.valor)}
-                </Text>
-
-                <PressableScale
-                  onPress={() => remover(item.chave)}
-                  scaleTo={0.9}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Tirar ${item.nome} da lista`}
-                  style={[styles.tirar, { borderColor: theme.border }]}
-                >
-                  <Icon name="excluir" size={14} color={theme.muted} />
-                </PressableScale>
-              </View>
-            </AppearIn>
-          ))}
+              </AppearIn>
+            )
+          })}
         </>
       ) : (
         <Text style={[styles.dica, { color: theme.faint }]}>
           Diga o item e o preço: &quot;mercado oitenta e quatro e cinquenta&quot;. Dá para emendar
-          vários numa frase só — &quot;padaria 12 e uber 22&quot;.
+          vários numa frase só e dizer quando foi — &quot;padaria 12 ontem e uber 22&quot;.
         </Text>
       )}
     </ModalSheet>
@@ -409,41 +564,46 @@ function Barra({
     nivel.value = withDelay(
       indice * 70,
       withRepeat(
-        withTiming(1, { duration: 420 + indice * 90, easing: Easing.inOut(Easing.quad) }),
+        withTiming(1, { duration: 440 + indice * 90, easing: Easing.inOut(Easing.quad) }),
         -1,
         true
       )
     )
   }, [ativo, indice, nivel])
 
-  const estilo = useAnimatedStyle(() => ({ height: 4 + nivel.value * altura }))
+  const estilo = useAnimatedStyle(() => ({
+    height: 3 + nivel.value * altura,
+    opacity: 0.35 + nivel.value * 0.65,
+  }))
 
   return <Animated.View style={[styles.barra, { backgroundColor: cor }, estilo]} />
 }
 
 const styles = StyleSheet.create({
-  microfoneArea: { alignItems: 'center', marginBottom: 14 },
-  microfoneToque: { alignItems: 'center', justifyContent: 'center', width: 92, height: 92 },
-  haloExterno: { position: 'absolute', width: 92, height: 92, borderRadius: 999 },
-  halo: { position: 'absolute', width: 76, height: 76, borderRadius: 999 },
+  microfoneArea: { alignItems: 'center', marginBottom: 16 },
+  // A caixa e maior que o anel no seu tamanho maximo: e isso que garante que
+  // nada dele seja cortado por quem esta em volta.
+  microfoneToque: { alignItems: 'center', justifyContent: 'center', width: 100, height: 100 },
+  anel: { position: 'absolute', width: 82, height: 82, borderRadius: 999 },
   microfone: {
-    width: 64,
-    height: 64,
+    width: 62,
+    height: 62,
     borderRadius: 999,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  abaixoDoMicrofone: { alignItems: 'center', marginTop: 2 },
   onda: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    height: 30,
+    height: 24,
   },
-  barra: { width: 3.5, borderRadius: 999 },
-  estado: { fontSize: 12.5, fontWeight: '800', marginTop: 2 },
-  ouvido: { fontSize: 11.5, fontWeight: '600', marginTop: 5, textAlign: 'center' },
+  barra: { width: 3, borderRadius: 999 },
+  estado: { fontSize: 12.5, fontWeight: '800', marginTop: 4 },
+  ouvido: { fontSize: 11.5, fontWeight: '600', marginTop: 4, textAlign: 'center' },
 
   rotulo: {
     fontSize: 11,
@@ -486,22 +646,16 @@ const styles = StyleSheet.create({
   somas: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   somaTexto: { fontSize: 13.5, fontWeight: '800', letterSpacing: -0.2 },
 
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 9,
-    paddingRight: 10,
-    marginBottom: 7,
-    overflow: 'hidden',
-  },
+  item: { borderWidth: 1, borderRadius: 14, marginBottom: 7, overflow: 'hidden' },
+  itemLinha: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, paddingRight: 10 },
   trilhoTipo: { width: 4, alignSelf: 'stretch', borderRadius: 999 },
   itemTextos: { flex: 1, minWidth: 0 },
   itemNome: { fontSize: 14, fontWeight: '800', letterSpacing: -0.2 },
-  itemCategoria: { fontSize: 11.5, fontWeight: '600', marginTop: 1 },
+  categoriaToque: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
+  itemCategoria: { fontSize: 11.5, fontWeight: '600' },
+  itemDireita: { alignItems: 'flex-end' },
   itemValor: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
+  itemDia: { fontSize: 10.5, fontWeight: '700', marginTop: 1 },
   tirar: {
     width: 26,
     height: 26,
@@ -510,4 +664,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+
+  escolha: { borderTopWidth: 1, paddingHorizontal: 10, paddingTop: 9, paddingBottom: 10 },
+  escolhaTitulo: { fontSize: 11.5, fontWeight: '700', marginBottom: 8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { minHeight: 32, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 999, borderWidth: 1 },
+  chipTexto: { fontSize: 12, fontWeight: '700' },
 })

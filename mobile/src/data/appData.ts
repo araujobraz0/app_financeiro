@@ -63,6 +63,20 @@ export const categoriaEhImportado = (categoria: unknown) => {
   return valor === 'importado' || valor === 'importada' || valor === 'importados' || valor === 'importadas'
 }
 
+/** So pares "texto -> categoria" sobrevivem: o resto e lixo de versao antiga. */
+function normalizarAprendidas(bruto: unknown): Record<string, string> {
+  if (!bruto || typeof bruto !== 'object') return {}
+
+  const limpo: Record<string, string> = {}
+  Object.entries(bruto as Record<string, unknown>).forEach(([nome, categoria]) => {
+    const chave = String(nome || '').trim().toLowerCase()
+    const valor = normalizarCategoriaNome(categoria)
+    if (chave && valor) limpo[chave] = valor
+  })
+
+  return limpo
+}
+
 export function globalDefaults(): GlobalData {
   return {
     firstAccessCompleted: false,
@@ -82,6 +96,7 @@ export function globalDefaults(): GlobalData {
     fixosRecorrentes: [],
     fixosMigrados: false,
     limitesCategorias: {},
+    categoriasAprendidas: {},
   }
 }
 
@@ -370,6 +385,7 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
       hideValues: Boolean(globalBase.hideValues),
       fixosRecorrentes,
       limitesCategorias: normalizarLimites(globalBase.limitesCategorias),
+      categoriasAprendidas: normalizarAprendidas(globalBase.categoriasAprendidas),
       fixosMigrados: true,
       fixosMigracaoVersao: VERSAO_MIGRACAO_FIXOS,
     },

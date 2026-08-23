@@ -52,7 +52,7 @@ import CardPurchaseModal, { emptyCardPurchaseValues } from '../components/modals
 import type { CardPurchaseFormValues } from '../components/modals/CardPurchaseModal'
 import CardSubscriptionModal, { emptyCardSubscriptionValues } from '../components/modals/CardSubscriptionModal'
 import LancamentoPorVozModal from '../components/modals/LancamentoPorVozModal'
-import type { FalaInterpretada } from '../src/utils/fala'
+import { normalizar as normalizarFala, type FalaInterpretada } from '../src/utils/fala'
 import type { CardSubscriptionValues } from '../components/modals/CardSubscriptionModal'
 import ManageCardsModal from '../components/modals/ManageCardsModal'
 import CardEditorModal, { emptyCardEditorValues } from '../components/modals/CardEditorModal'
@@ -716,6 +716,52 @@ function HomeScreenContent() {
   const fixos = fixosDoMesAtual
   const saidas = dadosAtual.saidas || []
   const categoriasSaidas = (dadosAtual.categoriasSaidas || [...categoriasPadrao]).filter((categoria) => !categoriaEhImportado(categoria))
+
+  /**
+   * De que categoria e cada nome que ele ja usou.
+   *
+   * Vale para a fala: "padaria" nao e categoria nenhuma, mas se ele ja
+   * lancou uma padaria em Comida — ou ensinou uma vez —, a proxima entra
+   * sozinha. O que foi ensinado vence o historico, porque foi escolha dele.
+   */
+  const memoriaCategorias = useMemo(() => {
+    const contagem: Record<string, Record<string, number>> = {}
+
+    Object.values(appData.bancoDeDados).forEach((mes) => {
+      mes.saidas.forEach((saida) => {
+        const chave = normalizarFala(saida.nome)
+        if (!chave || !saida.categoria) return
+        contagem[chave] = contagem[chave] || {}
+        contagem[chave][saida.categoria] = (contagem[chave][saida.categoria] || 0) + 1
+      })
+    })
+
+    const memoria: Record<string, string> = {}
+    Object.entries(contagem).forEach(([chave, categorias]) => {
+      const maisUsada = Object.entries(categorias).sort((a, b) => b[1] - a[1])[0]
+      if (maisUsada) memoria[chave] = maisUsada[0]
+    })
+
+    Object.entries(appData.global.categoriasAprendidas || {}).forEach(([nome, categoria]) => {
+      memoria[normalizarFala(nome)] = categoria
+    })
+
+    return memoria
+  }, [appData.bancoDeDados, appData.global.categoriasAprendidas])
+
+  /** Guarda a escolha para nunca mais perguntar por este nome. */
+  const aprenderCategoria = (nome: string, categoria: string) => {
+    const chave = normalizarFala(nome)
+    if (!chave || !categoria) return
+
+    setAppData((prev) => ({
+      ...prev,
+      global: {
+        ...prev.global,
+        categoriasAprendidas: { ...(prev.global.categoriasAprendidas || {}), [chave]: categoria },
+      },
+    }))
+  }
   const pixContacts = globalData.pixContacts || []
   const notes = globalData.notes || []
   const cards = globalData.cards || []
@@ -2170,7 +2216,7 @@ function HomeScreenContent() {
   const salvarLancamentoFalado = (falados: FalaInterpretada[]) => {
     if (!falados.length) return
 
-    const dia = Math.min(31, Math.max(1, new Date().getDate()))
+    const hoje = new Date().getDate()
     const agora = Date.now()
     const novos = falados.map((falado, i) => ({
       tipo: falado.tipo,
@@ -2178,7 +2224,8 @@ function HomeScreenContent() {
         id: `${falado.tipo}-${agora}-${i}`,
         nome: falado.nome,
         valor: falado.valor,
-        dia,
+        // "ontem", "dia 12": quando a frase diz quando foi, e isso que vale.
+        dia: Math.min(31, Math.max(1, falado.dia || hoje)),
       },
       categoria: falado.categoria || categoriasSaidas[0] || 'Mercado',
     }))
@@ -3171,6 +3218,8 @@ function HomeScreenContent() {
         onClose={() => setModalVozAberto(false)}
         theme={theme}
         categorias={categoriasSaidas}
+        memoriaCategorias={memoriaCategorias}
+        onAprenderCategoria={aprenderCategoria}
         onConfirmar={salvarLancamentoFalado}
       />
 

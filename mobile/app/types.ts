@@ -158,6 +158,11 @@ export type GlobalData = {
   /** Teto mensal de gasto por categoria. Ausente = categoria sem limite. */
   limitesCategorias: Record<string, number>
   /**
+   * Nome ja ensinado -> categoria. E o que faz "padaria" cair sozinha na
+   * categoria certa a partir da segunda vez que for falada.
+   */
+  categoriasAprendidas: Record<string, string>
+  /**
    * Marca que os gastos fixos ja sairam do formato antigo (uma copia por mes).
    * Sem ela nao da para distinguir "ainda nao migrou" de "migrou e o usuario
    * apagou todos" — e o segundo caso reviveria os gastos a cada carga.
