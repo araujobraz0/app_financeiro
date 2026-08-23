@@ -12,6 +12,7 @@
 // iPhone, o microfone do proprio teclado dita para dentro dele. Entao a
 // ferramenta funciona em qualquer aparelho, mudando so quem ouve.
 
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Haptics from 'expo-haptics'
 import { useEffect, useRef, useState } from 'react'
 import { Platform, StyleSheet, Text, TextInput, View } from 'react-native'
@@ -70,6 +71,18 @@ function vibrar() {
 /** Silencio que encerra a escuta. Mais que isto e microfone aberto a toa. */
 const OCIOSO_MS = 15000
 
+/**
+ * Onde a lista em andamento fica guardada.
+ *
+ * Sair para o banco e voltar pode custar a pagina inteira: o navegador
+ * descarta abas em segundo plano quando falta memoria. Sem isto, os itens ja
+ * falados sumiam junto.
+ */
+const CHAVE_PENDENTE = 'brazllet-voz-pendente'
+
+/** Depois disto a lista guardada e velha demais para ser retomada. */
+const VALIDADE_PENDENTE_MS = 1000 * 60 * 30
+
 const ALTURAS = [8, 16, 22, 14, 20, 10]
 
 export default function LancamentoPorVozModal({
@@ -101,6 +114,12 @@ export default function LancamentoPorVozModal({
   // enxerga e sempre o render em que a escuta comecou. Sem estas duas
   // referencias, a categoria ensinada agora nao valia para a proxima frase.
   const contextoRef = useRef(contexto)
+  // Estava ouvindo quando a tela saiu de vista: e o que manda voltar sozinho.
+  const retomarRef = useRef(false)
+  const jaAbriuRef = useRef(false)
+  // A leitura do que ficou guardado e assincrona: ate ela terminar, gravar por
+  // cima apagaria justamente a lista que estava sendo recuperada.
+  const recuperadoRef = useRef(false)
 
   const podeOuvir = navegadorOuve()
   const somaEntradas = itens
@@ -110,9 +129,24 @@ export default function LancamentoPorVozModal({
     .filter((item) => item.tipo === 'saida')
     .reduce((soma, item) => soma + item.valor, 0)
 
+  const visibleRef = useRef(visible)
+  useEffect(() => {
+    visibleRef.current = visible
+  }, [visible])
+
   useEffect(() => {
     itensRef.current = itens
   }, [itens])
+
+  // A lista em andamento fica guardada enquanto o modal estiver aberto.
+  useEffect(() => {
+    if (!visible || !recuperadoRef.current) return
+    if (!itens.length) {
+      AsyncStorage.removeItem(CHAVE_PENDENTE)
+      return
+    }
+    AsyncStorage.setItem(CHAVE_PENDENTE, JSON.stringify({ em: Date.now(), itens })).catch(() => {})
+  }, [itens, visible])
 
   useEffect(() => {
     contextoRef.current = contexto
@@ -122,6 +156,12 @@ export default function LancamentoPorVozModal({
   useEffect(() => {
     if (!visible) {
       parar()
+      retomarRef.current = false
+      recuperadoRef.current = false
+      // So limpa o que ficou guardado se o modal chegou a abrir nesta sessao:
+      // na primeira montagem ele ja nasce fechado, e apagar ali jogava fora
+      // justamente a lista que a pagina descartada tinha deixado para tras.
+      if (jaAbriuRef.current) AsyncStorage.removeItem(CHAVE_PENDENTE)
       setItens([])
       setEscolhendo(null)
       setTexto('')
@@ -130,9 +170,71 @@ export default function LancamentoPorVozModal({
       setAviso('')
       return
     }
+    jaAbriuRef.current = true
+    recuperarPendente()
     if (podeOuvir) iniciar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible])
+
+  /** Volta com o que tinha sido falado antes de a pagina ser descartada. */
+  const recuperarPendente = async () => {
+    try {
+      const guardado = await AsyncStorage.getItem(CHAVE_PENDENTE)
+      if (!guardado) return
+
+      const { em, itens: salvos } = JSON.parse(guardado) as { em: number; itens: ItemFalado[] }
+      if (!Array.isArray(salvos) || !salvos.length || Date.now() - em > VALIDADE_PENDENTE_MS) {
+        AsyncStorage.removeItem(CHAVE_PENDENTE)
+        return
+      }
+
+      if (!visibleRef.current) return
+
+      contadorRef.current += salvos.length
+      setItens(salvos)
+      setAviso(
+        salvos.length === 1
+          ? 'Recuperei 1 item que você tinha falado.'
+          : `Recuperei ${salvos.length} itens que você tinha falado.`
+      )
+    } catch {
+      AsyncStorage.removeItem(CHAVE_PENDENTE)
+    } finally {
+      recuperadoRef.current = true
+    }
+  }
+
+  /**
+   * Sair do app pausa o microfone — e voltar religa.
+   *
+   * O navegador corta o reconhecimento quando a aba deixa de aparecer; nao ha
+   * como gravar de verdade em segundo plano numa pagina web. Entao, em vez de
+   * mostrar um erro, o app se recolhe e retoma sozinho quando a tela volta,
+   * com a lista intacta. Assim da para ir ao extrato do banco, voltar e
+   * continuar falando de onde parou.
+   */
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return
+
+    const aoTrocarDeTela = () => {
+      if (document.visibilityState === 'hidden') {
+        if (!seguirRef.current) return
+        retomarRef.current = true
+        parar()
+        setAviso('Pausei o microfone porque você saiu. Volto assim que esta tela aparecer.')
+        return
+      }
+
+      if (retomarRef.current && visibleRef.current) {
+        retomarRef.current = false
+        iniciar()
+      }
+    }
+
+    document.addEventListener('visibilitychange', aoTrocarDeTela)
+    return () => document.removeEventListener('visibilitychange', aoTrocarDeTela)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Se a tela inteira sair de cena o efeito de cima nao roda: sem isto o
   // microfone continuava aberto depois de fechar.
@@ -283,6 +385,7 @@ export default function LancamentoPorVozModal({
       return
     }
 
+    AsyncStorage.removeItem(CHAVE_PENDENTE)
     onConfirmar(itens.map(({ chave: _chave, ...resto }) => resto))
   }
 

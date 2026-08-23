@@ -88,7 +88,8 @@ export default function BackupsModal({
     titulo: string,
     onPress: () => void,
     destaque = false,
-    ocupado = false
+    ocupado = false,
+    naDupla = false
   ) => (
     <PressableScale
       onPress={onPress}
@@ -97,6 +98,9 @@ export default function BackupsModal({
       accessibilityRole="button"
       style={[
         styles.botao,
+        // Sem dividir a largura, o segundo botao da dupla passava da caixa e
+        // ficava cortado na borda do modal.
+        naDupla && styles.botaoDaDupla,
         {
           backgroundColor: destaque ? theme.primary : theme.cardSoft,
           borderColor: destaque ? theme.primary : theme.border,
@@ -131,8 +135,8 @@ export default function BackupsModal({
       {botao('backup', criando ? 'Salvando cópia...' : 'Salvar cópia agora', onCriarAgora, true, criando)}
 
       <View style={styles.dupla}>
-        {botao('exportar', 'Baixar arquivo', onBaixarArquivo)}
-        {botao('importar', 'Abrir arquivo', onRestaurarArquivo)}
+        {botao('exportar', 'Baixar arquivo', onBaixarArquivo, false, false, true)}
+        {botao('importar', 'Abrir arquivo', onRestaurarArquivo, false, false, true)}
       </View>
 
       <Text style={[styles.explicacao, { color: theme.faint }]}>
@@ -241,7 +245,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     marginBottom: 8,
   },
-  botaoTexto: { fontSize: 13.5, fontWeight: '800' },
+  botaoTexto: { flexShrink: 1, fontSize: 13, fontWeight: '800' },
+  // Em coluna o rotulo ganha a largura inteira do botao: lado a lado, "Baixar
+  // arquivo" nao cabia e virava reticencias.
+  botaoDaDupla: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'column',
+    gap: 5,
+    minHeight: 62,
+    paddingHorizontal: 6,
+  },
   dupla: { flexDirection: 'row', gap: 8 },
   explicacao: { fontSize: 11.5, fontWeight: '600', lineHeight: 17, marginTop: 4, marginBottom: 18 },
 

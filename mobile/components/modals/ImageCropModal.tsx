@@ -1,7 +1,20 @@
-import { useRef, useState } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+// Ajustar a foto de perfil.
+//
+// O recorte segue o que virou padrao nos apps de hoje: a foto e que se move
+// dentro de um circulo fixo, com dois dedos para o zoom, roda do mouse no
+// computador e um botao para girar. E ela nunca sai de dentro do circulo —
+// antes dava para arrastar a foto para longe e salvar um avatar com um canto
+// vazio.
+//
+// A tela usa elementos HTML direto porque recorte e canvas so existem na web,
+// que e onde o app roda.
+
+import { useEffect, useRef, useState } from 'react'
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native'
+
 import type { Tema } from '../../app/types'
 import AppModal from '../common/AppModal'
+import Icon, { type IconName } from '../common/Icon'
 import PressableScale from '../common/motion/PressableScale'
 
 type ImageCropModalProps = {
@@ -12,109 +25,185 @@ type ImageCropModalProps = {
   onConfirm: (dataUrl: string) => void
 }
 
-const FRAME_SIZE = 260
-const OUTPUT_SIZE = 480
+const SAIDA = 512
+const ZOOM_MIN = 1
+const ZOOM_MAX = 4
 
-export default function ImageCropModal({ visible, imageUri, theme, onCancel, onConfirm }: ImageCropModalProps) {
-  const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 })
-  const [coverScale, setCoverScale] = useState(1)
+export default function ImageCropModal({
+  visible,
+  imageUri,
+  theme,
+  onCancel,
+  onConfirm,
+}: ImageCropModalProps) {
+  const { width: larguraTela } = useWindowDimensions()
+  // O circulo acompanha a tela: 260 fixos estouravam em aparelho estreito.
+  const quadro = Math.round(Math.max(210, Math.min(300, larguraTela * 0.68)))
+
+  const [tamanhoReal, setTamanhoReal] = useState({ largura: 0, altura: 0 })
+  const [escalaBase, setEscalaBase] = useState(1)
   const [zoom, setZoom] = useState(1)
-  const [offset, setOffset] = useState({ x: 0, y: 0 })
-  const dragState = useRef<{ dragging: boolean; startX: number; startY: number; startOffsetX: number; startOffsetY: number }>({
-    dragging: false,
-    startX: 0,
-    startY: 0,
-    startOffsetX: 0,
-    startOffsetY: 0,
-  })
-  const imgElRef = useRef<HTMLImageElement | null>(null)
+  const [giro, setGiro] = useState(0)
+  const [posicao, setPosicao] = useState({ x: 0, y: 0 })
 
-  const resetState = () => {
-    setZoom(1)
-    setOffset({ x: 0, y: 0 })
-  }
+  const imagemRef = useRef<HTMLImageElement | null>(null)
+  const arrasto = useRef({ ativo: false, x: 0, y: 0, inicioX: 0, inicioY: 0 })
+  const pinca = useRef({ ativa: false, distancia: 0, zoom: 1 })
 
-  const handleImageLoad = (event: any) => {
-    const el: HTMLImageElement = event.target
-    const width = el.naturalWidth
-    const height = el.naturalHeight
-    setNaturalSize({ width, height })
-    setCoverScale(Math.max(FRAME_SIZE / width, FRAME_SIZE / height))
-    setZoom(1)
-    setOffset({ x: 0, y: 0 })
-  }
+  const escala = escalaBase * zoom
+  // Girada de lado, o que era altura passa a ocupar a largura.
+  const deitada = giro % 180 !== 0
+  const larguraVisivel = (deitada ? tamanhoReal.altura : tamanhoReal.largura) * escala
+  const alturaVisivel = (deitada ? tamanhoReal.largura : tamanhoReal.altura) * escala
 
-  const displayScale = coverScale * zoom
-
-  const startDrag = (clientX: number, clientY: number) => {
-    dragState.current = {
-      dragging: true,
-      startX: clientX,
-      startY: clientY,
-      startOffsetX: offset.x,
-      startOffsetY: offset.y,
+  const limitar = (bruto: { x: number; y: number }) => {
+    const limiteX = Math.max(0, (larguraVisivel - quadro) / 2)
+    const limiteY = Math.max(0, (alturaVisivel - quadro) / 2)
+    return {
+      x: Math.max(-limiteX, Math.min(limiteX, bruto.x)),
+      y: Math.max(-limiteY, Math.min(limiteY, bruto.y)),
     }
   }
 
-  const moveDrag = (clientX: number, clientY: number) => {
-    if (!dragState.current.dragging) return
-    const dx = clientX - dragState.current.startX
-    const dy = clientY - dragState.current.startY
-    setOffset({ x: dragState.current.startOffsetX + dx, y: dragState.current.startOffsetY + dy })
+  const comecarDoZero = () => {
+    setZoom(1)
+    setGiro(0)
+    setPosicao({ x: 0, y: 0 })
   }
 
-  const endDrag = () => {
-    dragState.current.dragging = false
+  // Zoom e giro mudam o quanto sobra para arrastar: sem reencaixar, a foto
+  // ficaria fora de posicao, com um pedaco vazio aparecendo no circulo.
+  useEffect(() => {
+    setPosicao((atual) => limitar(atual))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom, giro, escalaBase, quadro])
+
+  useEffect(() => {
+    if (!visible) comecarDoZero()
+  }, [visible])
+
+  const aoCarregar = (evento: any) => {
+    const el: HTMLImageElement = evento.target
+    const largura = el.naturalWidth
+    const altura = el.naturalHeight
+    setTamanhoReal({ largura, altura })
+    setEscalaBase(Math.max(quadro / largura, quadro / altura))
+    comecarDoZero()
   }
 
-  const handleConfirm = () => {
-    const img = imgElRef.current
-    if (!img || !naturalSize.width || !naturalSize.height) return
+  const distanciaEntreDedos = (toques: any) =>
+    Math.hypot(toques[0].clientX - toques[1].clientX, toques[0].clientY - toques[1].clientY)
 
-    const displayedWidth = naturalSize.width * displayScale
-    const displayedHeight = naturalSize.height * displayScale
-    const imageTopLeftX = FRAME_SIZE / 2 + offset.x - displayedWidth / 2
-    const imageTopLeftY = FRAME_SIZE / 2 + offset.y - displayedHeight / 2
+  const iniciarArrasto = (x: number, y: number) => {
+    arrasto.current = { ativo: true, x, y, inicioX: posicao.x, inicioY: posicao.y }
+  }
 
-    let sx = (0 - imageTopLeftX) / displayScale
-    let sy = (0 - imageTopLeftY) / displayScale
-    let sSize = FRAME_SIZE / displayScale
+  const moverArrasto = (x: number, y: number) => {
+    if (!arrasto.current.ativo) return
+    setPosicao(
+      limitar({
+        x: arrasto.current.inicioX + (x - arrasto.current.x),
+        y: arrasto.current.inicioY + (y - arrasto.current.y),
+      })
+    )
+  }
 
-    sx = Math.max(0, Math.min(sx, naturalSize.width - sSize))
-    sy = Math.max(0, Math.min(sy, naturalSize.height - sSize))
-    sSize = Math.min(sSize, naturalSize.width - sx, naturalSize.height - sy)
+  const soltar = () => {
+    arrasto.current.ativo = false
+    pinca.current.ativa = false
+  }
+
+  const aplicarZoom = (novo: number) => {
+    setZoom(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Number(novo.toFixed(3)))))
+  }
+
+  const aoTocar = (evento: any) => {
+    if (evento.touches.length === 2) {
+      pinca.current = { ativa: true, distancia: distanciaEntreDedos(evento.touches), zoom }
+      arrasto.current.ativo = false
+      return
+    }
+    const toque = evento.touches[0]
+    if (toque) iniciarArrasto(toque.clientX, toque.clientY)
+  }
+
+  const aoMover = (evento: any) => {
+    if (pinca.current.ativa && evento.touches.length === 2) {
+      const agora = distanciaEntreDedos(evento.touches)
+      if (pinca.current.distancia > 0) aplicarZoom(pinca.current.zoom * (agora / pinca.current.distancia))
+      return
+    }
+    const toque = evento.touches[0]
+    if (toque) moverArrasto(toque.clientX, toque.clientY)
+  }
+
+  const girar = () => setGiro((atual) => (atual + 90) % 360)
+
+  /**
+   * Desenha exatamente o que esta na tela, so que maior.
+   *
+   * Repetir as mesmas transformacoes no canvas — mover, girar, desenhar
+   * centralizado — sai mais simples e mais fiel do que calcular o retangulo de
+   * origem, ainda mais com a foto girada.
+   */
+  const confirmar = () => {
+    const img = imagemRef.current
+    if (!img || !tamanhoReal.largura) return
 
     const canvas = document.createElement('canvas')
-    canvas.width = OUTPUT_SIZE
-    canvas.height = OUTPUT_SIZE
+    canvas.width = SAIDA
+    canvas.height = SAIDA
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    ctx.drawImage(img, sx, sy, sSize, sSize, 0, 0, OUTPUT_SIZE, OUTPUT_SIZE)
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
-    resetState()
-    onConfirm(dataUrl)
+    const fator = SAIDA / quadro
+    ctx.fillStyle = '#FFFFFF'
+    ctx.fillRect(0, 0, SAIDA, SAIDA)
+
+    ctx.save()
+    ctx.translate(SAIDA / 2 + posicao.x * fator, SAIDA / 2 + posicao.y * fator)
+    ctx.rotate((giro * Math.PI) / 180)
+    const largura = tamanhoReal.largura * escala * fator
+    const altura = tamanhoReal.altura * escala * fator
+    ctx.drawImage(img, -largura / 2, -altura / 2, largura, altura)
+    ctx.restore()
+
+    onConfirm(canvas.toDataURL('image/jpeg', 0.92))
   }
 
-  const handleCancel = () => {
-    resetState()
+  const cancelar = () => {
+    comecarDoZero()
     onCancel()
   }
 
-  return (
-    <AppModal visible={visible} onClose={handleCancel}>
-      <View style={[styles.modalCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        <Text style={[styles.modalTitle, { color: theme.text }]}>Ajustar foto</Text>
-        <Text style={[styles.modalHint, { color: theme.muted }]}>Arraste para posicionar e use o controle para dar zoom</Text>
+  const redondo = (aoPressionar: () => void, icone: IconName, rotulo: string) => (
+    <PressableScale
+      onPress={aoPressionar}
+      scaleTo={0.9}
+      accessibilityRole="button"
+      accessibilityLabel={rotulo}
+      style={[styles.redondo, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+    >
+      <Icon name={icone} size={16} color={theme.text} />
+    </PressableScale>
+  )
 
-        {/* Área de corte: usa elementos HTML puros, pois é um recurso exclusivo da versão web */}
+  return (
+    <AppModal visible={visible} onClose={cancelar}>
+      <View style={[styles.cartao, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <Text style={[styles.titulo, { color: theme.text }]}>Ajustar foto</Text>
+        <Text style={[styles.dica, { color: theme.muted }]}>
+          Arraste para enquadrar. Dois dedos ou a roda do mouse dão zoom.
+        </Text>
+
+        {/* Recorte e canvas so existem na web: aqui vale HTML puro. */}
         <div
           style={{
-            width: FRAME_SIZE,
-            height: FRAME_SIZE,
+            width: quadro,
+            height: quadro,
             borderRadius: 999,
             overflow: 'hidden',
-            alignSelf: 'center',
+            margin: '0 auto',
             position: 'relative',
             background: theme.backgroundSoft,
             border: `1px solid ${theme.border}`,
@@ -122,55 +211,71 @@ export default function ImageCropModal({ visible, imageUri, theme, onCancel, onC
             touchAction: 'none',
             userSelect: 'none',
           }}
-          onMouseDown={(e) => startDrag(e.clientX, e.clientY)}
-          onMouseMove={(e) => moveDrag(e.clientX, e.clientY)}
-          onMouseUp={endDrag}
-          onMouseLeave={endDrag}
-          onTouchStart={(e) => {
-            const touch = e.touches[0]
-            if (touch) startDrag(touch.clientX, touch.clientY)
-          }}
-          onTouchMove={(e) => {
-            const touch = e.touches[0]
-            if (touch) moveDrag(touch.clientX, touch.clientY)
-          }}
-          onTouchEnd={endDrag}
+          onMouseDown={(e) => iniciarArrasto(e.clientX, e.clientY)}
+          onMouseMove={(e) => moverArrasto(e.clientX, e.clientY)}
+          onMouseUp={soltar}
+          onMouseLeave={soltar}
+          onWheel={(e) => aplicarZoom(zoom * (e.deltaY < 0 ? 1.08 : 0.92))}
+          onTouchStart={aoTocar}
+          onTouchMove={aoMover}
+          onTouchEnd={soltar}
+          onDoubleClick={comecarDoZero}
         >
           {imageUri ? (
             <img
-              ref={imgElRef}
+              ref={imagemRef}
               src={imageUri}
-              onLoad={handleImageLoad}
+              onLoad={aoCarregar}
               draggable={false}
+              alt=""
               style={{
                 position: 'absolute',
                 left: '50%',
                 top: '50%',
-                width: naturalSize.width * displayScale,
-                height: naturalSize.height * displayScale,
-                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+                width: tamanhoReal.largura * escala,
+                height: tamanhoReal.altura * escala,
+                transform: `translate(-50%, -50%) translate(${posicao.x}px, ${posicao.y}px) rotate(${giro}deg)`,
                 pointerEvents: 'none',
               }}
             />
           ) : null}
         </div>
 
-        <input
-          type='range'
-          min={1}
-          max={3}
-          step={0.01}
-          value={zoom}
-          onChange={(e: any) => setZoom(Number(e.target.value))}
-          style={{ width: '100%', marginTop: 16 }}
-        />
+        <View style={styles.controles}>
+          {redondo(() => aplicarZoom(zoom - 0.25), 'menos', 'Diminuir zoom')}
 
-        <View style={styles.modalActions}>
-          <PressableScale onPress={handleCancel} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-            <Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text>
+          <input
+            type="range"
+            min={ZOOM_MIN}
+            max={ZOOM_MAX}
+            step={0.01}
+            value={zoom}
+            onChange={(e: any) => aplicarZoom(Number(e.target.value))}
+            aria-label="Zoom"
+            style={{ flex: 1, accentColor: theme.primary, cursor: 'pointer' }}
+          />
+
+          {redondo(() => aplicarZoom(zoom + 0.25), 'adicionar', 'Aumentar zoom')}
+          {redondo(girar, 'girar', 'Girar a foto')}
+        </View>
+
+        <View style={styles.acoes}>
+          <PressableScale
+            onPress={cancelar}
+            scaleTo={0.97}
+            accessibilityRole="button"
+            style={[styles.acao, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+          >
+            <Text style={[styles.acaoTexto, { color: theme.text }]}>Cancelar</Text>
           </PressableScale>
-          <PressableScale onPress={handleConfirm} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}>
-            <Text style={[styles.modalActionText, { color: theme.white }]}>Usar foto</Text>
+
+          <PressableScale
+            onPress={confirmar}
+            scaleTo={0.97}
+            accessibilityRole="button"
+            style={[styles.acao, { backgroundColor: theme.primary, borderColor: theme.primary }]}
+          >
+            <Text style={[styles.acaoTexto, { color: theme.textInverse }]}>Usar foto</Text>
           </PressableScale>
         </View>
       </View>
@@ -179,24 +284,41 @@ export default function ImageCropModal({ visible, imageUri, theme, onCancel, onC
 }
 
 const styles = StyleSheet.create({
-  modalCard: {
-    width: '84%',
-    maxWidth: 380,
+  cartao: {
+    width: '88%',
+    maxWidth: 400,
     alignSelf: 'center',
-    borderRadius: 28,
+    borderRadius: 26,
     paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 22,
+    paddingVertical: 18,
     borderWidth: 1,
-    shadowColor: '#000000',
-    shadowOpacity: 0.18,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 14,
   },
-  modalTitle: { fontSize: 18, fontWeight: '900', textAlign: 'center', marginBottom: 4 },
-  modalHint: { fontSize: 12, fontWeight: '600', textAlign: 'center', marginBottom: 14 },
-  modalActions: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginTop: 16, width: '100%' },
-  modalActionBtn: { flex: 1, minHeight: 42, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  modalActionText: { fontSize: 13, fontWeight: '900' },
+  titulo: { fontSize: 17, fontWeight: '900', textAlign: 'center', letterSpacing: -0.3 },
+  dica: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 17,
+    marginTop: 5,
+    marginBottom: 16,
+  },
+  controles: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 },
+  redondo: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  acoes: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  acao: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 15,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  acaoTexto: { fontSize: 13.5, fontWeight: '900' },
 })

@@ -15,6 +15,8 @@ const GLYPHS = {
   editar: 'pencil',
   excluir: 'close',
   adicionar: 'add',
+  menos: 'remove',
+  girar: 'refresh-circle-outline',
   filtrar: 'funnel',
   ordenar: 'funnel',
   confirmar: 'checkmark',

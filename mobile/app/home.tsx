@@ -45,6 +45,7 @@ import type { NoteFormValues } from '../components/modals/NoteModal'
 import ShoppingWishModal, { emptyShoppingWishValues } from '../components/modals/ShoppingWishModal'
 import type { ShoppingWishFormValues } from '../components/modals/ShoppingWishModal'
 import ConfirmDeleteModal from '../components/modals/ConfirmDeleteModal'
+import FaixaPremium from '../components/home/FaixaPremium'
 import BackupsModal from '../components/modals/BackupsModal'
 import MemoriaDaVozModal from '../components/modals/MemoriaDaVozModal'
 import SettingsModal from '../components/modals/SettingsModal'
@@ -3103,6 +3104,13 @@ function HomeScreenContent() {
         podeRefazer={podeRefazer}
         onDesfazer={desfazer}
         onRefazer={refazer}
+      />
+
+      <FaixaPremium
+        theme={theme}
+        ativo={premiumValido}
+        expiraEm={premiumExpiresAt}
+        onPress={irParaTelaPremium}
       />
 
       <ScrollView

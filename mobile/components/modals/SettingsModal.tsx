@@ -158,7 +158,13 @@ export default function SettingsModal({
     >
       {/* ---------- Perfil ---------- */}
       <View style={[styles.perfil, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-        <PressableScale onPress={onChooseProfileImage} scaleTo={0.94} style={styles.avatarToque}>
+        <PressableScale
+          onPress={onChooseProfileImage}
+          scaleTo={0.94}
+          accessibilityRole="button"
+          accessibilityLabel="Trocar a foto do perfil"
+          style={styles.avatarToque}
+        >
           <View style={[styles.avatar, { backgroundColor: theme.card, borderColor: theme.border }]}>
             {avatarIsImage(avatar) ? (
               <Image source={{ uri: avatar }} style={styles.avatarImagem} />
