@@ -45,6 +45,7 @@ import type { NoteFormValues } from '../components/modals/NoteModal'
 import ShoppingWishModal, { emptyShoppingWishValues } from '../components/modals/ShoppingWishModal'
 import type { ShoppingWishFormValues } from '../components/modals/ShoppingWishModal'
 import ConfirmDeleteModal from '../components/modals/ConfirmDeleteModal'
+import BackupsModal from '../components/modals/BackupsModal'
 import MemoriaDaVozModal from '../components/modals/MemoriaDaVozModal'
 import SettingsModal from '../components/modals/SettingsModal'
 import LaunchModal, { emptyLaunchFormValues } from '../components/modals/LaunchModal'
@@ -64,6 +65,7 @@ import { supabase } from '../src/lib/supabase'
 import { FinanceProvider, useFinance } from '../src/context/FinanceContext'
 import { uploadAvatar } from '../src/utils/avatar'
 import {
+  baixarBlob,
   baixarCsv,
   baixarUrl,
   baixarXlsx,
@@ -271,6 +273,8 @@ function HomeScreenContent() {
   const [lancamentosSeguidos, setLancamentosSeguidos] = useState(0)
   const [modalVozAberto, setModalVozAberto] = useState(false)
   const [modalMemoriaVozAberto, setModalMemoriaVozAberto] = useState(false)
+  const [modalBackupsAberto, setModalBackupsAberto] = useState(false)
+  const [criandoBackup, setCriandoBackup] = useState(false)
   const ultimaCategoriaUsadaRef = useRef('')
   const [modalAssinaturaAberto, setModalAssinaturaAberto] = useState(false)
   const [assinaturaEditandoId, setAssinaturaEditandoId] = useState<string | null>(null)
@@ -1423,6 +1427,7 @@ function HomeScreenContent() {
 
       const normalizado = normalizarAppData(data.data)
       setAppData(normalizado)
+      setModalBackupsAberto(false)
       Alert.alert('Backup restaurado', 'Seus dados foram restaurados para o momento selecionado.')
     } catch (error) {
       console.error('[backup] Falha ao restaurar backup:', error)
@@ -1432,15 +1437,81 @@ function HomeScreenContent() {
     }
   }
 
-  const confirmarRestaurarBackup = (backupId: string, dataFormatada: string) => {
-    Alert.alert(
-      'Restaurar backup',
-      `Isso vai substituir seus dados atuais pelos dados salvos em ${dataFormatada}. Essa ação não pode ser desfeita. Deseja continuar?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Restaurar', style: 'destructive', onPress: () => restaurarBackupAutomatico(backupId) },
-      ]
-    )
+  /** Abre a tela de backups ja com a lista fresca. */
+  const abrirBackups = () => {
+    setModalBackupsAberto(true)
+    carregarBackupsAutomaticos()
+  }
+
+  /** Uma copia na nuvem agora, sem esperar a do dia. */
+  const criarBackupAgora = async () => {
+    try {
+      setCriandoBackup(true)
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.user) {
+        Alert.alert('Sem conexão', 'Entre na sua conta para salvar uma cópia na nuvem.')
+        return
+      }
+
+      const { error } = await supabase
+        .from('financial_data_backups')
+        .insert({ user_id: session.user.id, data: appData })
+
+      if (error) {
+        console.error('[backup] Falha ao criar cópia manual:', error)
+        Alert.alert('Erro', 'Não consegui salvar a cópia agora. Tente de novo em instantes.')
+        return
+      }
+
+      await carregarBackupsAutomaticos()
+    } catch (error) {
+      console.error('[backup] Falha ao criar cópia manual:', error)
+      Alert.alert('Erro', 'Não consegui salvar a cópia agora. Tente de novo em instantes.')
+    } finally {
+      setCriandoBackup(false)
+    }
+  }
+
+  /**
+   * O backup que nao depende de nada: um arquivo no aparelho dele.
+   *
+   * Nuvem e conta podem falhar juntas — este arquivo continua valendo, e volta
+   * inteiro pelo "Abrir arquivo".
+   */
+  const baixarCopiaDosDados = () => {
+    const hoje = new Date()
+    const carimbo = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(
+      hoje.getDate()
+    ).padStart(2, '0')}`
+    const conteudo = JSON.stringify({ versao: 1, salvoEm: hoje.toISOString(), dados: appData }, null, 2)
+
+    baixarBlob(new Blob([conteudo], { type: 'application/json' }), `brazllet-backup-${carimbo}.json`)
+  }
+
+  /** Le um arquivo de backup e devolve os dados como estavam. */
+  const restaurarDeArquivo = async () => {
+    try {
+      const arquivo = await escolherArquivo('.json,application/json')
+      if (!arquivo) return
+
+      const texto = await lerArquivoComoTexto(arquivo)
+      const lido = JSON.parse(texto)
+      // Aceita tanto o formato novo (com cabecalho) quanto um dump direto.
+      const bruto = lido?.dados ?? lido
+      if (!bruto || typeof bruto !== 'object') {
+        Alert.alert('Arquivo inválido', 'Esse arquivo não parece um backup do Brazllet.')
+        return
+      }
+
+      setAppData(normalizarAppData(bruto))
+      setModalBackupsAberto(false)
+      Alert.alert('Pronto', 'Seus dados voltaram como estavam no arquivo.')
+    } catch (error) {
+      console.error('[backup] Falha ao ler arquivo:', error)
+      Alert.alert('Arquivo inválido', 'Não consegui ler esse arquivo. Ele precisa ser o .json que o app baixa.')
+    }
   }
 
   const executarAcaoAvisoAtualizacao = async () => {
@@ -3549,10 +3620,22 @@ function HomeScreenContent() {
         voiceMemoryCount={Object.keys(appData.global.categoriasAprendidas || {}).length}
         seguirTemaDoSistema={themeMode === 'system'}
         onAlternarModoTemaSistema={alternarModoTemaSistema}
+        ultimoBackup={backupsDisponiveis[0]?.created_at || null}
+        onOpenBackups={abrirBackups}
+      />
+
+      <BackupsModal
+        visible={modalBackupsAberto}
+        onClose={() => setModalBackupsAberto(false)}
+        theme={theme}
         backups={backupsDisponiveis}
-        loadingBackups={carregandoBackups}
-        restoringBackupId={restaurandoBackupId}
-        onRestoreBackup={confirmarRestaurarBackup}
+        carregando={carregandoBackups}
+        restaurandoId={restaurandoBackupId}
+        criando={criandoBackup}
+        onCriarAgora={criarBackupAgora}
+        onRestaurar={restaurarBackupAutomatico}
+        onBaixarArquivo={baixarCopiaDosDados}
+        onRestaurarArquivo={restaurarDeArquivo}
       />
 
       <MemoriaDaVozModal

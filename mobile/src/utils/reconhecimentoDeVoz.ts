@@ -45,14 +45,48 @@ type Opcoes = {
 }
 
 /**
+ * Um reconhecedor so, reaproveitado.
+ *
+ * Cada `new SpeechRecognition()` abre uma negociacao nova de microfone — e era
+ * isso que fazia o navegador pedir permissao a cada frase, ja que o app reabre
+ * a escuta depois de cada uma. Reusando o mesmo objeto, a permissao e pedida
+ * uma vez e vale para a conversa inteira.
+ */
+let compartilhado: Reconhecimento | null = null
+
+/** Safari nao aguenta `continuous`: termina sem devolver nada. */
+function ehSafari() {
+  if (typeof navigator === 'undefined') return false
+  const agente = navigator.userAgent || ''
+  return /safari/i.test(agente) && !/chrome|chromium|crios|android|edg/i.test(agente)
+}
+
+function obterReconhecimento() {
+  if (compartilhado) return compartilhado
+
+  const Reconhecedor = construtor()
+  if (!Reconhecedor) return null
+
+  const novo = new Reconhecedor()
+  novo.lang = 'pt-BR'
+  // Onde da, uma sessao so atende varias frases: menos aberturas de
+  // microfone, menos pedido de permissao, menos piscar do indicador.
+  novo.continuous = !ehSafari()
+  novo.interimResults = false
+  novo.maxAlternatives = 1
+
+  compartilhado = novo
+  return compartilhado
+}
+
+/**
  * Comeca a ouvir e devolve como parar.
  *
- * Uma frase curta e so: `continuous` no Safari costuma terminar sem devolver
- * nada, e um lancamento cabe numa frase.
+ * Cada frase entendida chega por `onTexto` — uma sessao pode trazer varias.
  */
 export function ouvir({ onTexto, onErro, onFim }: Opcoes) {
-  const Reconhecedor = construtor()
-  if (!Reconhecedor) {
+  const reconhecimento = obterReconhecimento()
+  if (!reconhecimento) {
     onErro('sem-suporte')
     onFim()
     return () => {}
@@ -64,12 +98,6 @@ export function ouvir({ onTexto, onErro, onFim }: Opcoes) {
   // o pedido fica guardado e e refeito assim que ele comeca.
   let comecou = false
   let querParar = false
-
-  const reconhecimento = new Reconhecedor()
-  reconhecimento.lang = 'pt-BR'
-  reconhecimento.continuous = false
-  reconhecimento.interimResults = false
-  reconhecimento.maxAlternatives = 1
 
   const desligar = () => {
     reconhecimento.onresult = null
@@ -94,8 +122,17 @@ export function ouvir({ onTexto, onErro, onFim }: Opcoes) {
   }
 
   reconhecimento.onresult = (evento: any) => {
-    const texto = evento?.results?.[0]?.[0]?.transcript
-    if (texto) onTexto(String(texto))
+    // Com `continuous`, cada frase nova chega no fim da lista; `resultIndex`
+    // diz onde ela comeca. Sem ele, o app repetiria a primeira para sempre.
+    const inicio = typeof evento?.resultIndex === 'number' ? evento.resultIndex : 0
+    const resultados = evento?.results || []
+
+    for (let i = inicio; i < resultados.length; i += 1) {
+      const resultado = resultados[i]
+      if (resultado?.isFinal === false) continue
+      const texto = resultado?.[0]?.transcript
+      if (texto) onTexto(String(texto))
+    }
   }
 
   reconhecimento.onerror = (evento: any) => {

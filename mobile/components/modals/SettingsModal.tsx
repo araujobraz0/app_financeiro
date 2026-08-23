@@ -6,6 +6,7 @@ import Interruptor from '../common/Interruptor'
 import { origemDoTema } from '../../src/utils/esquemaDeCor'
 import ModalSheet from '../common/ModalSheet'
 import PressableScale from '../common/motion/PressableScale'
+import { haQuantoTempo } from './BackupsModal'
 
 type ExportType = 'csv' | 'excel' | 'pdf'
 type ProcessFileType = ExportType | 'importar' | null
@@ -35,10 +36,9 @@ type SettingsModalProps = {
   voiceMemoryCount: number
   seguirTemaDoSistema: boolean
   onAlternarModoTemaSistema: () => void
-  backups: { id: string; created_at: string }[]
-  loadingBackups: boolean
-  restoringBackupId: string | null
-  onRestoreBackup: (backupId: string, dataFormatada: string) => void
+  /** Quando foi a ultima copia, para a linha dizer se esta em dia. */
+  ultimoBackup: string | null
+  onOpenBackups: () => void
 }
 
 const avatarIsImage = (value?: string) =>
@@ -46,17 +46,6 @@ const avatarIsImage = (value?: string) =>
     value &&
       (value.startsWith('file:') || value.startsWith('content:') || value.startsWith('http') || value.startsWith('data:'))
   )
-
-const formatarDataBackup = (isoDate: string) => {
-  try {
-    const data = new Date(isoDate)
-    const dataFormatada = data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    const horaFormatada = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-    return `${dataFormatada} às ${horaFormatada}`
-  } catch {
-    return isoDate
-  }
-}
 
 /**
  * Perfil e configuracoes.
@@ -93,10 +82,8 @@ export default function SettingsModal({
   voiceMemoryCount,
   seguirTemaDoSistema,
   onAlternarModoTemaSistema,
-  backups,
-  loadingBackups,
-  restoringBackupId,
-  onRestoreBackup,
+  ultimoBackup,
+  onOpenBackups,
 }: SettingsModalProps) {
   const avatar = editableAvatar || currentAvatar
   const nomeMudou = editableName.trim() !== currentName.trim()
@@ -287,52 +274,17 @@ export default function SettingsModal({
       )}
 
       {/* ---------- Backups ---------- */}
-      <View style={styles.secao}>
-        <Text style={[styles.secaoTitulo, { color: theme.muted }]}>Backups automáticos</Text>
-        <Text style={[styles.secaoExplicacao, { color: theme.faint }]}>
-          Uma cópia dos seus dados é salva na nuvem uma vez por dia.
-        </Text>
+      {secao(
+        'Segurança dos dados',
+        linha(
+          'backup',
+          'Backups',
+          ultimoBackup ? `Última cópia ${haQuantoTempo(ultimoBackup)}` : 'Nenhuma cópia ainda',
+          seta,
+          onOpenBackups
+        )
+      )}
 
-        <View style={[styles.grupo, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-          {loadingBackups ? (
-            <Text style={[styles.vazio, { color: theme.muted }]}>Carregando backups...</Text>
-          ) : backups.length === 0 ? (
-            <Text style={[styles.vazio, { color: theme.muted }]}>
-              Nenhum backup ainda. O primeiro é criado no próximo dia de uso.
-            </Text>
-          ) : (
-            backups.map((backup, indice) => {
-              const dataFormatada = formatarDataBackup(backup.created_at)
-              const restaurando = restoringBackupId === backup.id
-              return (
-                <View key={backup.id}>
-                  {indice > 0 ? <View style={[styles.divisor, { backgroundColor: theme.border }]} /> : null}
-                  <View style={styles.linha}>
-                    <View style={[styles.linhaIcone, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                      <Icon name="backup" size={16} color={theme.muted} />
-                    </View>
-                    <View style={styles.linhaTextos}>
-                      <Text style={[styles.linhaTitulo, { color: theme.text }]}>{dataFormatada}</Text>
-                    </View>
-                    <PressableScale
-                      onPress={() => onRestoreBackup(backup.id, dataFormatada)}
-                      disabled={restaurando}
-                      style={[
-                        styles.restaurar,
-                        { backgroundColor: theme.card, borderColor: theme.border, opacity: restaurando ? 0.6 : 1 },
-                      ]}
-                    >
-                      <Text style={[styles.restaurarTexto, { color: theme.text }]}>
-                        {restaurando ? '...' : 'Restaurar'}
-                      </Text>
-                    </PressableScale>
-                  </View>
-                </View>
-              )
-            })
-          )}
-        </View>
-      </View>
     </ModalSheet>
   )
 }

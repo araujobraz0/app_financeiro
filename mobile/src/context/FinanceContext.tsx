@@ -4,8 +4,7 @@ import { AppState } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { router } from 'expo-router'
 import { supabase } from '../lib/supabase'
-import { usePreferenciaDeCor } from '../utils/esquemaDeCor'
-import { darkTheme, lightTheme, THEME_KEY, THEME_MODE_KEY } from '../theme/themes'
+import { useTemaSalvo } from '../theme/useTemaSalvo'
 import {
   BACKUP_LAST_KEY,
   STORAGE_KEY,
@@ -108,9 +107,6 @@ export function useFinance() {
 }
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
-  // Na web isto e a preferencia do navegador; no aparelho, a do sistema.
-  const colorScheme = usePreferenciaDeCor()
-
   const [appData, setAppData] = useState<AppData>(criarAppDataInicial())
   const [carregando, setCarregando] = useState(true)
 
@@ -201,14 +197,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [premiumExpiresAt, setPremiumExpiresAt] = useState<string | null>(null)
   const [premiumLoading, setPremiumLoading] = useState(true)
 
-  const [temaEscuro, setTemaEscuro] = useState(false)
-  const [themeMode, setThemeMode] = useState<SettingsThemeMode>('manual')
+  const { theme, temaEscuro, themeMode, alternarTema, alternarModoTemaSistema } = useTemaSalvo()
 
-  const temaStorageCarregadoRef = useRef(false)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const usuarioIdRef = useRef<string | null>(null)
-
-  const theme = temaEscuro ? darkTheme : lightTheme
 
   const premiumValido = useMemo(() => {
     if (!premiumAtivo || !premiumExpiresAt) return false
@@ -250,19 +242,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       setCarregando(true)
 
       try {
-        const temaSalvo = await AsyncStorage.getItem(THEME_KEY)
-        const modoTemaSalvo = await AsyncStorage.getItem(THEME_MODE_KEY)
-
-        if (modoTemaSalvo === 'system') {
-          setThemeMode('system')
-          setTemaEscuro(colorScheme === 'dark')
-        } else {
-          setThemeMode('manual')
-          if (temaSalvo) setTemaEscuro(temaSalvo === 'dark')
-        }
-
-        temaStorageCarregadoRef.current = true
-
         const {
           data: { session },
         } = await supabase.auth.getSession()
@@ -315,23 +294,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
 
     carregarTudo()
-  }, [colorScheme])
-
-  // --- persistencia do tema ---
-  useEffect(() => {
-    if (!temaStorageCarregadoRef.current) return
-    if (themeMode === 'system') {
-      setTemaEscuro(colorScheme === 'dark')
-    }
-    AsyncStorage.setItem(THEME_MODE_KEY, themeMode)
-  }, [themeMode, colorScheme])
-
-  useEffect(() => {
-    if (!temaStorageCarregadoRef.current) return
-    if (themeMode === 'manual') {
-      AsyncStorage.setItem(THEME_KEY, temaEscuro ? 'dark' : 'light')
-    }
-  }, [temaEscuro, themeMode])
+    // Carga unica: o tema agora tem o proprio guardiao, entao mudar o modo
+    // claro/escuro do navegador nao precisa mais rebuscar tudo no Supabase.
+  }, [])
 
   // --- copia local dos dados ---
   useEffect(() => {
@@ -423,31 +388,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     return () => subscription.remove()
   }, [])
-
-  const alternarTema = () => {
-    setThemeMode('manual')
-    AsyncStorage.setItem(THEME_MODE_KEY, 'manual')
-    setTemaEscuro((prev) => {
-      const proximoTema = !prev
-      AsyncStorage.setItem(THEME_KEY, proximoTema ? 'dark' : 'light')
-      return proximoTema
-    })
-  }
-
-  const alternarModoTemaSistema = () => {
-    setThemeMode((prev) => {
-      const proximoModo: SettingsThemeMode = prev === 'system' ? 'manual' : 'system'
-      AsyncStorage.setItem(THEME_MODE_KEY, proximoModo)
-
-      if (proximoModo === 'system') {
-        setTemaEscuro(colorScheme === 'dark')
-      } else {
-        AsyncStorage.setItem(THEME_KEY, temaEscuro ? 'dark' : 'light')
-      }
-
-      return proximoModo
-    })
-  }
 
   // useMemo aqui e essencial: sem ele o objeto seria recriado a cada render
   // do Provider e todos os consumidores re-renderizariam sem necessidade.

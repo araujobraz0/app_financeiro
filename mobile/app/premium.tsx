@@ -9,19 +9,38 @@ import {
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Clipboard from 'expo-clipboard'
 import { router } from 'expo-router'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { supabase } from '../src/lib/supabase'
-import { darkTheme, lightTheme, THEME_KEY, THEME_MODE_KEY } from '../src/theme/themes'
+import { useTemaSalvo } from '../src/theme/useTemaSalvo'
 import { formatarMoeda } from '../src/utils/currency'
-import type { PremiumEntitlement, SettingsThemeMode, Tema } from './types'
+import type { PremiumEntitlement, Tema } from './types'
 import PressableScale from '../components/common/motion/PressableScale'
-import Icon from '../components/common/Icon'
+import AppearIn from '../components/common/motion/AppearIn'
+import Icon, { type IconName } from '../components/common/Icon'
+
+/** O que o premium libera, com o icone que representa a acao. */
+const LIBERADOS: { icone: IconName; texto: string }[] = [
+  { icone: 'editar', texto: 'Adicionar e editar sem bloqueio' },
+  { icone: 'excluir', texto: 'Excluir lançamentos, cartões e categorias' },
+  { icone: 'microfone', texto: 'Lançar falando, com a lista inteira de uma vez' },
+  { icone: 'planilha', texto: 'Importar e exportar PDF, Excel e CSV' },
+]
+
+/** O que o app tem, para quem chegou aqui antes de conhecer. */
+const RECURSOS: { icone: IconName; texto: string }[] = [
+  { icone: 'aba_variavel', texto: 'Entradas e saídas' },
+  { icone: 'aba_fixo', texto: 'Gastos fixos' },
+  { icone: 'cartao', texto: 'Cartões e parcelas' },
+  { icone: 'alvo', texto: 'Metas e objetivos' },
+  { icone: 'investir', texto: 'Investimentos' },
+  { icone: 'pix', texto: 'Pix e anotações' },
+  { icone: 'carrinho', texto: 'Coisas para comprar' },
+  { icone: 'grafico', texto: 'Gráficos por categoria' },
+]
 
 type PixResponse = {
   payment_id: string
@@ -77,7 +96,7 @@ function AppPopup({
                 <PressableScale
                   onPress={onSecondary}
                   style={[
-                    styles.modalActionBtn,
+                    styles.modalAction,
                     {
                       backgroundColor: theme.cardSoft,
                       borderColor: theme.border,
@@ -91,7 +110,7 @@ function AppPopup({
               <PressableScale
                 onPress={onPrimary}
                 style={[
-                  styles.modalActionBtn,
+                  styles.modalAction,
                   {
                     backgroundColor: theme.primary,
                     borderColor: theme.primary,
@@ -110,7 +129,6 @@ function AppPopup({
 
 export default function PremiumScreen() {
   const insets = useSafeAreaInsets()
-  const colorScheme = useColorScheme()
 
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -121,14 +139,11 @@ export default function PremiumScreen() {
   const [pixData, setPixData] = useState<PixResponse | null>(null)
   const [onboardingPending, setOnboardingPending] = useState(false)
 
-  const [temaEscuro, setTemaEscuro] = useState(false)
-  const [themeMode, setThemeMode] = useState<SettingsThemeMode>('manual')
+  const { theme, temaEscuro, alternarTema } = useTemaSalvo()
 
   const [popupVisible, setPopupVisible] = useState(false)
   const [popupTitle, setPopupTitle] = useState('')
   const [popupDescription, setPopupDescription] = useState('')
-
-  const theme = temaEscuro ? darkTheme : lightTheme
 
   const premiumValido = useMemo(() => {
     if (!premiumAtivo || !premiumExpiresAt) return false
@@ -152,39 +167,6 @@ export default function PremiumScreen() {
     setPopupDescription(description)
     setPopupVisible(true)
   }, [])
-
-  useEffect(() => {
-    const carregarTema = async () => {
-      const temaSalvo = await AsyncStorage.getItem(THEME_KEY)
-      const modoTemaSalvo = await AsyncStorage.getItem(THEME_MODE_KEY)
-
-      if (modoTemaSalvo === 'system') {
-        setThemeMode('system')
-        setTemaEscuro(colorScheme === 'dark')
-      } else if (temaSalvo) {
-        setThemeMode('manual')
-        setTemaEscuro(temaSalvo === 'dark')
-      } else {
-        setThemeMode('manual')
-        setTemaEscuro(false)
-      }
-    }
-
-    carregarTema()
-  }, [colorScheme])
-
-  useEffect(() => {
-    if (themeMode === 'system') {
-      setTemaEscuro(colorScheme === 'dark')
-    }
-    AsyncStorage.setItem(THEME_MODE_KEY, themeMode)
-  }, [themeMode, colorScheme])
-
-  useEffect(() => {
-    if (themeMode === 'manual') {
-      AsyncStorage.setItem(THEME_KEY, temaEscuro ? 'dark' : 'light')
-    }
-  }, [temaEscuro, themeMode])
 
   const carregarStatusPremium = useCallback(async () => {
     try {
@@ -373,183 +355,202 @@ export default function PremiumScreen() {
         <View style={styles.topBar}>
           <PressableScale
             onPress={() => router.back()}
-            style={[styles.backCircle, { backgroundColor: theme.card, borderColor: theme.border }]}
+            scaleTo={0.94}
+            accessibilityRole="button"
+            accessibilityLabel="Voltar"
+            style={[styles.circulo, { backgroundColor: theme.card, borderColor: theme.border }]}
           >
-            <Text style={[styles.backCircleText, { color: theme.text }]}>←</Text>
+            <Icon name="seta_esquerda" size={18} color={theme.text} />
           </PressableScale>
+
+          <Text style={[styles.topTitulo, { color: theme.text }]}>Premium</Text>
 
           <PressableScale
-            onPress={() => {
-              setThemeMode('manual')
-              setTemaEscuro((prev) => !prev)
-            }}
-            style={[styles.themeCircle, { backgroundColor: theme.card, borderColor: theme.border }]}
+            onPress={alternarTema}
+            scaleTo={0.94}
+            accessibilityRole="button"
+            accessibilityLabel="Trocar tema"
+            style={[styles.circulo, { backgroundColor: theme.card, borderColor: theme.border }]}
           >
-            <Text style={[styles.themeCircleText, { color: theme.text }]}>{temaEscuro ? '☀' : '☾'}</Text>
+            <Icon name={temaEscuro ? 'sol' : 'lua'} size={18} color={theme.text} />
           </PressableScale>
         </View>
 
-        <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border, shadowColor: theme.shadow }]}>
-          <View style={[styles.heroGlow, { backgroundColor: theme.backgroundSoft, borderColor: theme.borderStrong }]}>
-            <Image source={require('../assets/images/icon-removebg.png')} style={styles.heroIcon} resizeMode='contain' />
-          </View>
-
-          <Text style={[styles.eyebrow, { color: theme.primary }]}>BRAZLLET PREMIUM</Text>
-          <Text style={[styles.heroTitle, { color: theme.text }]}>Seu controle financeiro no nível premium</Text>
-          <Text style={[styles.heroSub, { color: theme.muted }]}>
-            Desbloqueie edição, importação, exportação e toda a experiência completa do Brazllet.
-          </Text>
-
-          <View style={styles.heroBadgeRow}>
-            <View style={[styles.heroBadge, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.heroBadgeText, { color: theme.text }]}>R$ 6,90 / mês</Text>
-            </View>
-            <View
-              style={[
-                styles.heroBadge,
-                {
-                  backgroundColor: premiumValido ? theme.green : theme.cardSoft,
-                  borderColor: premiumValido ? theme.green : theme.border,
-                },
-              ]}
-            >
-              <Text style={[styles.heroBadgeText, { color: premiumValido ? theme.white : theme.text }]}>
-                {premiumValido ? 'Ativo' : 'Inativo'}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-
-        <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.appOverviewHeader}>
-            <View style={[styles.appOverviewIconWrap, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Icon name="confirmar" size={16} color={theme.primary} />
-            </View>
-            <View style={styles.appOverviewTitleWrap}>
-              <Text style={[styles.sectionTitle, styles.appOverviewTitle, { color: theme.text }]}>O que o Brazllet possui</Text>
-              <Text style={[styles.sectionDescription, { color: theme.muted }]}>
-                Um app completo para organizar sua vida financeira em um só lugar, de forma simples e visual.
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.appOverviewGrid}>
-            {[
-              'Entradas e saídas',
-              'Gastos fixos',
-              'Cartões e parcelas',
-              'Metas e objetivos',
-              'Investimentos',
-              'Pix e anotações',
-              'Coisas para comprar',
-              'Importação e exportação',
-            ].map((item) => (
-              <View key={item} style={[styles.appOverviewPill, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                <Text style={[styles.appOverviewPillText, { color: theme.text }]}>{item}</Text>
+        <AppearIn index={0}>
+          <View style={[styles.cartao, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <View style={styles.heroTopo}>
+              <View style={[styles.heroGlow, { backgroundColor: theme.backgroundSoft, borderColor: theme.borderStrong }]}>
+                <Image source={require('../assets/images/icon-removebg.png')} style={styles.heroIcon} resizeMode="contain" />
               </View>
-            ))}
-          </View>
-        </View>
 
-        <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Seu status</Text>
-          <Text style={[styles.sectionDescription, { color: theme.muted }]}>{premiumStatusTexto}</Text>
-
-          <View style={styles.statusGrid}>
-            <View style={[styles.statusPill, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.statusLabel, { color: theme.muted }]}>Plano</Text>
-              <Text style={[styles.statusValue, { color: theme.text }]}>Mensal</Text>
-            </View>
-
-            <View style={[styles.statusPill, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.statusLabel, { color: theme.muted }]}>Valor</Text>
-              <Text style={[styles.statusValue, { color: theme.text }]}>{formatarMoeda(6.9)}</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>O que o Premium libera</Text>
-
-          <View style={styles.featureList}>
-            {[
-              'Adicionar e editar informações sem bloqueio',
-              'Excluir lançamentos, cartões, notas e categorias',
-              'Importar e exportar arquivos com identidade Brazllet',
-              'Experiência completa para organizar tudo no app',
-            ].map((item) => (
-              <View key={item} style={[styles.featureItem, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-                <Text style={[styles.featureBullet, { color: theme.primary }]}>✦</Text>
-                <Text style={[styles.featureText, { color: theme.text }]}>{item}</Text>
+              <View style={styles.heroTextos}>
+                <Text style={[styles.rotulo, { color: theme.primary }]}>Brazllet premium</Text>
+                <Text style={[styles.titulo, { color: theme.text }]}>Tudo liberado, por R$ 6,90 no mês</Text>
               </View>
-            ))}
-          </View>
-        </View>
+            </View>
 
+            <Text style={[styles.descricao, { color: theme.muted }]}>
+              Edição, importação, exportação, lançar falando e o resto do app sem bloqueio nenhum.
+            </Text>
+
+            <View style={styles.selos}>
+              <View style={[styles.selo, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+                <Text style={[styles.seloTexto, { color: theme.text }]}>{formatarMoeda(6.9)} / mês</Text>
+              </View>
+              <View
+                style={[
+                  styles.selo,
+                  styles.seloComIcone,
+                  {
+                    backgroundColor: premiumValido ? theme.greenSoft : theme.cardSoft,
+                    borderColor: premiumValido ? theme.green : theme.border,
+                  },
+                ]}
+              >
+                <Icon
+                  name={premiumValido ? 'confirmar' : 'premium'}
+                  size={12}
+                  color={premiumValido ? theme.green : theme.muted}
+                />
+                <Text style={[styles.seloTexto, { color: premiumValido ? theme.green : theme.text }]}>
+                  {premiumValido ? 'Ativo' : 'Inativo'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </AppearIn>
+
+        <AppearIn index={1}>
+          <View style={[styles.cartao, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.rotulo, { color: theme.muted }]}>Seu status</Text>
+            <Text style={[styles.descricao, { color: theme.muted, marginTop: 6 }]}>{premiumStatusTexto}</Text>
+
+            <View style={styles.numeros}>
+              <View style={[styles.numero, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+                <Text style={[styles.numeroRotulo, { color: theme.muted }]}>Plano</Text>
+                <Text style={[styles.numeroValor, { color: theme.text }]}>Mensal</Text>
+              </View>
+              <View style={[styles.numero, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+                <Text style={[styles.numeroRotulo, { color: theme.muted }]}>Valor</Text>
+                <Text style={[styles.numeroValor, { color: theme.text }]}>{formatarMoeda(6.9)}</Text>
+              </View>
+            </View>
+          </View>
+        </AppearIn>
+
+        <AppearIn index={2}>
+          <View style={[styles.cartao, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.rotulo, { color: theme.muted }]}>O que o premium libera</Text>
+
+            <View style={styles.liberados}>
+              {LIBERADOS.map((item) => (
+                <View key={item.texto} style={styles.liberado}>
+                  <View style={[styles.liberadoIcone, { backgroundColor: theme.greenSoft, borderColor: theme.green }]}>
+                    <Icon name={item.icone} size={14} color={theme.green} />
+                  </View>
+                  <Text style={[styles.liberadoTexto, { color: theme.text }]}>{item.texto}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </AppearIn>
+
+        <AppearIn index={3}>
+          <View style={[styles.cartao, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.rotulo, { color: theme.muted }]}>O que tem no Brazllet</Text>
+
+            <View style={styles.grade}>
+              {RECURSOS.map((recurso) => (
+                <View
+                  key={recurso.texto}
+                  style={[styles.recurso, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+                >
+                  <Icon name={recurso.icone} size={16} color={theme.primary} />
+                  <Text style={[styles.recursoTexto, { color: theme.text }]} numberOfLines={2}>
+                    {recurso.texto}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </AppearIn>
 
         {onboardingPending && !premiumValido ? (
           <PressableScale
             onPress={handleStartFreeTrial}
-            style={[
-              styles.trialButton,
-              { backgroundColor: theme.card, borderColor: theme.primary, shadowColor: theme.shadow },
-            ]}
+            scaleTo={0.98}
+            accessibilityRole="button"
+            style={[styles.botaoSecundario, { backgroundColor: theme.card, borderColor: theme.primary }]}
           >
-            <Text style={[styles.trialButtonText, { color: theme.primary }]}>Usar 7 dias grátis</Text>
+            <Icon name="premium" size={16} color={theme.primary} />
+            <Text style={[styles.botaoSecundarioTexto, { color: theme.primary }]}>Usar 7 dias grátis</Text>
           </PressableScale>
         ) : null}
 
         <PressableScale
           onPress={handleCreatePix}
           disabled={creatingPix}
+          scaleTo={0.98}
+          accessibilityRole="button"
           style={[
-            styles.ctaButton,
-            { backgroundColor: theme.primary, shadowColor: theme.shadow },
-            creatingPix ? styles.ctaButtonDisabled : null,
+            styles.botaoPrincipal,
+            { backgroundColor: theme.primary, borderColor: theme.primary, opacity: creatingPix ? 0.6 : 1 },
           ]}
         >
-          <Text style={[styles.ctaButtonText, { color: theme.white }]}>
-            {creatingPix ? 'Gerando Pix...' : 'Gerar Pix de R$ 6,90'}
+          {creatingPix ? (
+            <ActivityIndicator size="small" color={theme.textInverse} />
+          ) : (
+            <Icon name="pix" size={17} color={theme.textInverse} />
+          )}
+          <Text style={[styles.botaoPrincipalTexto, { color: theme.textInverse }]}>
+            {creatingPix ? 'Gerando Pix...' : `Gerar Pix de ${formatarMoeda(6.9)}`}
           </Text>
         </PressableScale>
 
         {pixData ? (
-          <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Pague com Pix</Text>
-            <Text style={[styles.sectionDescription, { color: theme.muted }]}>
-              Use o QR Code abaixo ou copie o código Pix para concluir seu pagamento.
-            </Text>
-
-            {pixData.qr_code_base64 ? (
-              <View style={[styles.qrWrap, { backgroundColor: theme.white, borderColor: theme.border }]}>
-                <Image
-                  source={{ uri: `data:image/png;base64,${pixData.qr_code_base64}` }}
-                  style={styles.qrImage}
-                  resizeMode='contain'
-                />
-              </View>
-            ) : null}
-
-            <Text style={[styles.pixCodeLabel, { color: theme.muted }]}>Código copia e cola</Text>
-            <View style={[styles.pixCodeBox, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.pixCodeText, { color: theme.text }]}>{pixData.qr_code || 'Código indisponível.'}</Text>
-            </View>
-
-            <PressableScale
-              onPress={handleCopyPix}
-              style={[styles.secondaryButton, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
-            >
-              <Text style={[styles.secondaryButtonText, { color: theme.text }]}>Copiar código Pix</Text>
-            </PressableScale>
-
-            {pixData.expires_at ? (
-              <Text style={[styles.expireText, { color: theme.muted }]}>
-                Expira em: {new Date(pixData.expires_at).toLocaleString('pt-BR')}
+          <AppearIn index={4}>
+            <View style={[styles.cartao, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <Text style={[styles.rotulo, { color: theme.muted }]}>Pague com Pix</Text>
+              <Text style={[styles.descricao, { color: theme.muted, marginTop: 6 }]}>
+                Aponte a câmera do banco para o código, ou copie e cole.
               </Text>
-            ) : null}
-          </View>
+
+              {pixData.qr_code_base64 ? (
+                <View style={[styles.qrCaixa, { backgroundColor: theme.white, borderColor: theme.border }]}>
+                  <Image
+                    source={{ uri: `data:image/png;base64,${pixData.qr_code_base64}` }}
+                    style={styles.qrImagem}
+                    resizeMode="contain"
+                  />
+                </View>
+              ) : null}
+
+              <Text style={[styles.rotuloPequeno, { color: theme.muted }]}>Código copia e cola</Text>
+              <View style={[styles.pixCaixa, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+                <Text style={[styles.pixTexto, { color: theme.text }]} numberOfLines={4}>
+                  {pixData.qr_code || 'Código indisponível.'}
+                </Text>
+              </View>
+
+              <PressableScale
+                onPress={handleCopyPix}
+                scaleTo={0.97}
+                accessibilityRole="button"
+                style={[styles.botaoSecundario, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
+              >
+                <Icon name="copiar" size={15} color={theme.text} />
+                <Text style={[styles.botaoSecundarioTexto, { color: theme.text }]}>Copiar código Pix</Text>
+              </PressableScale>
+
+              {pixData.expires_at ? (
+                <Text style={[styles.expira, { color: theme.faint }]}>
+                  Expira em {new Date(pixData.expires_at).toLocaleString('pt-BR')}
+                </Text>
+              ) : null}
+            </View>
+          </AppearIn>
         ) : null}
+
       </ScrollView>
 
       <AppPopup
@@ -564,26 +565,10 @@ export default function PremiumScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-
-  safeArea: {
-    flex: 1,
-  },
-
-  loadingWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    padding: 24,
-  },
-
-  loadingText: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
+  safeArea: { flex: 1 },
+  flex: { flex: 1 },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingText: { fontSize: 13.5, fontWeight: '700' },
 
   topBar: {
     flexDirection: 'row',
@@ -591,135 +576,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 14,
   },
-
-  backCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-
-  backCircleText: {
-    fontSize: 21,
-    fontWeight: '900',
-    lineHeight: 22,
-    marginTop: -5,
-  },
-
-  themeCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-
-  themeCircleText: {
-    fontSize: 18,
-    fontWeight: '900',
-    lineHeight: 18,
-  },
-
-  heroCard: {
-    borderWidth: 1,
-    borderRadius: 28,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 16,
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
-  },
-
-  heroGlow: {
-    width: 92,
-    height: 92,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    marginBottom: 14,
-  },
-
-  heroIcon: {
-    width: 68,
-    height: 68,
-  },
-
-  eyebrow: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-    marginBottom: 8,
-  },
-
-  heroTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    textAlign: 'center',
-    lineHeight: 30,
-  },
-
-  heroSub: {
-    marginTop: 8,
-    textAlign: 'center',
-    fontSize: 14,
-    lineHeight: 21,
-  },
-
-  heroBadgeRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-  },
-
-  heroBadge: {
-    minHeight: 38,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  heroBadgeText: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-
-  sectionCard: {
-    borderWidth: 1,
-    borderRadius: 24,
-    padding: 16,
-    marginBottom: 14,
-  },
-
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    marginBottom: 8,
-  },
-
-  sectionDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-
-
-  appOverviewHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 14,
-  },
-
-  appOverviewIconWrap: {
+  topTitulo: { fontSize: 16, fontWeight: '900', letterSpacing: -0.3 },
+  circulo: {
     width: 42,
     height: 42,
     borderRadius: 999,
@@ -728,253 +586,160 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  appOverviewIcon: {
-    fontSize: 20,
-    fontWeight: '900',
-    lineHeight: 22,
-  },
-
-  appOverviewTitleWrap: {
-    flex: 1,
-  },
-
-  appOverviewTitle: {
-    marginBottom: 6,
-  },
-
-  appOverviewGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 2,
-  },
-
-  appOverviewPill: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-  },
-
-  appOverviewPillText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-
-  statusGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 14,
-  },
-
-  statusPill: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 14,
-  },
-
-  statusLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-
-  statusValue: {
-    fontSize: 17,
-    fontWeight: '900',
-  },
-
-  featureList: {
-    gap: 10,
-    marginTop: 4,
-  },
-
-  featureItem: {
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-
-  featureBullet: {
-    fontSize: 16,
-    fontWeight: '900',
-    lineHeight: 20,
-    marginTop: -1,
-  },
-
-  featureText: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: '600',
-  },
-
-  ctaButton: {
-    minHeight: 56,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-    shadowOpacity: 0.16,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
-  },
-
-  ctaButtonDisabled: {
-    opacity: 0.75,
-  },
-
-  ctaButtonText: {
-    fontSize: 17,
-    fontWeight: '900',
-  },
-
-  qrWrap: {
+  cartao: {
     borderWidth: 1,
     borderRadius: 22,
-    padding: 10,
-    marginTop: 12,
-    marginBottom: 14,
+    padding: 16,
+    marginBottom: 12,
   },
 
-  qrImage: {
-    width: '100%',
-    height: 270,
+  heroTopo: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  heroGlow: {
+    width: 66,
+    height: 66,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  heroIcon: { width: 42, height: 42 },
+  heroTextos: { flex: 1, minWidth: 0 },
 
-  pixCodeLabel: {
-    fontSize: 12,
+  rotulo: {
+    fontSize: 11,
     fontWeight: '800',
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 8,
+    letterSpacing: 1,
   },
+  rotuloPequeno: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: 14,
+    marginBottom: 7,
+  },
+  titulo: { fontSize: 19, fontWeight: '900', letterSpacing: -0.5, lineHeight: 24, marginTop: 4 },
+  descricao: { fontSize: 13, fontWeight: '600', lineHeight: 19, marginTop: 12 },
 
-  pixCodeBox: {
+  selos: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  selo: {
+    minHeight: 34,
+    justifyContent: 'center',
+    paddingHorizontal: 13,
+    borderRadius: 999,
     borderWidth: 1,
+  },
+  seloComIcone: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  seloTexto: { fontSize: 12.5, fontWeight: '800' },
+
+  numeros: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  numero: { flex: 1, borderWidth: 1, borderRadius: 16, paddingVertical: 11, paddingHorizontal: 13 },
+  numeroRotulo: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.9,
+    marginBottom: 3,
+  },
+  numeroValor: { fontSize: 17, fontWeight: '900', letterSpacing: -0.4 },
+
+  liberados: { marginTop: 12, gap: 10 },
+  liberado: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  liberadoIcone: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  liberadoTexto: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: '700', lineHeight: 18 },
+
+  grade: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  recurso: {
+    width: '48%',
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 46,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 11,
+  },
+  recursoTexto: { flex: 1, minWidth: 0, fontSize: 12, fontWeight: '700', lineHeight: 16 },
+
+  botaoPrincipal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    minHeight: 54,
     borderRadius: 18,
-    padding: 14,
+    borderWidth: 1,
+    marginTop: 4,
+    marginBottom: 12,
   },
-
-  pixCodeText: {
-    fontSize: 13,
-    lineHeight: 20,
-  },
-
-  secondaryButton: {
-    minHeight: 50,
+  botaoPrincipalTexto: { fontSize: 14.5, fontWeight: '900' },
+  botaoSecundario: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 48,
     borderRadius: 16,
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginTop: 12,
+    marginBottom: 4,
   },
+  botaoSecundarioTexto: { fontSize: 13.5, fontWeight: '800' },
 
-  secondaryButtonText: {
-    fontSize: 15,
-    fontWeight: '800',
+  qrCaixa: {
+    alignSelf: 'center',
+    padding: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    marginTop: 14,
   },
+  qrImagem: { width: 190, height: 190 },
+  pixCaixa: { borderWidth: 1, borderRadius: 14, padding: 12 },
+  pixTexto: { fontSize: 11.5, fontWeight: '600', lineHeight: 17 },
+  expira: { fontSize: 11, fontWeight: '700', textAlign: 'center', marginTop: 10 },
 
-  expireText: {
-    marginTop: 12,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-
-  onboardingHint: {
-    marginTop: 10,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-
-  trialButton: {
-    minHeight: 54,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
-  },
-
-  trialButtonText: {
-    fontSize: 16,
-    fontWeight: '900',
-  },
-
+  // --- popup ---
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.36)',
-  },
-
-  modalBackdropTouch: {
-    ...StyleSheet.absoluteFillObject,
-  },
-
-  modalCenterWrap: {
-    flex: 1,
+    backgroundColor: 'rgba(2, 6, 23, 0.6)',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
+    padding: 22,
   },
-
   modalCard: {
     width: '88%',
-    maxWidth: 390,
+    maxWidth: 400,
     borderRadius: 24,
     borderWidth: 1,
+    paddingHorizontal: 20,
     paddingTop: 20,
-    paddingHorizontal: 18,
-    paddingBottom: 22,
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
+    paddingBottom: 16,
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
     elevation: 10,
   },
-
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-
-  modalDescription: {
-    fontSize: 14,
-    lineHeight: 21,
-    textAlign: 'center',
-  },
-
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginTop: 18,
-    width: '100%',
-  },
-
-  modalActionBtn: {
+  modalTitle: { fontSize: 17, fontWeight: '900', letterSpacing: -0.3, marginBottom: 7 },
+  modalDescription: { fontSize: 13, fontWeight: '600', lineHeight: 19, marginBottom: 16 },
+  modalActions: { flexDirection: 'row', gap: 8 },
+  modalBackdropTouch: { ...StyleSheet.absoluteFillObject },
+  modalCenterWrap: { width: '100%', alignItems: 'center' },
+  modalAction: {
     flex: 1,
-    minHeight: 50,
-    borderRadius: 16,
-    borderWidth: 1,
+    minHeight: 46,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1,
   },
-
-  modalActionText: {
-    fontSize: 15,
-    fontWeight: '800',
-  },
+  modalActionText: { fontSize: 13.5, fontWeight: '800' },
 })
