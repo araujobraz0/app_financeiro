@@ -421,8 +421,15 @@ function HomeScreenContent() {
     })
   }
 
-  const renderHighlightOverlay = (id: string) => (
-    <DestaqueBusca theme={theme} ativo={highlightedItemId === id} />
+  /**
+   * Moldura do item encontrado na busca.
+   *
+   * O raio vem de quem chama: os cartoes do app usam raios diferentes (16 nas
+   * listas, 18 nas grades, 24 nos paineis) e uma moldura de raio fixo passava
+   * reta pela quina arredondada do cartao.
+   */
+  const renderHighlightOverlay = (id: string, raio = 16) => (
+    <DestaqueBusca theme={theme} ativo={highlightedItemId === id} raio={raio} />
   )
 
   const destacarEIrParaItem = (id: string) => {
@@ -729,7 +736,23 @@ function HomeScreenContent() {
     [fixos]
   )
   const totalSaidas = useMemo(() => saidas.reduce((acc, item) => acc + Number(item.valor || 0), 0), [saidas])
-  const saldoAtual = salario + totalEntradas - totalFixoPago - totalSaidas
+  /** Fatura do mes somando todos os cartoes: parcelas mais assinaturas. */
+  const totalCartoesMes = useMemo(
+    () =>
+      cards.reduce((total, card) => {
+        const parcelas = (card.parcelas || [])
+          .filter((item) => item.competencia === chaveAtual)
+          .reduce((soma, item) => soma + Number(item.valorParcela || 0), 0)
+        const assinaturas = fixosDoMes(card.assinaturas || [], undefined, chaveAtual)
+          .reduce((soma, item) => soma + Number(item.valor || 0), 0)
+        return total + parcelas + assinaturas
+      }, 0),
+    [cards, chaveAtual]
+  )
+
+  // O que vai no cartao sai do bolso igual: sem isso o saldo ficava alto e o
+  // aperto so aparecia quando a fatura chegava.
+  const saldoAtual = salario + totalEntradas - totalFixoPago - totalSaidas - totalCartoesMes
 
   /**
    * Quanto sobrou (ou faltou) somando todos os meses ate este.
@@ -763,12 +786,22 @@ function HomeScreenContent() {
         // e fixo todas nascem com ele preenchido. Sem este corte, meses que o
         // usuario nunca abriu somariam salario cheio e zero gasto — o
         // acumulado viraria um numero inventado, alto e convincente.
-        const houveMovimento = entradasDoMes > 0 || saidasDoMes > 0 || fixosPagos > 0
+        const cartoesDoMes = (globalData.cards || []).reduce((soma, card) => {
+          const parcelas = (card.parcelas || [])
+            .filter((item) => item.competencia === chave)
+            .reduce((acc, item) => acc + Number(item.valorParcela || 0), 0)
+          const assinaturas = fixosDoMes(card.assinaturas || [], undefined, chave)
+            .reduce((acc, item) => acc + Number(item.valor || 0), 0)
+          return soma + parcelas + assinaturas
+        }, 0)
+
+        const houveMovimento =
+          entradasDoMes > 0 || saidasDoMes > 0 || fixosPagos > 0 || cartoesDoMes > 0
         if (!houveMovimento) return total
 
-        return total + Number(mes.salario || 0) + entradasDoMes - saidasDoMes - fixosPagos
+        return total + Number(mes.salario || 0) + entradasDoMes - saidasDoMes - fixosPagos - cartoesDoMes
       }, 0)
-  }, [bancoDeDados, chaveAtual, globalData.fixosRecorrentes])
+  }, [bancoDeDados, chaveAtual, globalData.fixosRecorrentes, globalData.cards])
 
   /** Quanto vinha de tras, antes do que aconteceu neste mes. */
   const saldoAnterior = saldoAcumulado - saldoAtual
@@ -1429,6 +1462,9 @@ function HomeScreenContent() {
       navegarComFoco(() => {
         setAbaInferior('variavel')
         setTipoVariavelTab('saida')
+        // Sem isto, procurar uma saida com outra categoria marcada levava para
+        // uma lista que nao continha o item: a busca achava e a tela escondia.
+        setFiltroCategoria('Todas')
       }, resultado.id)
       return
     }
@@ -2785,7 +2821,9 @@ function HomeScreenContent() {
               <GraficoCategoriasCard
                 theme={theme}
                 dadosPizza={dadosPizza}
+                saidas={saidas}
                 formatarValorVisivel={formatarValorVisivel}
+                formatarDia={(dia) => formatarDiaMes(dia, chaveAtual)}
               />
             </AppearIn>
 

@@ -14,7 +14,7 @@ type ComprasDesejoCardProps = {
   highlightedItemId: string | null
   formatarValorVisivel: (valor: number) => string
   registrarItem: (id: string) => (node: View | null) => void
-  renderHighlightOverlay: (id: string) => ReactNode
+  renderHighlightOverlay: (id: string, raio?: number) => ReactNode
   onNovo: () => void
   onEditar: (item: ShoppingWishItem) => void
   onAlternarComprado: (id: string, comprado: boolean) => void
@@ -114,7 +114,7 @@ function ComprasDesejoCard({
                   item.comprado && local.itemComprado,
                 ]}
               >
-                {renderHighlightOverlay(item.id)}
+                {renderHighlightOverlay(item.id, 18)}
 
                 {/* Faixa de cor no topo: da para varrer a grade e ver quais ja
                     dao, sem ler nenhum numero. */}

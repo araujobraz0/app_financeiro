@@ -16,7 +16,7 @@ type FixoTabProps = {
   highlightedItemId: string | null
   formatarValorVisivel: (valor: number) => string
   registrarItem: (id: string) => (node: View | null) => void
-  renderHighlightOverlay: (id: string) => ReactNode
+  renderHighlightOverlay: (id: string, raio?: number) => ReactNode
   onAbrirFiltro: () => void
   onAlternarPago: (id: string) => void
   onEditar: (item: FixoItem) => void

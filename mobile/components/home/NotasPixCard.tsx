@@ -13,7 +13,7 @@ type NotasPixCardProps = {
   copiedPixId: string | null
   highlightedItemId: string | null
   registrarItem: (id: string) => (node: View | null) => void
-  renderHighlightOverlay: (id: string) => ReactNode
+  renderHighlightOverlay: (id: string, raio?: number) => ReactNode
   renderTextoSecundario: (texto: string | undefined, fallback: string, color: string) => ReactNode
   renderListaLinks: (links?: string[]) => ReactNode
   onNovaNota: (tipo: NoteModalMode) => void
@@ -113,7 +113,7 @@ function NotasPixCard({
                   },
                 ]}
               >
-                {renderHighlightOverlay(item.id)}
+                {renderHighlightOverlay(item.id, 16)}
                 <PressableScale onPress={() => onCopiarPix(item.id, item.chave)} style={local.contatoToque}>
                   <View style={[local.circulo, { backgroundColor: copiado ? theme.green : corDe(item.id) }]}>
                     {copiado ? (
@@ -210,7 +210,7 @@ function NotasPixCard({
                 },
               ]}
             >
-              {renderHighlightOverlay(item.id)}
+              {renderHighlightOverlay(item.id, 18)}
               <PressableScale onPress={() => onEditarNota(item)} scaleTo={0.98} style={local.notaToque}>
                 <Text style={[local.notaTitulo, { color: theme.text }]} numberOfLines={2}>
                   {item.titulo}

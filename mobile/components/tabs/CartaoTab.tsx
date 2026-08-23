@@ -39,7 +39,7 @@ type CartaoTabProps = {
   highlightedItemId: string | null
   formatarValorVisivel: (valor: number) => string
   registrarItem: (id: string) => (node: View | null) => void
-  renderHighlightOverlay: (id: string) => ReactNode
+  renderHighlightOverlay: (id: string, raio?: number) => ReactNode
   onNovoCartao: () => void
   onGerenciarCartoes: () => void
   onAbrirFiltro: () => void
@@ -196,7 +196,7 @@ function CartaoTab({
             { backgroundColor: theme.card, borderColor: theme.border },
           ]}
         >
-          {renderHighlightOverlay(selectedCard.id)}
+          {renderHighlightOverlay(selectedCard.id, 24)}
 
           <Text style={[styles.smallLabel, { color: theme.muted, textAlign: 'left' }]}>
             Fatura de {selectedCard.nome}
@@ -452,7 +452,7 @@ function CartaoTab({
                     },
                   ]}
                 >
-                  {renderHighlightOverlay(item.id)}
+                  {renderHighlightOverlay(item.id, 18)}
 
                   <View style={local.compraTopo}>
                     <View style={{ flex: 1, minWidth: 0 }}>

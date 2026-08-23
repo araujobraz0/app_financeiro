@@ -27,7 +27,7 @@ type VariavelTabProps = {
   highlightedItemId: string | null
   formatarValorVisivel: (valor: number) => string
   registrarItem: (id: string) => (node: View | null) => void
-  renderHighlightOverlay: (id: string) => ReactNode
+  renderHighlightOverlay: (id: string, raio?: number) => ReactNode
   /** Categorias com teto mensal, ja com quanto foi gasto. */
   limitesDoMes: { categoria: string; limite: number; gasto: number; proporcao: number }[]
   onNovaCategoria: () => void

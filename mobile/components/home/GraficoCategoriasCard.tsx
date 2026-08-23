@@ -1,8 +1,10 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import Svg, { Circle, G, Path } from 'react-native-svg'
-import type { Tema } from '../../app/types'
+import type { SaidaItem, Tema } from '../../app/types'
 import { styles } from '../../src/theme/homeStyles'
+import Icon from '../common/Icon'
+import PressableScale from '../common/motion/PressableScale'
 
 export type FatiaPizza = {
   categoria: string
@@ -14,7 +16,10 @@ export type FatiaPizza = {
 type GraficoCategoriasCardProps = {
   theme: Tema
   dadosPizza: FatiaPizza[]
+  /** Saidas do mes, para abrir o que ha dentro de cada categoria. */
+  saidas: SaidaItem[]
   formatarValorVisivel: (valor: number) => string
+  formatarDia: (dia?: number) => string
 }
 
 const TAMANHO = 170
@@ -63,9 +68,19 @@ function createDonutSlicePath(
  * categoria ocupa a largura inteira abaixo dele, com uma barra proporcional
  * que torna a comparacao entre categorias imediata.
  */
-function GraficoCategoriasCard({ theme, dadosPizza, formatarValorVisivel }: GraficoCategoriasCardProps) {
+function GraficoCategoriasCard({
+  theme,
+  dadosPizza,
+  saidas,
+  formatarValorVisivel,
+  formatarDia,
+}: GraficoCategoriasCardProps) {
   const totalCategorias = dadosPizza.reduce((acc, item) => acc + item.valor, 0)
   const maiorValor = dadosPizza.reduce((acc, item) => Math.max(acc, item.valor), 0)
+
+  // Uma categoria aberta por vez: abrir varias transforma o resumo na propria
+  // lista de gastos, que ja existe na aba Variaveis.
+  const [categoriaAberta, setCategoriaAberta] = useState<string | null>(null)
 
   let anguloAtual = 0
 
@@ -135,16 +150,39 @@ function GraficoCategoriasCard({ theme, dadosPizza, formatarValorVisivel }: Graf
           <View style={local.lista}>
             {dadosPizza.map((item) => {
               const proporcao = maiorValor > 0 ? item.valor / maiorValor : 0
+              const aberta = categoriaAberta === item.categoria
+              const dentro = aberta
+                ? saidas
+                    .filter((saida) => saida.categoria === item.categoria)
+                    .sort((a, b) => Number(b.valor || 0) - Number(a.valor || 0))
+                : []
+
               return (
                 <View key={item.categoria} style={local.item}>
-                  <View style={local.itemTopo}>
+                  {/* A seta abre a categoria ali mesmo: o grafico diz quanto
+                      foi para Mercado, e a pergunta seguinte e sempre "no que". */}
+                  <PressableScale
+                    onPress={() => setCategoriaAberta(aberta ? null : item.categoria)}
+                    scaleTo={0.99}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: aberta }}
+                    accessibilityLabel={`${aberta ? 'Fechar' : 'Abrir'} os gastos de ${item.categoria}`}
+                    style={local.itemTopo}
+                  >
                     <View style={[local.ponto, { backgroundColor: item.cor }]} />
                     {/* Sem numberOfLines: nome de categoria nunca e cortado */}
                     <Text style={[local.nome, { color: theme.text }]}>{item.categoria}</Text>
                     <Text style={[local.valor, { color: theme.text }]} numberOfLines={1}>
                       {formatarValorVisivel(item.valor)}
                     </Text>
-                  </View>
+                    <View style={[local.seta, { backgroundColor: aberta ? item.cor : theme.cardSoft }]}>
+                      <Icon
+                        name={aberta ? 'seta_cima' : 'seta_baixo'}
+                        size={12}
+                        color={aberta ? theme.textInverse : theme.muted}
+                      />
+                    </View>
+                  </PressableScale>
 
                   <View style={local.barraLinha}>
                     <View style={[local.trilha, { backgroundColor: theme.backgroundSoft }]}>
@@ -159,6 +197,32 @@ function GraficoCategoriasCard({ theme, dadosPizza, formatarValorVisivel }: Graf
                       {item.percentual.toFixed(0)}%
                     </Text>
                   </View>
+
+                  {aberta ? (
+                    <View style={[local.dentro, { borderLeftColor: item.cor }]}>
+                      {dentro.length === 0 ? (
+                        <Text style={[local.dentroVazio, { color: theme.faint }]}>
+                          Nada lançado nesta categoria.
+                        </Text>
+                      ) : (
+                        dentro.map((saida) => (
+                          <View key={saida.id} style={local.dentroLinha}>
+                            <View style={local.dentroTextos}>
+                              <Text style={[local.dentroNome, { color: theme.text }]} numberOfLines={1}>
+                                {saida.nome}
+                              </Text>
+                              <Text style={[local.dentroDia, { color: theme.faint }]} numberOfLines={1}>
+                                {formatarDia(saida.dia)}
+                              </Text>
+                            </View>
+                            <Text style={[local.dentroValor, { color: theme.text }]} numberOfLines={1}>
+                              {formatarValorVisivel(saida.valor)}
+                            </Text>
+                          </View>
+                        ))
+                      )}
+                    </View>
+                  ) : null}
                 </View>
               )
             })}
@@ -170,6 +234,27 @@ function GraficoCategoriasCard({ theme, dadosPizza, formatarValorVisivel }: Graf
 }
 
 const local = StyleSheet.create({
+  seta: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  dentro: {
+    borderLeftWidth: 2,
+    paddingLeft: 10,
+    marginTop: 10,
+    marginBottom: 2,
+    gap: 8,
+  },
+  dentroVazio: { fontSize: 11.5, fontWeight: '600' },
+  dentroLinha: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dentroTextos: { flex: 1, minWidth: 0 },
+  dentroNome: { fontSize: 12.5, fontWeight: '700', letterSpacing: -0.2 },
+  dentroDia: { fontSize: 10, fontWeight: '600', marginTop: 1 },
+  dentroValor: { fontSize: 12.5, fontWeight: '800', flexShrink: 0 },
   donutWrap: { alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   centro: { position: 'absolute', alignItems: 'center', justifyContent: 'center', width: 96, paddingHorizontal: 2 },
   centroRotulo: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 },
