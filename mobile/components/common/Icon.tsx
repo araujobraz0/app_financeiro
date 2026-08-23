@@ -57,6 +57,8 @@ const GLYPHS = {
   abrir_link: 'open-outline',
   desfazer: 'arrow-undo-outline',
   refazer: 'arrow-redo-outline',
+  microfone: 'mic',
+  microfone_vazio: 'mic-outline',
 } satisfies Record<string, IoniconName>
 
 export type IconName = keyof typeof GLYPHS

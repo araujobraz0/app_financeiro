@@ -53,7 +53,9 @@ type LaunchModalProps = {
   onDayChange: (value: string) => void
   onOpenDayCalendar: () => void
   onTypeChange: (type: QuickAddType) => void
-  onSave: (values: LaunchFormValues) => void
+  onSave: (values: LaunchFormValues, continuar?: boolean) => void
+  /** Quantos itens ja foram lancados sem fechar o modal. */
+  lancadosSeguidos?: number
 }
 
 /** "2026-Agosto" -> "Ago/2026". */
@@ -88,6 +90,7 @@ export default function LaunchModal({
   onOpenDayCalendar,
   onTypeChange,
   onSave,
+  lancadosSeguidos = 0,
 }: LaunchModalProps) {
   const [name, setName] = useState(initialValues.name)
   const [selectedCategory, setSelectedCategory] = useState(initialValues.selectedCategory)
@@ -134,8 +137,11 @@ export default function LaunchModal({
     ? installmentDescription.trim().length > 0 && !!selectedCardId
     : nomeFinal.trim().length > 0
 
-  const handleSave = () => {
-    onSave({ name: nomeFinal, selectedCategory, value, installmentDescription, installmentValue, installmentTotal })
+  const handleSave = (continuar = false) => {
+    onSave(
+      { name: nomeFinal, selectedCategory, value, installmentDescription, installmentValue, installmentTotal },
+      continuar
+    )
   }
 
   const campoDia = (rotulo: string) => (
@@ -161,10 +167,24 @@ export default function LaunchModal({
       visible={visible}
       onClose={onClose}
       titulo={title}
-      acoes={[
-        { label: 'Cancelar', onPress: onClose },
-        { label: 'Salvar', onPress: handleSave, primaria: true, desabilitada: !podeSalvar },
-      ]}
+      subtitulo={
+        lancadosSeguidos > 0
+          ? `${lancadosSeguidos} ${lancadosSeguidos === 1 ? 'item lançado' : 'itens lançados'} — continue anotando`
+          : undefined
+      }
+      acoes={
+        // "Salvar e novo" so aparece ao criar: editando, um segundo item nao
+        // faz sentido nenhum.
+        mode === 'novo'
+          ? [
+              { label: 'Salvar e novo', onPress: () => handleSave(true), desabilitada: !podeSalvar },
+              { label: 'Salvar', onPress: () => handleSave(false), primaria: true, desabilitada: !podeSalvar },
+            ]
+          : [
+              { label: 'Cancelar', onPress: onClose },
+              { label: 'Salvar', onPress: () => handleSave(false), primaria: true, desabilitada: !podeSalvar },
+            ]
+      }
     >
       {/* Tipo do lancamento — so ao criar */}
       {mode === 'novo' ? (

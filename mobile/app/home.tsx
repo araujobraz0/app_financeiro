@@ -51,6 +51,8 @@ import type { LaunchFormValues } from '../components/modals/LaunchModal'
 import CardPurchaseModal, { emptyCardPurchaseValues } from '../components/modals/CardPurchaseModal'
 import type { CardPurchaseFormValues } from '../components/modals/CardPurchaseModal'
 import CardSubscriptionModal, { emptyCardSubscriptionValues } from '../components/modals/CardSubscriptionModal'
+import LancamentoPorVozModal from '../components/modals/LancamentoPorVozModal'
+import type { FalaInterpretada } from '../src/utils/fala'
 import type { CardSubscriptionValues } from '../components/modals/CardSubscriptionModal'
 import ManageCardsModal from '../components/modals/ManageCardsModal'
 import CardEditorModal, { emptyCardEditorValues } from '../components/modals/CardEditorModal'
@@ -264,6 +266,10 @@ function HomeScreenContent() {
   const [categoriaFormKey, setCategoriaFormKey] = useState(0)
   const [categoriaInicial, setCategoriaInicial] = useState('')
   const [limiteInicial, setLimiteInicial] = useState('')
+  /** Quantos itens ja foram lancados sem fechar o modal. */
+  const [lancamentosSeguidos, setLancamentosSeguidos] = useState(0)
+  const [modalVozAberto, setModalVozAberto] = useState(false)
+  const ultimaCategoriaUsadaRef = useRef('')
   const [modalAssinaturaAberto, setModalAssinaturaAberto] = useState(false)
   const [assinaturaEditandoId, setAssinaturaEditandoId] = useState<string | null>(null)
   const [assinaturaFormKey, setAssinaturaFormKey] = useState(0)
@@ -1991,9 +1997,10 @@ function HomeScreenContent() {
     setModoModalLancamento('novo')
     setItemEditandoId(null)
     setDiaEdicao('1')
+    setLancamentosSeguidos(0)
   }
 
-  const salvarNovaParcelaDentroDoLancamento = (values: LaunchFormValues) => {
+  const salvarNovaParcelaDentroDoLancamento = (values: LaunchFormValues, continuar = false) => {
     if (!selectedCardId || !values.installmentDescription.trim()) return
 
     const valorTotalCompra = moneyStringToNumber(values.installmentValue)
@@ -2033,12 +2040,33 @@ function HomeScreenContent() {
       },
     }))
 
-    fecharModalLancamento()
+    if (continuar) continuarLancando()
+    else fecharModalLancamento()
   }
 
-  const salvarLancamento = (values: LaunchFormValues) => {
+  /**
+   * Salva e prepara o modal para o proximo item, sem fechar.
+   *
+   * Lancar cinco compras do dia significava abrir e fechar o modal cinco
+   * vezes, escolhendo o tipo e a categoria de novo a cada volta.
+   */
+  const continuarLancando = () => {
+    setLancamentosSeguidos((total) => total + 1)
+    setItemEditandoId(null)
+    setModoModalLancamento('novo')
+    setLaunchInitialValues({
+      ...emptyLaunchFormValues(categoriasSaidas[0] || 'Mercado'),
+      // Tipo e cartao ficam: quem lanca em serie costuma repetir os dois.
+      selectedCategory: ultimaCategoriaUsadaRef.current || categoriasSaidas[0] || 'Mercado',
+    })
+    setLaunchFormKey((prev) => prev + 1)
+  }
+
+  const salvarLancamento = (values: LaunchFormValues, continuar = false) => {
+    ultimaCategoriaUsadaRef.current = values.selectedCategory
+
     if (tipoFormularioLancamento === 'parcela') {
-      salvarNovaParcelaDentroDoLancamento(values)
+      salvarNovaParcelaDentroDoLancamento(values, continuar)
       return
     }
 
@@ -2129,7 +2157,57 @@ function HomeScreenContent() {
       }))
     }
 
-    fecharModalLancamento()
+    if (continuar && modoModalLancamento === 'novo') continuarLancando()
+    else fecharModalLancamento()
+  }
+
+  const abrirLancamentoPorVoz = () => {
+    if (bloquearAcaoSemPremium('Lançar por voz é um recurso premium.')) return
+    setModalVozAberto(true)
+  }
+
+  /** Grava o que foi dito, do jeito que o formulario normal gravaria. */
+  const salvarLancamentoFalado = (falado: FalaInterpretada) => {
+    const dia = Math.min(31, Math.max(1, new Date().getDate()))
+    const base = {
+      id: `${falado.tipo}-${Date.now()}`,
+      nome: falado.nome,
+      valor: falado.valor,
+      dia,
+    }
+
+    setAppData((prev) => {
+      const mes = prev.bancoDeDados[chaveAtual]
+      if (!mes) return prev
+
+      return {
+        ...prev,
+        bancoDeDados: {
+          ...prev.bancoDeDados,
+          [chaveAtual]: {
+            ...mes,
+            entradas: falado.tipo === 'entrada' ? [...mes.entradas, base] : mes.entradas,
+            saidas:
+              falado.tipo === 'saida'
+                ? [
+                    ...mes.saidas,
+                    { ...base, categoria: falado.categoria || categoriasSaidas[0] || 'Mercado' },
+                  ]
+                : mes.saidas,
+          },
+        },
+      }
+    })
+
+    setModalVozAberto(false)
+    // Leva para a lista onde ele acabou de cair, ja destacado: e a prova de
+    // que o app entendeu o que foi dito.
+    setAbaInferior('variavel')
+    setTipoVariavelTab(falado.tipo === 'entrada' ? 'entrada' : 'saida')
+    if (falado.tipo === 'saida') setFiltroCategoria('Todas')
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(() => destacarEIrParaItem(base.id), 220)
+    })
   }
 
   const abrirConfirmacaoExclusao = (type: DeleteTarget, id: string, label: string) => {
@@ -2936,6 +3014,30 @@ function HomeScreenContent() {
       </ScrollView>
       </View>
 
+      {/* Falar e o caminho mais curto para anotar um gasto: um toque e uma
+          frase, sem escolher tipo nem digitar nada. Fica solto acima da barra
+          para nao competir com o + , que continua sendo o caminho completo. */}
+      {!algumModalAberto ? (
+        <PressableScale
+          onPress={abrirLancamentoPorVoz}
+          scaleTo={0.9}
+          hapticStyle={Haptics.ImpactFeedbackStyle.Medium}
+          accessibilityRole="button"
+          accessibilityLabel="Lançar falando"
+          style={[
+            styles.botaoVoz,
+            {
+              backgroundColor: theme.card,
+              borderColor: theme.borderStrong,
+              shadowColor: theme.shadowStrong,
+              bottom: Math.max(insets.bottom, 10) + 86,
+            },
+          ]}
+        >
+          <Icon name="microfone" size={22} color={theme.primary} />
+        </PressableScale>
+      ) : null}
+
       {!algumModalAberto && <View style={[styles.bottomBar, { backgroundColor: theme.card, borderColor: theme.border, bottom: Math.max(insets.bottom, 10) }]}>
         <View style={styles.bottomHalf}>
           <BottomTabItem label="Home" icon="aba_home" active={abaInferior === 'home'} theme={theme} onPress={() => setAbaInferior('home')} />
@@ -3017,6 +3119,7 @@ function HomeScreenContent() {
           }
         }}
         onSave={salvarLancamento}
+        lancadosSeguidos={lancamentosSeguidos}
       />
 
       <ManageCategoriesModal
@@ -3049,6 +3152,14 @@ function HomeScreenContent() {
         type={noteModalType}
         initialValues={noteInitialValues}
         onSave={salvarAnotacao}
+      />
+
+      <LancamentoPorVozModal
+        visible={modalVozAberto}
+        onClose={() => setModalVozAberto(false)}
+        theme={theme}
+        categorias={categoriasSaidas}
+        onConfirmar={salvarLancamentoFalado}
       />
 
       <CardSubscriptionModal
