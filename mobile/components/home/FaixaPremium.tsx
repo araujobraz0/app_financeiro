@@ -1,24 +1,14 @@
-// A faixa de premium, logo abaixo do cabecalho.
+// O selo de premium, no alto do conteudo.
 //
 // O anel dourado no avatar era o unico sinal de que o plano estava ativo — e
 // ninguem le um anel. Aqui a informacao aparece por extenso, com a data em que
-// vence, e o brilho que atravessa a faixa de tempos em tempos e o que faz ela
-// parecer o selo de um plano, e nao um aviso.
+// vence.
 //
-// Sem premium a mesma faixa fica quieta, em cinza, servindo de caminho para a
-// tela de assinatura.
+// E um selo pequeno, e nao uma faixa: fica junto do conteudo e sai de cena com
+// a rolagem, em vez de ocupar o topo da tela o tempo todo. Sem premium ele
+// continua ali, em cinza, servindo de caminho para a assinatura.
 
-import { useEffect } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated'
 
 import type { Tema } from '../../app/types'
 import Icon from '../common/Icon'
@@ -49,29 +39,6 @@ function diasRestantes(iso: string | null) {
 }
 
 export default function FaixaPremium({ theme, ativo, expiraEm, onPress }: Props) {
-  const brilho = useSharedValue(-1)
-
-  useEffect(() => {
-    if (!ativo) {
-      brilho.value = -1
-      return
-    }
-    // Uma passada, uma pausa longa: brilho continuo vira distracao.
-    brilho.value = withRepeat(
-      withSequence(
-        withTiming(1.4, { duration: 1400, easing: Easing.inOut(Easing.quad) }),
-        withDelay(4200, withTiming(-1, { duration: 0 }))
-      ),
-      -1,
-      false
-    )
-  }, [ativo, brilho])
-
-  const estiloBrilho = useAnimatedStyle(() => ({
-    opacity: brilho.value > -1 && brilho.value < 1.4 ? 0.5 : 0,
-    transform: [{ translateX: `${brilho.value * 100}%` }, { rotate: '18deg' }],
-  }))
-
   const dias = diasRestantes(expiraEm)
   const acabando = ativo && dias !== null && dias <= 5
 
@@ -87,70 +54,47 @@ export default function FaixaPremium({ theme, ativo, expiraEm, onPress }: Props)
       accessibilityLabel={ativo ? 'Premium ativo' : 'Ativar o premium'}
       style={[styles.faixa, { backgroundColor: fundo, borderColor: borda }]}
     >
-      {ativo ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.brilho, { backgroundColor: theme.white }, estiloBrilho]}
-        />
-      ) : null}
-
       <View style={[styles.selo, { backgroundColor: ativo ? theme.accent : theme.border }]}>
-        <Icon name="premium" size={11} color={ativo ? theme.textInverse : theme.muted} />
+        <Icon name="premium" size={9} color={ativo ? theme.textInverse : theme.muted} />
       </View>
 
       <Text style={[styles.texto, { color: cor }]} numberOfLines={1}>
-        {ativo ? 'Premium ativo' : 'Ativar o premium'}
+        {ativo ? 'Premium' : 'Ativar premium'}
       </Text>
 
       {ativo && expiraEm ? (
-        <Text
-          style={[styles.detalhe, { color: acabando ? theme.red : cor }]}
-          numberOfLines={1}
-        >
+        <Text style={[styles.detalhe, { color: acabando ? theme.red : cor }]} numberOfLines={1}>
           {acabando && dias !== null
             ? dias <= 0
-              ? 'vence hoje'
-              : `${dias} ${dias === 1 ? 'dia' : 'dias'}`
-            : ateQuando(expiraEm)}
+              ? '· vence hoje'
+              : `· ${dias} ${dias === 1 ? 'dia' : 'dias'}`
+            : `· ${ateQuando(expiraEm)}`}
         </Text>
-      ) : (
-        <Text style={[styles.detalhe, { color: theme.faint }]} numberOfLines={1}>
-          R$ 6,90/mês
-        </Text>
-      )}
-
-      <Icon name="seta_direita" size={13} color={cor} />
+      ) : null}
     </PressableScale>
   )
 }
 
 const styles = StyleSheet.create({
   faixa: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    minHeight: 38,
-    marginHorizontal: 14,
-    marginTop: 10,
-    paddingHorizontal: 10,
+    gap: 5,
+    minHeight: 24,
+    marginBottom: 8,
+    paddingLeft: 4,
+    paddingRight: 9,
     borderRadius: 999,
     borderWidth: 1,
-    overflow: 'hidden',
-  },
-  brilho: {
-    position: 'absolute',
-    top: -20,
-    bottom: -20,
-    left: 0,
-    width: 46,
   },
   selo: {
-    width: 22,
-    height: 22,
+    width: 17,
+    height: 17,
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  texto: { flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: '900', letterSpacing: -0.1 },
-  detalhe: { fontSize: 11.5, fontWeight: '800' },
+  texto: { fontSize: 10.5, fontWeight: '900', letterSpacing: 0.2, textTransform: 'uppercase' },
+  detalhe: { fontSize: 10.5, fontWeight: '700' },
 })

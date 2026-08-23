@@ -3106,13 +3106,6 @@ function HomeScreenContent() {
         onRefazer={refazer}
       />
 
-      <FaixaPremium
-        theme={theme}
-        ativo={premiumValido}
-        expiraEm={premiumExpiresAt}
-        onPress={irParaTelaPremium}
-      />
-
       <ScrollView
         ref={mainScrollRef}
         onScroll={(event) => {
@@ -3130,6 +3123,12 @@ function HomeScreenContent() {
         keyboardShouldPersistTaps='handled'
       >
         <View ref={conteudoRolagemRef} collapsable={false}>
+        <FaixaPremium
+          theme={theme}
+          ativo={premiumValido}
+          expiraEm={premiumExpiresAt}
+          onPress={irParaTelaPremium}
+        />
         <BuscaGlobal theme={theme} valor={buscaGlobal} onChange={setBuscaGlobal} />
         {resultadosBuscaGlobal.length > 0 && (
           <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 0, marginBottom: 8 }]}>
