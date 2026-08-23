@@ -69,6 +69,9 @@ const CONECTIVOS = [
   'e', 'para', 'pra', 'pro', 'por', 'a', 'o', 'ao', 'um', 'uma',
 ]
 
+/** Verbos que dizem "isto saiu", para o pedaco nao herdar tipo errado. */
+const MARCAS_DE_SAIDA = ['gastei', 'gasto', 'paguei', 'pagar', 'comprei', 'comprar', 'saida']
+
 export function normalizar(texto: string) {
   return String(texto || '')
     .toLowerCase()
@@ -215,11 +218,9 @@ function inicioDosCentavos(palavras: string[], indice: number) {
  * Devolve null quando nao ha valor nenhum: sem numero nao existe lancamento, e
  * chutar zero seria pior que avisar que nao deu.
  */
-export function interpretarFala(
-  transcricao: string,
-  categorias: string[]
-): FalaInterpretada | null {
-  const limpo = normalizar(transcricao)
+/** Tira do texto tudo que atrapalha a leitura do valor e do nome. */
+export function limparFrase(transcricao: string) {
+  return normalizar(transcricao)
     // O reconhecimento ouve "quatorze e cinquenta" e escreve "14h50" ou
     // "14:50", achando que e hora. Num app de dinheiro nao e: sao os
     // centavos, e sem isto o lancamento saia sem valor nenhum.
@@ -232,6 +233,15 @@ export function interpretarFala(
     .replace(/([a-z])[.,]+(?=\s|$)/g, '$1')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+export function interpretarFala(
+  transcricao: string,
+  categorias: string[],
+  /** Acentos do texto original, quando a frase ja veio partida em pedacos. */
+  acentos?: Record<string, string>
+): FalaInterpretada | null {
+  const limpo = limparFrase(transcricao)
   if (!limpo) return null
 
   const palavras = limpo.split(' ')
@@ -249,7 +259,7 @@ export function interpretarFala(
     ? [...achado.resto.slice(0, naFrase.inicio), ...achado.resto.slice(naFrase.fim)]
     : achado.resto
 
-  const nomeBruto = montarNome(semCategoria)
+  const nomeBruto = montarNome(semCategoria, acentos || mapaDeAcentos(transcricao))
   const categoria = naFrase?.categoria || acharCategoria(nomeBruto || limpo, categorias)
 
   // Sem nome sobrando, a categoria vira o nome — "gastei 50" no mercado fica
@@ -266,13 +276,39 @@ export function interpretarFala(
 }
 
 /**
+ * De volta aos acentos: "farmacia" -> "farmácia".
+ *
+ * A leitura acontece sem acento nenhum, senao "acai" e "açaí" seriam coisas
+ * diferentes. Mas o nome que fica salvo e o que a pessoa ve, e ali o acento
+ * faz falta — entao ele volta do texto original, palavra por palavra.
+ */
+function mapaDeAcentos(transcricao: string) {
+  const mapa: Record<string, string> = {}
+
+  String(transcricao || '')
+    .split(/\s+/)
+    .forEach((bruto) => {
+      const limpo = bruto.replace(/[.,;:!?"'()[\]]/g, '').toLowerCase()
+      if (!limpo) return
+      const chave = normalizar(limpo)
+      // So interessa quando o original tem acento: "MERCADO" continua virando
+      // "Mercado", e nao "MERCADO".
+      if (chave !== limpo && !mapa[chave]) mapa[chave] = limpo
+    })
+
+  return mapa
+}
+
+/**
  * Junta o que sobrou num nome apresentavel.
  *
  * O ruido de comando sai de qualquer lugar; as ligacoes so das pontas, senao
  * "produtos de limpeza" viraria "produtos limpeza".
  */
-function montarNome(palavras: string[]) {
-  const uteis = palavras.filter((palavra) => palavra && !RUIDO.includes(palavra))
+function montarNome(palavras: string[], acentos: Record<string, string>) {
+  const uteis = palavras
+    .filter((palavra) => palavra && !RUIDO.includes(palavra))
+    .map((palavra) => acentos[palavra] || palavra)
 
   let inicio = 0
   let fim = uteis.length
@@ -315,4 +351,89 @@ function acharCategoria(texto: string, categorias: string[]) {
     return nome.length > 2 && alvo.includes(nome)
   })
   return encontrada || null
+}
+
+/**
+ * Palavras que emendam um lancamento no outro.
+ *
+ * "e" fica de fora desta lista porque ele tanto separa dois lancamentos
+ * ("mercado 50 e uber 20") quanto faz parte de um numero so ("oitenta e
+ * quatro"). Quem decide isso e a vizinhanca — ver `separaAqui`.
+ */
+const EMENDAS = ['mais', 'tambem', 'depois', 'dai', 'ai', 'entao', 'agora']
+
+/** Esta palavra e pedaco de numero? */
+function ehNumero(palavra: string) {
+  if (!palavra) return false
+  if (/^\d/.test(palavra)) return true
+  return (
+    palavra === 'mil' ||
+    UNIDADES[palavra] !== undefined ||
+    DEZENAS[palavra] !== undefined ||
+    CENTENAS[palavra] !== undefined
+  )
+}
+
+/** O "e" desta posicao termina um lancamento ou esta no meio de um numero? */
+function separaAqui(palavras: string[], i: number) {
+  const palavra = palavras[i]
+  if (EMENDAS.includes(palavra)) return true
+  if (palavra !== 'e') return false
+  // "oitenta e quatro": numero dos dois lados, entao e o mesmo valor.
+  return !(ehNumero(palavras[i - 1]) && ehNumero(palavras[i + 1]))
+}
+
+/**
+ * Le uma fala inteira e devolve todos os lancamentos que couberem nela.
+ *
+ * "gastei 50 no mercado e 22 no uber" sao dois lancamentos, nao um. Quando a
+ * frase tem um so, o resultado e uma lista de um — quem chama nao precisa
+ * saber a diferenca.
+ */
+export function interpretarVarias(
+  transcricao: string,
+  categorias: string[]
+): FalaInterpretada[] {
+  const limpo = limparFrase(transcricao)
+  if (!limpo) return []
+
+  const acentos = mapaDeAcentos(transcricao)
+  const palavras = limpo.split(' ')
+  const pedacos: string[][] = [[]]
+  palavras.forEach((palavra, i) => {
+    if (separaAqui(palavras, i)) {
+      if (pedacos[pedacos.length - 1].length) pedacos.push([])
+      return
+    }
+    pedacos[pedacos.length - 1].push(palavra)
+  })
+
+  const achados: FalaInterpretada[] = []
+  let tipoAnterior: 'entrada' | 'saida' | null = null
+
+  pedacos.forEach((pedaco) => {
+    if (!pedaco.length) return
+    const frase = pedaco.join(' ')
+    const lido = interpretarFala(frase, categorias, acentos)
+    if (!lido) return
+
+    // "recebi 500 de freela e 200 de aula": o segundo pedaco nao repete o
+    // "recebi", entao herda o tipo de quem veio antes.
+    const temMarca =
+      PALAVRAS_ENTRADA.some((termo) => frase.includes(normalizar(termo))) ||
+      MARCAS_DE_SAIDA.some((termo) => frase.includes(termo))
+    const tipo = temMarca || !tipoAnterior ? lido.tipo : tipoAnterior
+
+    tipoAnterior = tipo
+    achados.push({ ...lido, tipo, transcricao: String(transcricao || '').trim() })
+  })
+
+  // Nenhum pedaco deu certo sozinho: tenta a frase inteira, que pode ser um
+  // lancamento so com um "e" no meio do nome.
+  if (!achados.length) {
+    const unico = interpretarFala(transcricao, categorias)
+    return unico ? [unico] : []
+  }
+
+  return achados
 }

@@ -2166,16 +2166,25 @@ function HomeScreenContent() {
     setModalVozAberto(true)
   }
 
-  /** Grava o que foi dito, do jeito que o formulario normal gravaria. */
-  const salvarLancamentoFalado = (falado: FalaInterpretada) => {
-    const dia = Math.min(31, Math.max(1, new Date().getDate()))
-    const base = {
-      id: `${falado.tipo}-${Date.now()}`,
-      nome: falado.nome,
-      valor: falado.valor,
-      dia,
-    }
+  /** Grava tudo que foi dito de uma vez, do jeito que o formulario gravaria. */
+  const salvarLancamentoFalado = (falados: FalaInterpretada[]) => {
+    if (!falados.length) return
 
+    const dia = Math.min(31, Math.max(1, new Date().getDate()))
+    const agora = Date.now()
+    const novos = falados.map((falado, i) => ({
+      tipo: falado.tipo,
+      registro: {
+        id: `${falado.tipo}-${agora}-${i}`,
+        nome: falado.nome,
+        valor: falado.valor,
+        dia,
+      },
+      categoria: falado.categoria || categoriasSaidas[0] || 'Mercado',
+    }))
+
+    // Tudo numa alteracao so: quem falou cinco itens seguidos espera desfazer
+    // a fala inteira, nao item por item.
     setAppData((prev) => {
       const mes = prev.bancoDeDados[chaveAtual]
       if (!mes) return prev
@@ -2186,27 +2195,30 @@ function HomeScreenContent() {
           ...prev.bancoDeDados,
           [chaveAtual]: {
             ...mes,
-            entradas: falado.tipo === 'entrada' ? [...mes.entradas, base] : mes.entradas,
-            saidas:
-              falado.tipo === 'saida'
-                ? [
-                    ...mes.saidas,
-                    { ...base, categoria: falado.categoria || categoriasSaidas[0] || 'Mercado' },
-                  ]
-                : mes.saidas,
+            entradas: [
+              ...mes.entradas,
+              ...novos.filter((n) => n.tipo === 'entrada').map((n) => n.registro),
+            ],
+            saidas: [
+              ...mes.saidas,
+              ...novos
+                .filter((n) => n.tipo === 'saida')
+                .map((n) => ({ ...n.registro, categoria: n.categoria })),
+            ],
           },
         },
       }
     })
 
     setModalVozAberto(false)
-    // Leva para a lista onde ele acabou de cair, ja destacado: e a prova de
-    // que o app entendeu o que foi dito.
+    // Leva para a lista onde eles acabaram de cair, com o primeiro destacado:
+    // e a prova de que o app entendeu o que foi dito.
+    const primeiro = novos[0]
     setAbaInferior('variavel')
-    setTipoVariavelTab(falado.tipo === 'entrada' ? 'entrada' : 'saida')
-    if (falado.tipo === 'saida') setFiltroCategoria('Todas')
+    setTipoVariavelTab(primeiro.tipo === 'entrada' ? 'entrada' : 'saida')
+    if (primeiro.tipo === 'saida') setFiltroCategoria('Todas')
     InteractionManager.runAfterInteractions(() => {
-      setTimeout(() => destacarEIrParaItem(base.id), 220)
+      setTimeout(() => destacarEIrParaItem(primeiro.registro.id), 220)
     })
   }
 
