@@ -236,6 +236,9 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
                 : normalizarCategoriaNome(item.categoria)
               : 'Mercado',
           dia: Number(item.dia || 1),
+          // Sem isto o lugar dito na fala se perdia a cada carga, e o "valor
+          // do ultimo" nunca encontrava nada.
+          referencia: item.referencia ? String(item.referencia) : undefined,
         })),
         categoriasSaidas: categoriasNormalizadas,
       }

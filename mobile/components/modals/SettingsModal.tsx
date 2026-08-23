@@ -29,6 +29,10 @@ type SettingsModalProps = {
   processingFile: ProcessFileType
   onOpenExportPreview: (type: ExportType) => void
   onImportData: () => void
+  /** Abre a lista do que a voz aprendeu. */
+  onOpenVoiceMemory: () => void
+  /** Quantos lugares ela ja conhece, para a linha dizer se ha algo la. */
+  voiceMemoryCount: number
   seguirTemaDoSistema: boolean
   onAlternarModoTemaSistema: () => void
   backups: { id: string; created_at: string }[]
@@ -85,6 +89,8 @@ export default function SettingsModal({
   processingFile,
   onOpenExportPreview,
   onImportData,
+  onOpenVoiceMemory,
+  voiceMemoryCount,
   seguirTemaDoSistema,
   onAlternarModoTemaSistema,
   backups,
@@ -264,6 +270,20 @@ export default function SettingsModal({
             processingFile === 'importar'
           )}
         </>
+      )}
+
+      {/* ---------- Voz ---------- */}
+      {secao(
+        'Lançar falando',
+        linha(
+          'microfone',
+          'O que a voz aprendeu',
+          voiceMemoryCount
+            ? `${voiceMemoryCount} ${voiceMemoryCount === 1 ? 'lugar guardado' : 'lugares guardados'}`
+            : 'Nada guardado ainda',
+          seta,
+          onOpenVoiceMemory
+        )
       )}
 
       {/* ---------- Backups ---------- */}

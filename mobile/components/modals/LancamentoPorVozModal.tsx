@@ -12,8 +12,9 @@
 // iPhone, o microfone do proprio teclado dita para dentro dele. Entao a
 // ferramenta funciona em qualquer aparelho, mudando so quem ouve.
 
+import * as Haptics from 'expo-haptics'
 import { useEffect, useRef, useState } from 'react'
-import { StyleSheet, Text, TextInput, View } from 'react-native'
+import { Platform, StyleSheet, Text, TextInput, View } from 'react-native'
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -28,6 +29,7 @@ import { formatarMoeda } from '../../src/utils/currency'
 import {
   interpretarVarias,
   normalizar as normalizarFala,
+  type ContextoFala,
   type FalaInterpretada,
 } from '../../src/utils/fala'
 import { explicarErro, navegadorOuve, ouvir } from '../../src/utils/reconhecimentoDeVoz'
@@ -41,14 +43,29 @@ type Props = {
   onClose: () => void
   theme: Tema
   categorias: string[]
-  /** Nome ja conhecido -> categoria, para nao perguntar de novo. */
-  memoriaCategorias: Record<string, string>
+  /** Tudo que o app sabe e ajuda a entender a fala. */
+  contexto: ContextoFala
   onAprenderCategoria: (nome: string, categoria: string) => void
   onConfirmar: (lancamentos: FalaInterpretada[]) => void
 }
 
 /** Item ja capturado. O `chave` existe so para a lista nao se confundir. */
 type ItemFalado = FalaInterpretada & { chave: string }
+
+/**
+ * Um toque curto de confirmacao.
+ *
+ * No aparelho e vibracao de verdade; no navegador, quando ele deixa. Nunca
+ * derruba nada se nao existir — e so um reforco.
+ */
+function vibrar() {
+  if (Platform.OS === 'web') {
+    const nav = typeof navigator !== 'undefined' ? (navigator as unknown as Navigator) : null
+    if (nav && typeof nav.vibrate === 'function') nav.vibrate(28)
+    return
+  }
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
+}
 
 /** Silencio que encerra a escuta. Mais que isto e microfone aberto a toa. */
 const OCIOSO_MS = 15000
@@ -60,7 +77,7 @@ export default function LancamentoPorVozModal({
   onClose,
   theme,
   categorias,
-  memoriaCategorias,
+  contexto,
   onAprenderCategoria,
   onConfirmar,
 }: Props) {
@@ -83,8 +100,7 @@ export default function LancamentoPorVozModal({
   // O microfone se reabre de dentro do proprio callback, entao o que ele
   // enxerga e sempre o render em que a escuta comecou. Sem estas duas
   // referencias, a categoria ensinada agora nao valia para a proxima frase.
-  const memoriaRef = useRef(memoriaCategorias)
-  const categoriasRef = useRef(categorias)
+  const contextoRef = useRef(contexto)
 
   const podeOuvir = navegadorOuve()
   const somaEntradas = itens
@@ -99,9 +115,8 @@ export default function LancamentoPorVozModal({
   }, [itens])
 
   useEffect(() => {
-    memoriaRef.current = memoriaCategorias
-    categoriasRef.current = categorias
-  }, [memoriaCategorias, categorias])
+    contextoRef.current = contexto
+  }, [contexto])
 
   // Cada abertura comeca limpa — e ja escutando, onde da.
   useEffect(() => {
@@ -143,9 +158,13 @@ export default function LancamentoPorVozModal({
     }, OCIOSO_MS)
   }
 
+  /** So a saida variavel precisa de categoria: cartao e fixo nao tem. */
+  const precisaDeCategoria = (item: ItemFalado) =>
+    item.destino === 'variavel' && item.tipo === 'saida' && !item.categoria
+
   /** Guarda o que a frase tiver dentro. Devolve quantos itens entraram. */
   const guardar = (frase: string) => {
-    const lidos = interpretarVarias(frase, categoriasRef.current, memoriaRef.current)
+    const lidos = interpretarVarias(frase, contextoRef.current)
     if (!lidos.length) {
       setAviso(`Não achei valor em "${frase.trim()}".`)
       return 0
@@ -158,9 +177,12 @@ export default function LancamentoPorVozModal({
 
     setAviso('')
     setItens((antes) => [...antes, ...novos])
+    // Um toque a cada item entendido: da para falar a lista inteira olhando
+    // para o carrinho, sem conferir a tela a cada frase.
+    vibrar()
 
     // Nome que o app nunca viu: pergunta a categoria agora, uma vez so.
-    const semCategoria = novos.find((item) => item.tipo === 'saida' && !item.categoria)
+    const semCategoria = novos.find(precisaDeCategoria)
     if (semCategoria) setEscolhendo(semCategoria.chave)
 
     return novos.length
@@ -240,13 +262,13 @@ export default function LancamentoPorVozModal({
     const atualizados = itens.map((item) => {
       if (item.chave === chave) return { ...item, categoria }
       // O bolo e o pao da mesma padaria nao precisam perguntar de novo.
-      const mesmoLugar = item.tipo === 'saida' && !item.categoria && chaveDeMemoria(item) === aprendida
+      const mesmoLugar = precisaDeCategoria(item) && chaveDeMemoria(item) === aprendida
       return mesmoLugar ? { ...item, categoria } : item
     })
     setItens(atualizados)
 
     // Emenda na proxima pergunta, se ainda houver alguma.
-    const proximo = atualizados.find((item) => item.tipo === 'saida' && !item.categoria)
+    const proximo = atualizados.find(precisaDeCategoria)
     setEscolhendo(proximo ? proximo.chave : null)
   }
 
@@ -254,7 +276,7 @@ export default function LancamentoPorVozModal({
     if (!itens.length) return
 
     // Em vez de um botao morto, leva direto para a pergunta que falta.
-    const semCategoria = itens.find((item) => item.tipo === 'saida' && !item.categoria)
+    const semCategoria = itens.find(precisaDeCategoria)
     if (semCategoria) {
       setEscolhendo(semCategoria.chave)
       setAviso(`Falta dizer onde entra "${semCategoria.nome}".`)
@@ -412,8 +434,9 @@ export default function LancamentoPorVozModal({
           </View>
 
           {itens.map((item, i) => {
-            const precisa = item.tipo === 'saida' && !item.categoria
+            const precisa = precisaDeCategoria(item)
             const aberto = escolhendo === item.chave
+            const quando = etiquetaDeData(item)
 
             return (
               <AppearIn key={item.chave} index={i} distance={10}>
@@ -439,7 +462,14 @@ export default function LancamentoPorVozModal({
                         {item.nome}
                       </Text>
 
-                      {item.tipo === 'entrada' ? (
+                      {item.destino !== 'variavel' ? (
+                        <Text
+                          style={[styles.itemCategoria, { color: theme.accent }]}
+                          numberOfLines={1}
+                        >
+                          {etiquetaDeDestino(item)}
+                        </Text>
+                      ) : item.tipo === 'entrada' ? (
                         <Text style={[styles.itemCategoria, { color: theme.muted }]}>Entrada</Text>
                       ) : (
                         <PressableScale
@@ -477,8 +507,13 @@ export default function LancamentoPorVozModal({
                       >
                         {formatarMoeda(item.valor)}
                       </Text>
-                      {item.dia ? (
-                        <Text style={[styles.itemDia, { color: theme.faint }]}>dia {item.dia}</Text>
+                      {quando ? (
+                        <Text style={[styles.itemDia, { color: theme.faint }]}>{quando}</Text>
+                      ) : null}
+                      {item.valorDeMemoria ? (
+                        <Text style={[styles.itemDia, { color: theme.accent }]}>
+                          valor do último
+                        </Text>
                       ) : null}
                     </View>
 
@@ -540,11 +575,29 @@ export default function LancamentoPorVozModal({
       ) : (
         <Text style={[styles.dica, { color: theme.faint }]}>
           Diga o item e o preço: &quot;mercado oitenta e quatro e cinquenta&quot;. Dá para emendar
-          vários numa frase só e dizer quando foi — &quot;padaria 12 ontem e uber 22&quot;.
+          vários numa frase só, dizer quando foi — &quot;padaria 12 ontem&quot; —, mandar para o
+          cartão — &quot;300 no cartão em 3 vezes&quot; — ou marcar como fixo: &quot;todo mês 129
+          de internet&quot;.
         </Text>
       )}
     </ModalSheet>
   )
+}
+
+/** "Cartão Nubank · 3x", "Todo mês", "Assinatura · Inter". */
+function etiquetaDeDestino(item: ItemFalado) {
+  if (item.destino === 'fixo') return 'Todo mês'
+  if (item.destino === 'assinatura') {
+    return item.cartao ? `Assinatura · ${item.cartao}` : 'Assinatura do cartão'
+  }
+  const cartao = item.cartao ? `Cartão ${item.cartao}` : 'No cartão'
+  return item.parcelas && item.parcelas > 1 ? `${cartao} · ${item.parcelas}x` : cartao
+}
+
+/** "30/Jul" quando o mes foi dito, "dia 30" quando so o dia. */
+function etiquetaDeData(item: ItemFalado) {
+  if (item.mes) return `${item.dia || new Date().getDate()}/${item.mes.slice(0, 3)}`
+  return item.dia ? `dia ${item.dia}` : ''
 }
 
 /** Barrinhas que sobem e descem enquanto o microfone esta aberto. */

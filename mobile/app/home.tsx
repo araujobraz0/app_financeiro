@@ -45,6 +45,7 @@ import type { NoteFormValues } from '../components/modals/NoteModal'
 import ShoppingWishModal, { emptyShoppingWishValues } from '../components/modals/ShoppingWishModal'
 import type { ShoppingWishFormValues } from '../components/modals/ShoppingWishModal'
 import ConfirmDeleteModal from '../components/modals/ConfirmDeleteModal'
+import MemoriaDaVozModal from '../components/modals/MemoriaDaVozModal'
 import SettingsModal from '../components/modals/SettingsModal'
 import LaunchModal, { emptyLaunchFormValues } from '../components/modals/LaunchModal'
 import type { LaunchFormValues } from '../components/modals/LaunchModal'
@@ -269,6 +270,7 @@ function HomeScreenContent() {
   /** Quantos itens ja foram lancados sem fechar o modal. */
   const [lancamentosSeguidos, setLancamentosSeguidos] = useState(0)
   const [modalVozAberto, setModalVozAberto] = useState(false)
+  const [modalMemoriaVozAberto, setModalMemoriaVozAberto] = useState(false)
   const ultimaCategoriaUsadaRef = useRef('')
   const [modalAssinaturaAberto, setModalAssinaturaAberto] = useState(false)
   const [assinaturaEditandoId, setAssinaturaEditandoId] = useState<string | null>(null)
@@ -2212,60 +2214,215 @@ function HomeScreenContent() {
     setModalVozAberto(true)
   }
 
+  /**
+   * Contexto que a fala usa para entender melhor.
+   *
+   * Nomes que ele ja usou consertam o que o reconhecimento ouviu errado, e o
+   * ultimo valor de cada lugar preenche o preco quando ele nao for dito.
+   */
+  const contextoDaFala = useMemo(() => {
+    const conhecidos = new Set<string>()
+    const valores: Record<string, number> = {}
+    const vistoEm: Record<string, number> = {}
+
+    // "2026-Agosto" e "2026-Julho" nao se comparam como texto: Agosto viria
+    // antes. Em mes e ano de verdade, sim.
+    const ordemDe = (chave: string) => {
+      const [ano, mes] = chave.split('-')
+      return Number(ano) * 12 + Math.max(0, meses.indexOf(mes))
+    }
+
+    Object.entries(appData.bancoDeDados).forEach(([chave, mes]) => {
+      mes.saidas.forEach((saida) => {
+        if (!saida.nome) return
+        conhecidos.add(saida.nome)
+        // O nome e o lugar valem os dois: "cafe" e "padaria" levam ao mesmo
+        // preco. Vale sempre o mais recente — preco de mercado muda.
+        ;[normalizarFala(saida.nome), saida.referencia || ''].forEach((alvo) => {
+          if (!alvo) return
+          const ordem = ordemDe(chave)
+          // >= porque dentro do mesmo mes vale o ultimo lancado.
+          if (vistoEm[alvo] === undefined || ordem >= vistoEm[alvo]) {
+            vistoEm[alvo] = ordem
+            valores[alvo] = saida.valor
+          }
+        })
+      })
+      mes.entradas.forEach((entrada) => entrada.nome && conhecidos.add(entrada.nome))
+    })
+
+    Object.keys(appData.global.categoriasAprendidas || {}).forEach((nome) => conhecidos.add(nome))
+    ;(appData.global.cards || []).forEach((card) => card.nome && conhecidos.add(card.nome))
+    fixosDoMes(appData.global.fixosRecorrentes || [], undefined, chaveAtual).forEach((fixo) =>
+      conhecidos.add(fixo.nome)
+    )
+
+    return {
+      categorias: categoriasSaidas,
+      memoria: memoriaCategorias,
+      cartoes: (appData.global.cards || []).map((card) => card.nome).filter(Boolean),
+      conhecidos: [...conhecidos],
+      valores,
+    }
+  }, [appData, categoriasSaidas, memoriaCategorias, chaveAtual])
+
+  /** Troca a categoria de um nome ja ensinado, sem passar pela fala. */
+  const trocarCategoriaAprendida = (nome: string, categoria: string) => aprenderCategoria(nome, categoria)
+
+  /** Esquece o que foi ensinado: o proximo lancamento pergunta de novo. */
+  const esquecerCategoriaAprendida = (nome: string) => {
+    setAppData((prev) => {
+      const restante = { ...(prev.global.categoriasAprendidas || {}) }
+      delete restante[normalizarFala(nome)]
+      return { ...prev, global: { ...prev.global, categoriasAprendidas: restante } }
+    })
+  }
+
   /** Grava tudo que foi dito de uma vez, do jeito que o formulario gravaria. */
   const salvarLancamentoFalado = (falados: FalaInterpretada[]) => {
     if (!falados.length) return
 
     const hoje = new Date().getDate()
     const agora = Date.now()
-    const novos = falados.map((falado, i) => ({
-      tipo: falado.tipo,
-      registro: {
-        id: `${falado.tipo}-${agora}-${i}`,
-        nome: falado.nome,
-        valor: falado.valor,
-        // "ontem", "dia 12": quando a frase diz quando foi, e isso que vale.
-        dia: Math.min(31, Math.max(1, falado.dia || hoje)),
-      },
-      categoria: falado.categoria || categoriasSaidas[0] || 'Mercado',
-    }))
+
+    /** Em que mes cada coisa cai: o dito na frase, ou o que esta aberto. */
+    const competenciaDe = (falado: FalaInterpretada, banco: BancoDeDados) => {
+      if (!falado.mes) return chaveAtual
+      const chave = `${falado.ano || anoSelecionado}-${falado.mes}`
+      return banco[chave] ? chave : chaveAtual
+    }
+
+    const primeiro = falados[0]
+    let idParaDestacar = ''
 
     // Tudo numa alteracao so: quem falou cinco itens seguidos espera desfazer
     // a fala inteira, nao item por item.
     setAppData((prev) => {
-      const mes = prev.bancoDeDados[chaveAtual]
-      if (!mes) return prev
+      const banco: BancoDeDados = { ...prev.bancoDeDados }
+      let cards = prev.global.cards || []
+      let fixos = prev.global.fixosRecorrentes || []
+
+      falados.forEach((falado, i) => {
+        const chave = competenciaDe(falado, prev.bancoDeDados)
+        const mes = banco[chave]
+        if (!mes) return
+
+        const dia = Math.min(31, Math.max(1, falado.dia || hoje))
+        const id = `${falado.destino}-${agora}-${i}`
+        const cartaoAlvo =
+          cards.find((card) => card.nome === falado.cartao) ||
+          cards.find((card) => card.id === selectedCardId) ||
+          cards[0]
+
+        // Cartao e assinatura precisam de um cartao cadastrado; sem nenhum, o
+        // gasto ainda assim e real, entao vira saida do mes.
+        const destino =
+          (falado.destino === 'cartao' || falado.destino === 'assinatura') && !cartaoAlvo
+            ? 'variavel'
+            : falado.destino
+
+        if (destino === 'cartao' && cartaoAlvo) {
+          const total = Math.max(1, falado.parcelas || 1)
+          const valorParcela = falado.valor / total
+          const grupo = `purchase-${agora}-${i}`
+          const inicio = falado.mes ? chave : calcularCompetenciaInicialParcela(cartaoAlvo.fechamento)
+
+          const novas: CardInstallment[] = Array.from({ length: total }, (_, idx) => ({
+            id: `installment-${agora}-${i}-${idx}`,
+            descricao: falado.nome,
+            valorParcela,
+            parcelaAtual: idx + 1,
+            totalParcelas: total,
+            competencia: addMonthsToCompetencia(inicio, idx),
+            dia,
+            groupId: grupo,
+          }))
+
+          cards = cards.map((card) =>
+            card.id === cartaoAlvo.id ? { ...card, parcelas: [...card.parcelas, ...novas] } : card
+          )
+          if (!idParaDestacar) idParaDestacar = novas[0].id
+          return
+        }
+
+        if (destino === 'assinatura' && cartaoAlvo) {
+          cards = cards.map((card) =>
+            card.id === cartaoAlvo.id
+              ? {
+                  ...card,
+                  assinaturas: criarFixoRecorrente(card.assinaturas || [], chave, {
+                    id: `assinatura-${agora}-${i}`,
+                    nome: falado.nome,
+                    valor: falado.valor,
+                  }),
+                }
+              : card
+          )
+          return
+        }
+
+        if (destino === 'fixo') {
+          fixos = criarFixoRecorrente(fixos, chave, {
+            id: `fixo-recorrente-${agora}-${i}`,
+            nome: falado.nome,
+            valor: falado.valor,
+          })
+          return
+        }
+
+        const registro = { id, nome: falado.nome, valor: falado.valor, dia }
+        banco[chave] =
+          falado.tipo === 'entrada'
+            ? { ...mes, entradas: [...mes.entradas, registro] }
+            : {
+                ...mes,
+                saidas: [
+                  ...mes.saidas,
+                  {
+                    ...registro,
+                    categoria: falado.categoria || categoriasSaidas[0] || 'Mercado',
+                    referencia: falado.referencia || undefined,
+                  },
+                ],
+              }
+        if (!idParaDestacar) idParaDestacar = id
+      })
 
       return {
         ...prev,
-        bancoDeDados: {
-          ...prev.bancoDeDados,
-          [chaveAtual]: {
-            ...mes,
-            entradas: [
-              ...mes.entradas,
-              ...novos.filter((n) => n.tipo === 'entrada').map((n) => n.registro),
-            ],
-            saidas: [
-              ...mes.saidas,
-              ...novos
-                .filter((n) => n.tipo === 'saida')
-                .map((n) => ({ ...n.registro, categoria: n.categoria })),
-            ],
-          },
-        },
+        bancoDeDados: banco,
+        global: { ...prev.global, cards, fixosRecorrentes: fixos },
       }
     })
 
     setModalVozAberto(false)
-    // Leva para a lista onde eles acabaram de cair, com o primeiro destacado:
-    // e a prova de que o app entendeu o que foi dito.
-    const primeiro = novos[0]
-    setAbaInferior('variavel')
-    setTipoVariavelTab(primeiro.tipo === 'entrada' ? 'entrada' : 'saida')
-    if (primeiro.tipo === 'saida') setFiltroCategoria('Todas')
+
+    // Leva para onde a coisa caiu — inclusive para outro mes, se ele disse um.
+    const chaveDestino = competenciaDe(primeiro, appData.bancoDeDados)
+    if (chaveDestino !== chaveAtual) {
+      const [ano, mes] = chaveDestino.split('-')
+      setAnoSelecionado(Number(ano))
+      setMesSelecionado(mes)
+    }
+
+    if (primeiro.destino === 'cartao' || primeiro.destino === 'assinatura') {
+      const alvo =
+        (appData.global.cards || []).find((card) => card.nome === primeiro.cartao) ||
+        (appData.global.cards || [])[0]
+      if (alvo) {
+        setSelectedCardId(alvo.id)
+        setAbaInferior('cartao')
+      }
+    } else if (primeiro.destino === 'fixo') {
+      setAbaInferior('fixo')
+    } else {
+      setAbaInferior('variavel')
+      setTipoVariavelTab(primeiro.tipo === 'entrada' ? 'entrada' : 'saida')
+      if (primeiro.tipo === 'saida') setFiltroCategoria('Todas')
+    }
+
     InteractionManager.runAfterInteractions(() => {
-      setTimeout(() => destacarEIrParaItem(primeiro.registro.id), 220)
+      setTimeout(() => idParaDestacar && destacarEIrParaItem(idParaDestacar), 260)
     })
   }
 
@@ -3218,7 +3375,7 @@ function HomeScreenContent() {
         onClose={() => setModalVozAberto(false)}
         theme={theme}
         categorias={categoriasSaidas}
-        memoriaCategorias={memoriaCategorias}
+        contexto={contextoDaFala}
         onAprenderCategoria={aprenderCategoria}
         onConfirmar={salvarLancamentoFalado}
       />
@@ -3388,12 +3545,24 @@ function HomeScreenContent() {
         processingFile={processandoArquivo}
         onOpenExportPreview={abrirPreviewExportacao}
         onImportData={importarDadosBanco}
+        onOpenVoiceMemory={() => setModalMemoriaVozAberto(true)}
+        voiceMemoryCount={Object.keys(appData.global.categoriasAprendidas || {}).length}
         seguirTemaDoSistema={themeMode === 'system'}
         onAlternarModoTemaSistema={alternarModoTemaSistema}
         backups={backupsDisponiveis}
         loadingBackups={carregandoBackups}
         restoringBackupId={restaurandoBackupId}
         onRestoreBackup={confirmarRestaurarBackup}
+      />
+
+      <MemoriaDaVozModal
+        visible={modalMemoriaVozAberto}
+        onClose={() => setModalMemoriaVozAberto(false)}
+        theme={theme}
+        aprendidas={appData.global.categoriasAprendidas || {}}
+        categorias={categoriasSaidas}
+        onTrocar={trocarCategoriaAprendida}
+        onApagar={esquecerCategoriaAprendida}
       />
 
       <ImageCropModal

@@ -14,6 +14,13 @@ export type SaidaItem = {
   valor: number
   categoria: string
   dia?: number
+  /**
+   * Lugar onde foi, quando o lancamento veio da fala ("padaria").
+   *
+   * E o que permite dizer so "um cafe na padaria" da proxima vez: o app
+   * procura aqui o ultimo valor gasto naquele lugar.
+   */
+  referencia?: string
 }
 
 /** Gasto fixo como a tela ve: ja resolvido para uma competencia. */

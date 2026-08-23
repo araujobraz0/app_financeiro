@@ -5,6 +5,24 @@
 // pessoa falou. As duas formas precisam funcionar, senao a ferramenta so serve
 // para quem aprender a falar do jeito certo.
 
+import { meses } from './dates'
+
+/** Onde o lancamento vai parar. */
+export type DestinoFala = 'variavel' | 'cartao' | 'fixo' | 'assinatura'
+
+/** Tudo que o app sabe e que ajuda a entender a fala. */
+export type ContextoFala = {
+  categorias: string[]
+  /** Nome ja ensinado -> categoria. */
+  memoria?: Record<string, string>
+  /** Nomes dos cartoes, para "no cartao nubank" achar o cartao certo. */
+  cartoes?: string[]
+  /** Nomes e lugares ja usados, para consertar o que o reconhecimento errou. */
+  conhecidos?: string[]
+  /** Ultimo valor gasto em cada lugar, para quando ele nao for dito. */
+  valores?: Record<string, number>
+}
+
 /** O que foi entendido de uma fala. */
 export type FalaInterpretada = {
   tipo: 'entrada' | 'saida'
@@ -14,6 +32,18 @@ export type FalaInterpretada = {
   categoria: string | null
   /** Dia do mes dito na frase ("ontem", "dia 12"). Null = hoje. */
   dia: number | null
+  /** Mes dito na frase ("de julho", "mes passado"). Null = o mes aberto. */
+  mes: string | null
+  /** Ano, quando o mes dito atravessa a virada. Null = o ano aberto. */
+  ano: number | null
+  /** Onde isto vai: variavel, cartao, gasto fixo ou assinatura do cartao. */
+  destino: DestinoFala
+  /** Cartao dito na frase. Null quando nao e compra de cartao. */
+  cartao: string | null
+  /** Em quantas vezes ("em 3 vezes"). Null = a vista. */
+  parcelas: number | null
+  /** O valor nao foi dito: veio do ultimo gasto naquele mesmo lugar. */
+  valorDeMemoria: boolean
   /**
    * O lugar dito na frase — "na padaria", "no posto ipiranga".
    *
@@ -94,6 +124,9 @@ const CONECTIVOS = [
 
 /** Verbos que dizem "isto saiu", para o pedaco nao herdar tipo errado. */
 const MARCAS_DE_SAIDA = ['gastei', 'gasto', 'paguei', 'pagar', 'comprei', 'comprar', 'saida']
+
+/** Os meses do jeito que o app guarda a competencia. */
+const MESES_APP = meses
 
 export function normalizar(texto: string) {
   return String(texto || '')
@@ -237,46 +270,252 @@ function extrairValor(palavras: string[]) {
   return null
 }
 
-/** Dia do mes a partir de hoje, andando para tras. */
-function diaRelativo(passos: number) {
-  const data = new Date()
-  data.setDate(data.getDate() + passos)
-  return data.getDate()
+/** Meses como o app guarda, e como a pessoa fala. */
+const MESES_FALADOS = [
+  'janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho',
+  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+]
+
+/** Quantos numeros a frase tem. Menos de dois e todos eles sao o valor. */
+function contarNumeros(palavras: string[]) {
+  return palavras.filter((palavra) => ehNumero(palavra)).length
 }
 
 /**
- * Tira da frase o dia em que a coisa aconteceu.
+ * Tira da frase quando a coisa aconteceu — dia e mes.
  *
- * Sai antes do valor de proposito: em "dia 12 gastei 50" o 12 seria lido
- * como preco, e o lancamento nasceria errado.
+ * Sai antes do valor de proposito: em "dia 12 gastei 50" o 12 seria lido como
+ * preco. Por seguranca, um numero so vira dia se ainda sobrar outro numero na
+ * frase para ser o valor — senao "mercado dia 12" ficaria sem valor nenhum.
  */
-function extrairDia(palavras: string[]): { dia: number | null; resto: string[] } {
-  const sem = (i: number, quantas: number) => [
-    ...palavras.slice(0, i),
-    ...palavras.slice(i + quantas),
-  ]
+function extrairData(palavras: string[]) {
+  let dia: number | null = null
+  let mes: string | null = null
+  let ano: number | null = null
+  const usadas = new Set<number>()
+  const sobramNumeros = () => contarNumeros(palavras.filter((_, i) => !usadas.has(i))) > 1
+
+  const deHoje = (passos: number) => {
+    const data = new Date()
+    data.setDate(data.getDate() + passos)
+    dia = data.getDate()
+    mes = MESES_APP[data.getMonth()]
+    ano = data.getFullYear()
+  }
+
+  const mesRelativo = (passos: number) => {
+    const data = new Date()
+    data.setDate(1)
+    data.setMonth(data.getMonth() + passos)
+    mes = MESES_APP[data.getMonth()]
+    ano = data.getFullYear()
+  }
 
   for (let i = 0; i < palavras.length; i += 1) {
+    if (usadas.has(i)) continue
     const palavra = palavras[i]
 
-    if (palavra === 'hoje') return { dia: diaRelativo(0), resto: sem(i, 1) }
-    if (palavra === 'ontem') return { dia: diaRelativo(-1), resto: sem(i, 1) }
-    if (palavra === 'anteontem') return { dia: diaRelativo(-2), resto: sem(i, 1) }
+    if (palavra === 'hoje' || palavra === 'ontem' || palavra === 'anteontem') {
+      deHoje(palavra === 'hoje' ? 0 : palavra === 'ontem' ? -1 : -2)
+      usadas.add(i)
+      continue
+    }
 
-    if (palavra === 'dia') {
+    // "mes passado", "mes que vem", "proximo mes"
+    if (palavra === 'mes') {
+      if (palavras[i + 1] === 'passado') {
+        mesRelativo(-1)
+        usadas.add(i).add(i + 1)
+        if (PREPOSICOES.includes(palavras[i - 1])) usadas.add(i - 1)
+        continue
+      }
+      if (palavras[i + 1] === 'que' && palavras[i + 2] === 'vem') {
+        mesRelativo(1)
+        usadas.add(i).add(i + 1).add(i + 2)
+        continue
+      }
+      if (palavras[i - 1] === 'proximo' || palavras[i - 1] === 'proxima') {
+        mesRelativo(1)
+        usadas.add(i).add(i - 1)
+        continue
+      }
+    }
+
+    // "30 de julho" / "dia 30 de julho"
+    const indiceMes = MESES_FALADOS.indexOf(palavra)
+    if (indiceMes >= 0) {
+      mes = MESES_APP[indiceMes]
+      usadas.add(i)
+      if (palavras[i - 1] === 'de' || palavras[i - 1] === 'em') usadas.add(i - 1)
+
+      const antes = palavras[i - 2]
+      const numeroAntes = antes && /^\d{1,2}$/.test(antes) ? Number(antes) : null
+      if (dia === null && numeroAntes && numeroAntes >= 1 && numeroAntes <= 31 && sobramNumeros()) {
+        dia = numeroAntes
+        usadas.add(i - 2)
+        if (palavras[i - 3] === 'dia') usadas.add(i - 3)
+      }
+      continue
+    }
+
+    if (palavra === 'dia' && dia === null) {
       const emDigitos = palavras[i + 1]?.match(/^(\d{1,2})$/)
-      if (emDigitos) {
+      if (emDigitos && sobramNumeros()) {
         const numero = Number(emDigitos[1])
-        if (numero >= 1 && numero <= 31) return { dia: numero, resto: sem(i, 2) }
+        if (numero >= 1 && numero <= 31) {
+          dia = numero
+          usadas.add(i).add(i + 1)
+          continue
+        }
       }
       const extenso = lerNumeroPorExtenso(palavras, i + 1)
-      if (extenso && extenso.valor >= 1 && extenso.valor <= 31) {
-        return { dia: extenso.valor, resto: sem(i, 1 + extenso.consumidas) }
+      if (extenso && extenso.valor >= 1 && extenso.valor <= 31 && sobramNumeros()) {
+        dia = extenso.valor
+        usadas.add(i)
+        for (let j = 0; j < extenso.consumidas; j += 1) usadas.add(i + 1 + j)
+        continue
       }
     }
   }
 
-  return { dia: null, resto: palavras }
+  return { dia, mes, ano, resto: palavras.filter((_, i) => !usadas.has(i)) }
+}
+
+/**
+ * Em quantas vezes a compra foi parcelada.
+ *
+ * Sai antes do valor porque "em 3 vezes" tem um numero que nao e preco.
+ */
+function extrairParcelas(palavras: string[]) {
+  const usadas = new Set<number>()
+  let parcelas: number | null = null
+
+  for (let i = 0; i < palavras.length && parcelas === null; i += 1) {
+    const palavra = palavras[i]
+
+    // "3x"
+    const grudado = palavra.match(/^(\d{1,2})x$/)
+    if (grudado) {
+      parcelas = Number(grudado[1])
+      usadas.add(i)
+      if (palavras[i - 1] === 'em') usadas.add(i - 1)
+      break
+    }
+
+    if (palavra !== 'vezes' && palavra !== 'parcelas' && palavra !== 'parcela' && palavra !== 'vez') {
+      continue
+    }
+
+    // "em 3 vezes" / "em tres vezes"
+    const antes = palavras[i - 1]
+    if (antes && /^\d{1,2}$/.test(antes)) {
+      parcelas = Number(antes)
+      usadas.add(i).add(i - 1)
+    } else {
+      const extenso = antes ? lerNumeroPorExtenso([antes], 0) : null
+      if (extenso && extenso.valor >= 1 && extenso.valor <= 48) {
+        parcelas = extenso.valor
+        usadas.add(i).add(i - 1)
+      }
+    }
+
+    if (parcelas !== null) {
+      const inicio = i - 2
+      if (palavras[inicio] === 'em' || palavras[inicio] === 'parcelado') usadas.add(inicio)
+      if (palavras[inicio - 1] === 'parcelado') usadas.add(inicio - 1)
+    }
+  }
+
+  const valida = parcelas !== null && parcelas >= 1 && parcelas <= 48 ? parcelas : null
+  return { parcelas: valida, resto: palavras.filter((_, i) => !usadas.has(i)) }
+}
+
+/**
+ * Qual cartao foi usado.
+ *
+ * Aceita "no cartao nubank", "no credito" e ate so "no nubank" — se o nome
+ * bate com um cartao cadastrado, era do cartao mesmo.
+ */
+function extrairCartao(palavras: string[], cartoes: string[]) {
+  const usadas = new Set<number>()
+  let cartao: string | null = null
+  let marcado = false
+
+  // Ninguem fala "cartao Nubank Ultravioleta": fala "nubank". Entao vale o
+  // nome inteiro, e tambem qualquer palavra propria dele.
+  const acharNome = () => {
+    const candidatos = cartoes
+      .map((nome) => ({ nome, termos: normalizar(nome).split(' ').filter(Boolean) }))
+      .filter((c) => c.termos.length)
+      .sort((a, b) => b.termos.length - a.termos.length)
+
+    for (const candidato of candidatos) {
+      const total = candidato.termos.length
+      for (let i = 0; i + total <= palavras.length; i += 1) {
+        if (candidato.termos.every((termo, j) => mesmaPalavra(palavras[i + j], termo))) {
+          for (let j = 0; j < total; j += 1) usadas.add(i + j)
+          return candidato.nome
+        }
+      }
+    }
+
+    for (const candidato of candidatos) {
+      for (const termo of candidato.termos) {
+        if (termo.length <= 2) continue
+        const i = palavras.findIndex((palavra) => mesmaPalavra(palavra, termo))
+        if (i >= 0) {
+          usadas.add(i)
+          return candidato.nome
+        }
+      }
+    }
+
+    return null
+  }
+
+  palavras.forEach((palavra, i) => {
+    if (palavra === 'cartao' || palavra === 'credito' || palavra === 'cartoes') {
+      marcado = true
+      usadas.add(i)
+      if (MARCADORES_DE_LUGAR.includes(palavras[i - 1]) || palavras[i - 1] === 'de') usadas.add(i - 1)
+      if (palavras[i + 1] === 'de') usadas.add(i + 1)
+    }
+  })
+
+  cartao = acharNome()
+  if (cartao && !marcado) {
+    // "no nubank": a preposicao que apresentava o cartao tambem sai.
+    const primeira = Math.min(...[...usadas])
+    if (MARCADORES_DE_LUGAR.includes(palavras[primeira - 1])) usadas.add(primeira - 1)
+  }
+  if (!cartao && marcado && cartoes.length === 1) cartao = cartoes[0]
+
+  const noCartao = marcado || !!cartao
+  return { cartao: noCartao ? cartao : null, noCartao, resto: palavras.filter((_, i) => !usadas.has(i)) }
+}
+
+/** "todo mes", "mensal", "fixo": isto se repete. */
+function extrairRepeticao(palavras: string[]) {
+  const usadas = new Set<number>()
+  let repete = false
+
+  palavras.forEach((palavra, i) => {
+    if (palavra === 'mensal' || palavra === 'mensalmente' || palavra === 'fixo') {
+      repete = true
+      usadas.add(i)
+      if (palavras[i - 1] === 'gasto' || palavras[i - 1] === 'e') usadas.add(i - 1)
+    }
+    if (palavra === 'todo' && (palavras[i + 1] === 'mes' || palavras[i + 1] === 'dia')) {
+      repete = true
+      usadas.add(i).add(i + 1)
+    }
+    if (palavra === 'todos' && palavras[i + 1] === 'os' && palavras[i + 2] === 'meses') {
+      repete = true
+      usadas.add(i).add(i + 1).add(i + 2)
+    }
+  })
+
+  return { repete, resto: palavras.filter((_, i) => !usadas.has(i)) }
 }
 
 /** Onde comecam os centavos depois do valor cheio, se houver. */
@@ -312,29 +551,34 @@ export function limparFrase(transcricao: string) {
 
 export function interpretarFala(
   transcricao: string,
-  categorias: string[],
+  contexto: ContextoFala,
   /** Acentos do texto original, quando a frase ja veio partida em pedacos. */
   acentos?: Record<string, string>
 ): FalaInterpretada | null {
   const limpo = limparFrase(transcricao)
   if (!limpo) return null
 
-  const comDia = extrairDia(limpo.split(' '))
-  const achado = extrairValor(comDia.resto)
-  if (!achado) return null
+  // A ordem importa: tudo que tem numero e nao e preco sai primeiro, senao o
+  // dia, o mes ou o "3 vezes" seriam lidos como valor.
+  const comData = extrairData(limpo.split(' '))
+  const comParcelas = extrairParcelas(comData.resto)
+  const comCartao = extrairCartao(comParcelas.resto, contexto.cartoes || [])
+  const comRepeticao = extrairRepeticao(comCartao.resto)
+
+  const achado = extrairValor(comRepeticao.resto)
 
   const ehEntrada = PALAVRAS_ENTRADA.some((termo) => limpo.includes(normalizar(termo)))
-
   const mapa = acentos || mapaDeAcentos(transcricao)
+  const sobrou = achado ? achado.resto : comRepeticao.resto
 
   // A categoria sai de dentro do nome quando vem apresentada por uma
   // preposicao: "no mercado Semar" vira Semar na categoria Mercado. Sem
   // preposicao ela e o proprio nome — "comida do trabalho" continua inteira.
-  const naFrase = acharCategoriaNasPalavras(achado.resto, categorias)
-  const ehLugar = !!naFrase && naFrase.inicio > 0 && PREPOSICOES.includes(achado.resto[naFrase.inicio - 1])
+  const naFrase = acharCategoriaNasPalavras(sobrou, contexto.categorias)
+  const ehLugar = !!naFrase && naFrase.inicio > 0 && PREPOSICOES.includes(sobrou[naFrase.inicio - 1])
   const semCategoria = ehLugar && naFrase
-    ? [...achado.resto.slice(0, naFrase.inicio), ...achado.resto.slice(naFrase.fim)]
-    : achado.resto
+    ? [...sobrou.slice(0, naFrase.inicio), ...sobrou.slice(naFrase.fim)]
+    : sobrou
 
   // O que veio depois de "na"/"no" e onde a coisa foi comprada. Isso e o nome
   // do lugar, nao do item: "comprei um bolo na padaria" e um bolo.
@@ -342,16 +586,25 @@ export function interpretarFala(
   const lugar = marcador >= 0 ? semCategoria.slice(marcador + 1) : []
   const foraDoLugar = marcador >= 0 ? semCategoria.slice(0, marcador) : semCategoria
 
-  const nomeSemLugar = montarNome(foraDoLugar, mapa)
-  const nomeDoLugar = montarNome(lugar, mapa)
+  const nomeSemLugar = corrigirPeloHistorico(montarNome(foraDoLugar, mapa), contexto.conhecidos)
+  const nomeDoLugar = corrigirPeloHistorico(montarNome(lugar, mapa), contexto.conhecidos)
 
   // Se sobrou nome fora do lugar, o lugar so serve de referencia. Se nao
   // sobrou nada — "gastei 12 na padaria" —, o lugar e o proprio nome, mas
   // continua valendo como referencia: e ele que vai para a memoria.
   const nomeBruto = nomeSemLugar || nomeDoLugar
-  const referencia = nomeDoLugar || (ehLugar && naFrase ? normalizar(naFrase.categoria) : '') || ''
+  const referenciaBruta =
+    nomeDoLugar || (ehLugar && naFrase ? normalizar(naFrase.categoria) : '') || ''
+  const referencia = referenciaBruta ? normalizar(referenciaBruta) : null
 
-  const categoria = naFrase?.categoria || acharCategoria(nomeBruto || limpo, categorias)
+  // Valor nao dito: se este lugar ja teve gasto antes, repete o ultimo — e o
+  // "de sempre" do cafe da padaria, que a pessoa so confirma.
+  const lembrado = achado ? null : valorLembrado(referencia, nomeBruto, contexto.valores)
+  if (!achado && lembrado === null) return null
+
+  const valor = achado ? achado.valor : (lembrado as number)
+
+  const categoria = naFrase?.categoria || acharCategoria(nomeBruto || limpo, contexto.categorias)
 
   // Sem nome sobrando, a categoria vira o nome — "gastei 50" no mercado fica
   // "Mercado", que diz mais que um lancamento em branco. E quando o nome e a
@@ -361,20 +614,65 @@ export function interpretarFala(
     nomeBruto.split(' ').length === normalizar(categoria).split(' ').length &&
     nomeBruto
       .split(' ')
-      .every((palavra, i) => mesmaPalavra(palavra, normalizar(categoria).split(' ')[i]))
+      .every((palavra: string, i: number) =>
+        mesmaPalavra(palavra, normalizar(categoria as string).split(' ')[i])
+      )
 
-  const nome =
-    (ehAPropriaCategoria ? categoria : nomeBruto) || categoria || (ehEntrada ? 'Entrada' : 'Saída')
+  // "comprei 300 no cartao em 3 vezes" nao diz o que foi comprado; "Compra"
+  // e mais util na fatura do que repetir o nome do cartao.
+  const semNome = comCartao.noCartao
+    ? 'Compra'
+    : comRepeticao.repete
+      ? 'Gasto fixo'
+      : ehEntrada
+        ? 'Entrada'
+        : 'Saída'
+
+  const nome = (ehAPropriaCategoria ? categoria : nomeBruto) || categoria || semNome
+
+  const destino: DestinoFala = comCartao.noCartao
+    ? comRepeticao.repete
+      ? 'assinatura'
+      : 'cartao'
+    : comRepeticao.repete
+      ? 'fixo'
+      : 'variavel'
 
   return {
-    tipo: ehEntrada ? 'entrada' : 'saida',
+    tipo: ehEntrada && destino === 'variavel' ? 'entrada' : 'saida',
     nome: nome.charAt(0).toUpperCase() + nome.slice(1),
-    valor: Math.round(achado.valor * 100) / 100,
+    valor: Math.round(valor * 100) / 100,
     categoria,
-    dia: comDia.dia,
-    referencia: referencia ? normalizar(referencia) : null,
+    dia: comData.dia,
+    mes: comData.mes,
+    ano: comData.ano,
+    referencia,
+    destino,
+    cartao: comCartao.cartao,
+    parcelas: destino === 'cartao' ? comParcelas.parcelas : null,
+    valorDeMemoria: !achado,
     transcricao: String(transcricao || '').trim(),
   }
+}
+
+/**
+ * O ultimo valor gasto naquele lugar.
+ *
+ * "um cafe na padaria", sem preco, quase sempre custa o mesmo do cafe da
+ * semana passada — melhor mostrar esse numero para confirmar do que recusar a
+ * frase inteira.
+ */
+function valorLembrado(
+  referencia: string | null,
+  nome: string,
+  valores?: Record<string, number>
+) {
+  if (!valores) return null
+  const chaves = [referencia, normalizar(nome)].filter(Boolean) as string[]
+  for (const chave of chaves) {
+    if (valores[chave] > 0) return valores[chave]
+  }
+  return null
 }
 
 /**
@@ -399,6 +697,61 @@ function mapaDeAcentos(transcricao: string) {
     })
 
   return mapa
+}
+
+/**
+ * Conserta o nome ouvido usando os que a pessoa ja usou.
+ *
+ * O reconhecimento erra nome proprio o tempo todo — "Semar" vira "cimar",
+ * "cemar", "semard". Como o app sabe todos os lugares onde ela ja gastou, um
+ * nome quase igual a um deles quase sempre e ele.
+ */
+function corrigirPeloHistorico(nome: string, conhecidos?: string[]) {
+  if (!nome || !conhecidos?.length) return nome
+
+  const alvo = normalizar(nome)
+  if (alvo.length < 4) return nome
+
+  let melhor: { nome: string; distancia: number } | null = null
+  conhecidos.forEach((conhecido) => {
+    const outro = normalizar(conhecido)
+    if (!outro || outro === alvo) return
+    // So compara nomes de tamanho parecido: "uber" e "supermercado" nunca
+    // serao a mesma coisa, por mais letras iguais que tenham.
+    if (Math.abs(outro.length - alvo.length) > 2) return
+
+    const distancia = distanciaEntre(alvo, outro)
+    if (distancia === 0) return
+    // Uma letra trocada em nome curto, duas a partir de cinco letras — e o
+    // que separa "cimar" de "Semar" sem transformar "bolo" em "bola".
+    const limite = alvo.length >= 5 ? 2 : 1
+    if (distancia <= limite && (!melhor || distancia < melhor.distancia)) {
+      melhor = { nome: conhecido, distancia }
+    }
+  })
+
+  return melhor ? (melhor as { nome: string }).nome : nome
+}
+
+/** Quantas letras precisam mudar para uma palavra virar a outra. */
+function distanciaEntre(a: string, b: string) {
+  const linha = Array.from({ length: b.length + 1 }, (_, i) => i)
+
+  for (let i = 1; i <= a.length; i += 1) {
+    let anterior = linha[0]
+    linha[0] = i
+    for (let j = 1; j <= b.length; j += 1) {
+      const guardado = linha[j]
+      linha[j] = Math.min(
+        linha[j] + 1,
+        linha[j - 1] + 1,
+        anterior + (a[i - 1] === b[j - 1] ? 0 : 1)
+      )
+      anterior = guardado
+    }
+  }
+
+  return linha[b.length]
 }
 
 /**
@@ -537,9 +890,7 @@ function separaAqui(palavras: string[], i: number) {
  */
 export function interpretarVarias(
   transcricao: string,
-  categorias: string[],
-  /** Nome ja visto -> categoria escolhida, para nao perguntar duas vezes. */
-  memoria?: Record<string, string>
+  contexto: ContextoFala
 ): FalaInterpretada[] {
   const limpo = limparFrase(transcricao)
   if (!limpo) return []
@@ -571,7 +922,7 @@ export function interpretarVarias(
     const juntas = [...sobra, ...pedaco.palavras]
     sobra = []
     const frase = juntas.join(' ')
-    const lido = interpretarFala(frase, categorias, acentos)
+    const lido = interpretarFala(frase, contexto, acentos)
     if (!lido) {
       sobra = pedaco.emenda ? [...juntas, pedaco.emenda] : juntas
       return
@@ -590,8 +941,8 @@ export function interpretarVarias(
       tipo,
       categoria:
         lido.categoria ||
-        categoriaLembrada(lido.referencia || '', memoria) ||
-        categoriaLembrada(lido.nome, memoria),
+        categoriaLembrada(lido.referencia || '', contexto.memoria) ||
+        categoriaLembrada(lido.nome, contexto.memoria),
       transcricao: String(transcricao || '').trim(),
     })
   })
@@ -599,15 +950,15 @@ export function interpretarVarias(
   // Nenhum pedaco deu certo sozinho: tenta a frase inteira, que pode ser um
   // lancamento so com um "e" no meio do nome.
   if (!achados.length) {
-    const unico = interpretarFala(transcricao, categorias)
+    const unico = interpretarFala(transcricao, contexto)
     if (!unico) return []
     return [
       {
         ...unico,
         categoria:
           unico.categoria ||
-          categoriaLembrada(unico.referencia || '', memoria) ||
-          categoriaLembrada(unico.nome, memoria),
+          categoriaLembrada(unico.referencia || '', contexto.memoria) ||
+          categoriaLembrada(unico.nome, contexto.memoria),
       },
     ]
   }
