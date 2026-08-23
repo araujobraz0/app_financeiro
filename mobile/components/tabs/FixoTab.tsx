@@ -72,7 +72,7 @@ function FixoTab({
           <AnelProgresso
             progresso={progresso}
             cor={theme.green}
-            corFundo={theme.background}
+            corFundo={theme.border}
             valor={`${Math.round(progresso * 100)}%`}
             rotulo="quitado"
             corValor={theme.green}

@@ -150,15 +150,18 @@ function VariavelTab({
                     >
                       <AnelProgresso
                         progresso={proporcao}
-                        tamanho={76}
-                        espessura={8}
+                        tamanho={58}
+                        espessura={6}
                         cor={cor}
-                        corFundo={theme.background}
+                        // A trilha usa a cor de borda, nao a de fundo: com o
+                        // fundo, a categoria zerada nao desenhava anel nenhum
+                        // e o cartao parecia quebrado.
+                        corFundo={theme.border}
                         valor={`${Math.round(proporcao * 100)}%`}
                         rotulo=""
                         corValor={cor}
                         corRotulo={theme.muted}
-                        tamanhoValor={16}
+                        tamanhoValor={13}
                       />
 
                       <Text style={[local.limiteNome, { color: theme.text }]} numberOfLines={1}>
@@ -284,22 +287,22 @@ const local = StyleSheet.create({
     minWidth: 0,
   },
   categoriasAcoes: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  limites: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  limites: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 11 },
   limite: {
     // Largura fixa em vez de flexGrow: com um limite so, o cartao esticava a
-    // linha inteira e o anel de 76px boiava no meio de um retangulo largo.
+    // linha inteira e o anel boiava no meio de um retangulo largo.
     width: '48%',
     minWidth: 0,
     alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 16,
-    paddingTop: 12,
-    paddingBottom: 11,
-    paddingHorizontal: 10,
+    borderRadius: 14,
+    paddingTop: 9,
+    paddingBottom: 9,
+    paddingHorizontal: 8,
   },
-  limiteNome: { fontSize: 12.5, fontWeight: '800', letterSpacing: -0.2, marginTop: 9 },
-  limiteValor: { fontSize: 10.5, fontWeight: '600', marginTop: 3 },
-  limiteSaldo: { fontSize: 10.5, fontWeight: '800', marginTop: 2 },
+  limiteNome: { fontSize: 11.5, fontWeight: '800', letterSpacing: -0.2, marginTop: 6 },
+  limiteValor: { fontSize: 9.5, fontWeight: '600', marginTop: 2 },
+  limiteSaldo: { fontSize: 9.5, fontWeight: '800', marginTop: 1 },
   botaoCategoria: {
     width: 30,
     height: 30,
