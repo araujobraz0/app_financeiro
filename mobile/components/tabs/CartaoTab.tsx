@@ -380,7 +380,7 @@ function CartaoTab({
                       accessibilityLabel={`Excluir ${item.nome}`}
                       style={[local.assinaturaExcluir, { backgroundColor: theme.card, borderColor: theme.border }]}
                     >
-                      <Icon name="excluir" size={12} color={theme.red} />
+                      <Icon name="excluir" size={11} color={theme.red} />
                     </PressableScale>
                   </PressableScale>
                 )
@@ -393,7 +393,7 @@ function CartaoTab({
                 accessibilityLabel="Nova assinatura"
                 style={[local.assinaturaNova, { borderColor: theme.borderStrong }]}
               >
-                <Icon name="adicionar" size={20} color={theme.muted} />
+                <Icon name="adicionar" size={18} color={theme.muted} />
                 <Text style={[local.assinaturaNovaTexto, { color: theme.muted }]}>Adicionar</Text>
               </PressableScale>
             </View>
@@ -542,43 +542,43 @@ function CartaoTab({
 }
 
 const local = StyleSheet.create({
-  gradeAssinaturas: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  gradeAssinaturas: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   assinatura: {
     width: '48%',
     minWidth: 0,
     borderWidth: 1,
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
   },
   assinaturaMarca: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
+    width: 30,
+    height: 30,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    marginBottom: 10,
+    marginBottom: 7,
   },
-  assinaturaInicial: { color: '#FFFFFF', fontSize: 18, fontWeight: '800', zIndex: 1 },
+  assinaturaInicial: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', zIndex: 1 },
   assinaturaBrilho: {
     position: 'absolute',
-    top: -14,
-    right: -12,
-    width: 34,
-    height: 34,
+    top: -11,
+    right: -10,
+    width: 27,
+    height: 27,
     borderRadius: 999,
     opacity: 0.55,
   },
-  assinaturaNome: { fontSize: 12.5, fontWeight: '800', letterSpacing: -0.2 },
-  assinaturaValor: { fontSize: 15, fontWeight: '800', letterSpacing: -0.4, marginTop: 3 },
-  assinaturaPeriodo: { fontSize: 9.5, fontWeight: '600', marginTop: 1 },
+  assinaturaNome: { fontSize: 11.5, fontWeight: '800', letterSpacing: -0.2 },
+  assinaturaValor: { fontSize: 13.5, fontWeight: '800', letterSpacing: -0.4, marginTop: 2 },
+  assinaturaPeriodo: { fontSize: 9, fontWeight: '600', marginTop: 1 },
   assinaturaExcluir: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 24,
-    height: 24,
+    top: 7,
+    right: 7,
+    width: 22,
+    height: 22,
     borderRadius: 999,
     borderWidth: 1,
     alignItems: 'center',
@@ -589,14 +589,14 @@ const local = StyleSheet.create({
     minWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 5,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderRadius: 16,
-    paddingVertical: 12,
-    minHeight: 118,
+    borderRadius: 14,
+    paddingVertical: 10,
+    minHeight: 96,
   },
-  assinaturaNovaTexto: { fontSize: 11.5, fontWeight: '800' },
+  assinaturaNovaTexto: { fontSize: 11, fontWeight: '800' },
   vazioAssinatura: {
     alignItems: 'center',
     justifyContent: 'center',
