@@ -14,6 +14,14 @@ export type FalaInterpretada = {
   categoria: string | null
   /** Dia do mes dito na frase ("ontem", "dia 12"). Null = hoje. */
   dia: number | null
+  /**
+   * O lugar dito na frase — "na padaria", "no posto ipiranga".
+   *
+   * E ele que fica na memoria quando o app pergunta a categoria: quem ensina
+   * que padaria e Comida quer que valha para o bolo, o pao e o cafe, nao so
+   * para aquele bolo.
+   */
+  referencia: string | null
   /** Texto cru, para a tela mostrar o que ouviu. */
   transcricao: string
 }
@@ -53,6 +61,10 @@ const RUIDO = [
   'lance', 'anotar', 'anota', 'adicionar', 'adiciona', 'registrar', 'registra',
   'entrada', 'saida', 'recebi', 'ganhei',
   'hoje', 'ontem', 'anteontem', 'dia',
+  // Verbos do dia a dia que so contam a acao: "comprei um bolo na padaria"
+  // e um bolo, nao um "comprei bolo".
+  'abasteci', 'almocei', 'jantei', 'comi', 'bebi', 'tomei', 'peguei', 'fui',
+  'fiz', 'usei', 'coloquei', 'botei', 'levei', 'mandei', 'torrei',
 ]
 
 /**
@@ -66,6 +78,14 @@ const PREPOSICOES = [
   'de', 'do', 'da', 'dos', 'das', 'no', 'na', 'nos', 'nas', 'em', 'com',
   'para', 'pra', 'pro', 'por',
 ]
+
+/**
+ * Preposicoes que apresentam um lugar: "na padaria", "no posto".
+ *
+ * Sao so as de "em + artigo". "de uber" e "em produtos de limpeza" ficam de
+ * fora de proposito — ali a palavra e o que foi comprado, nao onde.
+ */
+const MARCADORES_DE_LUGAR = ['no', 'na', 'nos', 'nas']
 
 const CONECTIVOS = [
   'de', 'do', 'da', 'dos', 'das', 'no', 'na', 'nos', 'nas', 'em', 'com',
@@ -186,7 +206,17 @@ function extrairValor(palavras: string[]) {
 
     // Por extenso
     const lido = lerNumeroPorExtenso(palavras, i)
-    if (lido && lido.valor > 0) {
+
+    // "um" sozinho quase sempre e artigo, nao preco: em "comprei um bolo na
+    // padaria 12" o valor e 12. So vale como numero se vier a moeda atras
+    // ("um real") ou se fizer parte de um numero maior ("vinte e um").
+    const artigoSolto =
+      !!lido &&
+      lido.consumidas === 1 &&
+      (palavra === 'um' || palavra === 'uma') &&
+      !['real', 'reais', 'conto', 'contos', 'pila'].includes(palavras[i + 1])
+
+    if (lido && lido.valor > 0 && !artigoSolto) {
       let valor = lido.valor
       let consumidas = lido.consumidas
 
@@ -295,6 +325,8 @@ export function interpretarFala(
 
   const ehEntrada = PALAVRAS_ENTRADA.some((termo) => limpo.includes(normalizar(termo)))
 
+  const mapa = acentos || mapaDeAcentos(transcricao)
+
   // A categoria sai de dentro do nome quando vem apresentada por uma
   // preposicao: "no mercado Semar" vira Semar na categoria Mercado. Sem
   // preposicao ela e o proprio nome — "comida do trabalho" continua inteira.
@@ -304,7 +336,21 @@ export function interpretarFala(
     ? [...achado.resto.slice(0, naFrase.inicio), ...achado.resto.slice(naFrase.fim)]
     : achado.resto
 
-  const nomeBruto = montarNome(semCategoria, acentos || mapaDeAcentos(transcricao))
+  // O que veio depois de "na"/"no" e onde a coisa foi comprada. Isso e o nome
+  // do lugar, nao do item: "comprei um bolo na padaria" e um bolo.
+  const marcador = acharMarcadorDeLugar(semCategoria)
+  const lugar = marcador >= 0 ? semCategoria.slice(marcador + 1) : []
+  const foraDoLugar = marcador >= 0 ? semCategoria.slice(0, marcador) : semCategoria
+
+  const nomeSemLugar = montarNome(foraDoLugar, mapa)
+  const nomeDoLugar = montarNome(lugar, mapa)
+
+  // Se sobrou nome fora do lugar, o lugar so serve de referencia. Se nao
+  // sobrou nada — "gastei 12 na padaria" —, o lugar e o proprio nome, mas
+  // continua valendo como referencia: e ele que vai para a memoria.
+  const nomeBruto = nomeSemLugar || nomeDoLugar
+  const referencia = nomeDoLugar || (ehLugar && naFrase ? normalizar(naFrase.categoria) : '') || ''
+
   const categoria = naFrase?.categoria || acharCategoria(nomeBruto || limpo, categorias)
 
   // Sem nome sobrando, a categoria vira o nome — "gastei 50" no mercado fica
@@ -326,6 +372,7 @@ export function interpretarFala(
     valor: Math.round(achado.valor * 100) / 100,
     categoria,
     dia: comDia.dia,
+    referencia: referencia ? normalizar(referencia) : null,
     transcricao: String(transcricao || '').trim(),
   }
 }
@@ -371,6 +418,21 @@ function montarNome(palavras: string[], acentos: Record<string, string>) {
   while (fim > inicio && CONECTIVOS.includes(uteis[fim - 1])) fim -= 1
 
   return uteis.slice(inicio, fim).join(' ').trim()
+}
+
+/**
+ * Onde comeca o lugar na frase, se houver.
+ *
+ * Vale o ultimo marcador: em "comprei um bolo na padaria no centro" o que
+ * interessa e o conjunto final, e nao a primeira preposicao que aparecer.
+ */
+function acharMarcadorDeLugar(palavras: string[]) {
+  for (let i = palavras.length - 2; i >= 0; i -= 1) {
+    if (MARCADORES_DE_LUGAR.includes(palavras[i]) && palavras.slice(i + 1).some((p) => !RUIDO.includes(p))) {
+      return i
+    }
+  }
+  return -1
 }
 
 /** Mesma palavra, tolerando o plural: "mercados" e "mercado" sao uma so. */
@@ -526,7 +588,10 @@ export function interpretarVarias(
     achados.push({
       ...lido,
       tipo,
-      categoria: lido.categoria || categoriaLembrada(lido.nome, memoria),
+      categoria:
+        lido.categoria ||
+        categoriaLembrada(lido.referencia || '', memoria) ||
+        categoriaLembrada(lido.nome, memoria),
       transcricao: String(transcricao || '').trim(),
     })
   })
@@ -536,7 +601,15 @@ export function interpretarVarias(
   if (!achados.length) {
     const unico = interpretarFala(transcricao, categorias)
     if (!unico) return []
-    return [{ ...unico, categoria: unico.categoria || categoriaLembrada(unico.nome, memoria) }]
+    return [
+      {
+        ...unico,
+        categoria:
+          unico.categoria ||
+          categoriaLembrada(unico.referencia || '', memoria) ||
+          categoriaLembrada(unico.nome, memoria),
+      },
+    ]
   }
 
   return achados

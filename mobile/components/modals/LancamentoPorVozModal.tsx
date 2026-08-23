@@ -25,7 +25,11 @@ import Animated, {
 
 import type { Tema } from '../../app/types'
 import { formatarMoeda } from '../../src/utils/currency'
-import { interpretarVarias, type FalaInterpretada } from '../../src/utils/fala'
+import {
+  interpretarVarias,
+  normalizar as normalizarFala,
+  type FalaInterpretada,
+} from '../../src/utils/fala'
 import { explicarErro, navegadorOuve, ouvir } from '../../src/utils/reconhecimentoDeVoz'
 import Icon from '../common/Icon'
 import ModalSheet from '../common/ModalSheet'
@@ -222,12 +226,23 @@ export default function LancamentoPorVozModal({
     setEscolhendo((atual) => (atual === chave ? null : atual))
   }
 
-  /** Escolhe a categoria do item e ensina o nome para as proximas vezes. */
+  /** O que fica na memoria: o lugar, se houver, senao o proprio nome. */
+  const chaveDeMemoria = (item: ItemFalado) => item.referencia || normalizarFala(item.nome)
+
+  /** Escolhe a categoria e ensina o lugar — vale para tudo que vier dali. */
   const definirCategoria = (chave: string, categoria: string) => {
     const alvo = itens.find((item) => item.chave === chave)
-    if (alvo) onAprenderCategoria(alvo.nome, categoria)
+    if (!alvo) return
 
-    const atualizados = itens.map((item) => (item.chave === chave ? { ...item, categoria } : item))
+    const aprendida = chaveDeMemoria(alvo)
+    onAprenderCategoria(aprendida, categoria)
+
+    const atualizados = itens.map((item) => {
+      if (item.chave === chave) return { ...item, categoria }
+      // O bolo e o pao da mesma padaria nao precisam perguntar de novo.
+      const mesmoLugar = item.tipo === 'saida' && !item.categoria && chaveDeMemoria(item) === aprendida
+      return mesmoLugar ? { ...item, categoria } : item
+    })
     setItens(atualizados)
 
     // Emenda na proxima pergunta, se ainda houver alguma.
@@ -481,7 +496,9 @@ export default function LancamentoPorVozModal({
                   {aberto ? (
                     <View style={[styles.escolha, { borderTopColor: theme.border }]}>
                       <Text style={[styles.escolhaTitulo, { color: theme.muted }]}>
-                        Onde entra &quot;{item.nome}&quot;? Da próxima vez eu já sei.
+                        {item.referencia && item.referencia !== normalizarFala(item.nome)
+                          ? `Em que categoria entra o que vem da ${item.referencia}? Da próxima vez eu já sei.`
+                          : `Onde entra "${item.nome}"? Da próxima vez eu já sei.`}
                       </Text>
                       <View style={styles.chips}>
                         {categorias.map((categoria) => {
