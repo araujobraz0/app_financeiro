@@ -22,6 +22,7 @@ type Reconhecimento = {
   onresult: ((evento: any) => void) | null
   onerror: ((evento: any) => void) | null
   onend: (() => void) | null
+  onstart: (() => void) | null
 }
 
 function construtor(): (new () => Reconhecimento) | null {
@@ -58,11 +59,39 @@ export function ouvir({ onTexto, onErro, onFim }: Opcoes) {
   }
 
   let encerrado = false
+  // Mandar parar antes de o navegador ter comecado nao para nada: o pedido se
+  // perde e o microfone continua ligado depois que a tela ja fechou. Por isso
+  // o pedido fica guardado e e refeito assim que ele comeca.
+  let comecou = false
+  let querParar = false
+
   const reconhecimento = new Reconhecedor()
   reconhecimento.lang = 'pt-BR'
   reconhecimento.continuous = false
   reconhecimento.interimResults = false
   reconhecimento.maxAlternatives = 1
+
+  const desligar = () => {
+    reconhecimento.onresult = null
+    reconhecimento.onerror = null
+    reconhecimento.onend = null
+    reconhecimento.onstart = null
+    try {
+      reconhecimento.stop()
+    } catch {
+      // Ja estava parado.
+    }
+    try {
+      reconhecimento.abort()
+    } catch {
+      // Ja estava parado.
+    }
+  }
+
+  reconhecimento.onstart = () => {
+    comecou = true
+    if (querParar) desligar()
+  }
 
   reconhecimento.onresult = (evento: any) => {
     const texto = evento?.results?.[0]?.[0]?.transcript
@@ -90,10 +119,15 @@ export function ouvir({ onTexto, onErro, onFim }: Opcoes) {
 
   return () => {
     encerrado = true
-    try {
-      reconhecimento.abort()
-    } catch {
-      // Ja estava parado.
+    querParar = true
+    if (comecou) desligar()
+    else {
+      // Ainda nao comecou: mesmo assim tenta, e o onstart repete o pedido.
+      try {
+        reconhecimento.abort()
+      } catch {
+        // Ja estava parado.
+      }
     }
   }
 }

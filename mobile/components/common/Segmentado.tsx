@@ -3,9 +3,10 @@
 // O indicador desliza ate a opcao escolhida em vez de piscar, o que deixa
 // claro que as opcoes sao faces do mesmo controle, nao botoes soltos.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native'
 import Animated, {
+  interpolateColor,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -49,11 +50,27 @@ export default function Segmentado<T extends string>({
     posicao.value = ((nova - 8) / opcoes.length) * indice
   }
 
-  const estiloIndicador = useAnimatedStyle(() => ({
-    transform: [{ translateX: posicao.value }],
-  }))
+  // Quem muda a selecao nem sempre e o toque: lancar falando, por exemplo,
+  // troca a aba de fora. Sem isto o indicador ficava parado no item anterior
+  // enquanto a cor ja era a do novo — dava "Entradas" pintado de vermelho.
+  useEffect(() => {
+    if (larguraItem <= 0) return
+    posicao.value = withSpring(larguraItem * indice, spring.snappy)
+  }, [indice, larguraItem, posicao])
 
-  const corAtiva = opcoes[indice]?.cor || theme.primary
+  // A cor acompanha onde o indicador esta de verdade, nao onde ele deveria
+  // estar: assim ele nunca aparece parado num item com a cor do outro.
+  const cores = opcoes.map((o) => o.cor || theme.primary)
+  const paradas = cores.map((_, i) => i)
+
+  const estiloIndicador = useAnimatedStyle(() => {
+    const passo = larguraItem > 0 ? posicao.value / larguraItem : 0
+    return {
+      transform: [{ translateX: posicao.value }],
+      backgroundColor:
+        cores.length > 1 ? interpolateColor(passo, paradas, cores) : cores[0],
+    }
+  })
 
   return (
     <View
@@ -65,21 +82,18 @@ export default function Segmentado<T extends string>({
           pointerEvents="none"
           style={[
             styles.indicador,
-            { width: larguraItem, backgroundColor: corAtiva },
+            { width: larguraItem },
             estiloIndicador,
           ]}
         />
       ) : null}
 
-      {opcoes.map((opcao, i) => {
+      {opcoes.map((opcao) => {
         const ativo = opcao.valor === selecionado
         return (
           <PressableScale
             key={opcao.valor}
-            onPress={() => {
-              posicao.value = withSpring(larguraItem * i, spring.snappy)
-              onSelecionar(opcao.valor)
-            }}
+            onPress={() => onSelecionar(opcao.valor)}
             scaleTo={0.97}
             style={styles.item}
             accessibilityRole="tab"

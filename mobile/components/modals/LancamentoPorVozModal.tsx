@@ -52,8 +52,7 @@ export default function LancamentoPorVozModal({
   // Cada abertura comeca limpa — e ja escutando, onde da.
   useEffect(() => {
     if (!visible) {
-      pararRef.current()
-      setOuvindo(false)
+      parar()
       setTexto('')
       setErro('')
       return
@@ -62,12 +61,20 @@ export default function LancamentoPorVozModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible])
 
+  // Se a tela inteira sair de cena o efeito de cima nao roda: sem isto o
+  // microfone continuava aberto depois de fechar.
+  useEffect(() => () => pararRef.current(), [])
+
   const iniciar = () => {
     setErro('')
     setTexto('')
     setOuvindo(true)
     pararRef.current = ouvir({
-      onTexto: (ouvido) => setTexto(ouvido),
+      onTexto: (ouvido) => {
+        setTexto(ouvido)
+        // Ja ouviu a frase: nao ha mais o que escutar.
+        parar()
+      },
       onErro: (motivo) => setErro(explicarErro(motivo)),
       onFim: () => setOuvindo(false),
     })
@@ -75,6 +82,7 @@ export default function LancamentoPorVozModal({
 
   const parar = () => {
     pararRef.current()
+    pararRef.current = () => {}
     setOuvindo(false)
   }
 
