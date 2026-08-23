@@ -169,23 +169,27 @@ export default function SeletorCompetencia({
               { backgroundColor: theme.card, borderColor: theme.border, shadowColor: theme.shadowStrong },
             ]}
           >
-            <View style={styles.painelTopo}>
-              <Text style={[styles.painelRotulo, { color: theme.muted }]}>Escolha o ano</Text>
-              <PressableScale
-                onPress={() => setRoletaAberta(false)}
-                scaleTo={0.9}
-                accessibilityRole="button"
-                accessibilityLabel="Fechar a lista de anos"
-                style={[styles.painelFechar, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
-              >
-                <Icon name="excluir" size={14} color={theme.muted} />
-              </PressableScale>
-            </View>
+            {/* O fechar fica solto no canto, fora do fluxo: com ele numa
+                linha propria, o conteudo do painel ficava mais alto que a
+                grade que ele cobre e transbordava por cima e por baixo. */}
+            <PressableScale
+              onPress={() => setRoletaAberta(false)}
+              scaleTo={0.9}
+              accessibilityRole="button"
+              accessibilityLabel="Fechar a lista de anos"
+              style={[
+                styles.painelFechar,
+                { backgroundColor: theme.cardSoft, borderColor: theme.border },
+              ]}
+            >
+              <Icon name="excluir" size={13} color={theme.muted} />
+            </PressableScale>
 
             <RoletaAnos
               theme={theme}
               anos={anosDisponiveis}
               ano={anoVisivel}
+              alturaItem={40}
               onSelecionar={setAnoVisivel}
               onEscolhido={(escolhido) => {
                 setAnoVisivel(escolhido)
@@ -243,36 +247,27 @@ const styles = StyleSheet.create({
   area: { position: 'relative' },
   painelRoleta: {
     position: 'absolute',
-    top: -10,
-    right: -6,
-    bottom: -10,
-    left: -6,
+    top: -8,
+    right: -4,
+    bottom: -8,
+    left: -4,
     justifyContent: 'center',
-    borderRadius: 20,
+    overflow: 'hidden',
+    borderRadius: 18,
     borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingBottom: 6,
+    paddingHorizontal: 14,
     shadowOpacity: 0.28,
     shadowRadius: 26,
     shadowOffset: { width: 0, height: 12 },
     elevation: 16,
   },
-  painelTopo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    marginBottom: 4,
-  },
-  painelRotulo: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
   painelFechar: {
-    width: 26,
-    height: 26,
+    position: 'absolute',
+    top: 9,
+    right: 9,
+    zIndex: 2,
+    width: 28,
+    height: 28,
     borderRadius: 999,
     borderWidth: 1,
     alignItems: 'center',

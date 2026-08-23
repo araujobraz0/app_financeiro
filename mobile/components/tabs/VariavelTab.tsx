@@ -8,6 +8,7 @@ import { styles } from '../../src/theme/homeStyles'
 import PressableScale from '../common/motion/PressableScale'
 import ListRow from '../common/ListRow'
 import Segmentado from '../common/Segmentado'
+import AnelProgresso from '../common/AnelProgresso'
 import Icon from '../common/Icon'
 
 type VariavelTabProps = {
@@ -128,10 +129,10 @@ function VariavelTab({
               </View>
             </View>
 
-            {/* Limites numa linha por categoria: nome, barra e quanto ja foi.
-                A versao anterior era um cartao por categoria, com barra e duas
-                linhas de texto — com tres ou quatro tetos, o bloco empurrava a
-                lista de gastos para fora da tela. */}
+            {/* Limites como aneis: a fracao aparece na volta do circulo e o
+                numero fica no meio, sem os dois disputarem a mesma linha. Duas
+                colunas cabem na largura e sobra espaco para os valores em
+                reais embaixo — que e o que a barra sozinha nao dizia. */}
             {limitesDoMes.length > 0 ? (
               <View style={local.limites}>
                 {limitesDoMes.map(({ categoria, limite, gasto, proporcao }) => {
@@ -142,31 +143,37 @@ function VariavelTab({
                     <PressableScale
                       key={categoria}
                       onPress={() => onFiltroCategoriaChange(categoria)}
-                      scaleTo={0.98}
+                      scaleTo={0.97}
                       accessibilityRole="button"
-                      accessibilityLabel={`${categoria}: ${Math.round(proporcao * 100)}% do limite`}
-                      style={local.limite}
+                      accessibilityLabel={`${categoria}: ${formatarMoeda(gasto)} de ${formatarMoeda(limite)}`}
+                      style={[local.limite, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}
                     >
+                      <AnelProgresso
+                        progresso={proporcao}
+                        tamanho={76}
+                        espessura={8}
+                        cor={cor}
+                        corFundo={theme.background}
+                        valor={`${Math.round(proporcao * 100)}%`}
+                        rotulo=""
+                        corValor={cor}
+                        corRotulo={theme.muted}
+                        tamanhoValor={16}
+                      />
+
                       <Text style={[local.limiteNome, { color: theme.text }]} numberOfLines={1}>
                         {categoria}
                       </Text>
-
-                      <View style={[local.trilha, { backgroundColor: theme.background }]}>
-                        <View
-                          style={[
-                            local.preenchimento,
-                            {
-                              width: `${Math.min(100, Math.max(3, proporcao * 100))}%`,
-                              backgroundColor: cor,
-                            },
-                          ]}
-                        />
-                      </View>
-
-                      <Text style={[local.limiteValor, { color: cor }]} numberOfLines={1}>
+                      <Text style={[local.limiteValor, { color: theme.muted }]} numberOfLines={1}>
+                        {formatarValorVisivel(gasto)} de {formatarValorVisivel(limite)}
+                      </Text>
+                      <Text
+                        style={[local.limiteSaldo, { color: estourou ? theme.red : theme.green }]}
+                        numberOfLines={1}
+                      >
                         {estourou
-                          ? `+${formatarValorVisivel(gasto - limite)}`
-                          : `${Math.round(proporcao * 100)}%`}
+                          ? `${formatarValorVisivel(gasto - limite)} acima`
+                          : `${formatarValorVisivel(limite - gasto)} livres`}
                       </Text>
                     </PressableScale>
                   )
@@ -277,12 +284,22 @@ const local = StyleSheet.create({
     minWidth: 0,
   },
   categoriasAcoes: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  limites: { gap: 6, marginBottom: 12 },
-  limite: { flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: 22 },
-  limiteNome: { fontSize: 11.5, fontWeight: '700', letterSpacing: -0.1, width: '31%' },
-  trilha: { flex: 1, height: 5, borderRadius: 999, overflow: 'hidden' },
-  preenchimento: { height: '100%', borderRadius: 999 },
-  limiteValor: { fontSize: 11, fontWeight: '800', minWidth: 46, textAlign: 'right' },
+  limites: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  limite: {
+    // Largura fixa em vez de flexGrow: com um limite so, o cartao esticava a
+    // linha inteira e o anel de 76px boiava no meio de um retangulo largo.
+    width: '48%',
+    minWidth: 0,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingTop: 12,
+    paddingBottom: 11,
+    paddingHorizontal: 10,
+  },
+  limiteNome: { fontSize: 12.5, fontWeight: '800', letterSpacing: -0.2, marginTop: 9 },
+  limiteValor: { fontSize: 10.5, fontWeight: '600', marginTop: 3 },
+  limiteSaldo: { fontSize: 10.5, fontWeight: '800', marginTop: 2 },
   botaoCategoria: {
     width: 30,
     height: 30,

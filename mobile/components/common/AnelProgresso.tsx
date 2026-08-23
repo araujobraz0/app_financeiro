@@ -31,6 +31,9 @@ type Props = {
   rotulo: string
   corValor: string
   corRotulo: string
+  /** Tamanhos do texto central, para aneis menores que o padrao. */
+  tamanhoValor?: number
+  tamanhoRotulo?: number
 }
 
 export default function AnelProgresso({
@@ -43,6 +46,8 @@ export default function AnelProgresso({
   rotulo,
   corValor,
   corRotulo,
+  tamanhoValor,
+  tamanhoRotulo,
 }: Props) {
   const raio = (tamanho - espessura) / 2
   const circunferencia = 2 * Math.PI * raio
@@ -90,12 +95,21 @@ export default function AnelProgresso({
       </Svg>
 
       <View style={styles.centro} pointerEvents="none">
-        <Text style={[styles.valor, { color: corValor }]} numberOfLines={1} adjustsFontSizeToFit>
+        <Text
+          style={[styles.valor, { color: corValor }, tamanhoValor ? { fontSize: tamanhoValor } : null]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
           {valor}
         </Text>
-        <Text style={[styles.rotulo, { color: corRotulo }]} numberOfLines={1}>
-          {rotulo}
-        </Text>
+        {rotulo ? (
+          <Text
+            style={[styles.rotulo, { color: corRotulo }, tamanhoRotulo ? { fontSize: tamanhoRotulo } : null]}
+            numberOfLines={1}
+          >
+            {rotulo}
+          </Text>
+        ) : null}
       </View>
     </View>
   )
@@ -106,7 +120,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 18,
+    paddingHorizontal: 10,
   },
   valor: { fontSize: 22, fontWeight: '800', letterSpacing: -0.8 },
   rotulo: { fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 2 },

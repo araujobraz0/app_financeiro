@@ -19,7 +19,6 @@ import Animated, {
 import type { Tema } from '../../app/types'
 import PressableScale from './motion/PressableScale'
 
-const ALTURA_ITEM = 44
 const VISIVEIS = 5
 const CENTRO = Math.floor(VISIVEIS / 2)
 
@@ -30,6 +29,8 @@ type Props = {
   onSelecionar: (ano: number) => void
   /** Chamado quando a escolha esta feita: o toque, ou a rolagem que parou. */
   onEscolhido?: (ano: number) => void
+  /** Altura de cada linha. Quem chama sabe o espaco que tem para dar. */
+  alturaItem?: number
 }
 
 function ItemAno({
@@ -38,6 +39,7 @@ function ItemAno({
   indice,
   deslocamento,
   selecionado,
+  altura,
   onPress,
 }: {
   theme: Tema
@@ -45,10 +47,11 @@ function ItemAno({
   indice: number
   deslocamento: SharedValue<number>
   selecionado: boolean
+  altura: number
   onPress: () => void
 }) {
   const estilo = useAnimatedStyle(() => {
-    const distancia = Math.abs(deslocamento.value / ALTURA_ITEM - indice)
+    const distancia = Math.abs(deslocamento.value / altura - indice)
     return {
       opacity: interpolate(distancia, [0, 1, 2, 3], [1, 0.5, 0.25, 0.1], Extrapolation.CLAMP),
       transform: [
@@ -58,7 +61,7 @@ function ItemAno({
   })
 
   return (
-    <Animated.View style={[styles.item, estilo]}>
+    <Animated.View style={[styles.item, { height: altura }, estilo]}>
       <PressableScale onPress={onPress} scaleTo={0.94} style={styles.toque}>
         <Text
           style={[
@@ -73,7 +76,15 @@ function ItemAno({
   )
 }
 
-export default function RoletaAnos({ theme, anos, ano, onSelecionar, onEscolhido }: Props) {
+export default function RoletaAnos({
+  theme,
+  anos,
+  ano,
+  onSelecionar,
+  onEscolhido,
+  alturaItem = 44,
+}: Props) {
+  const ALTURA_ITEM = alturaItem
   const deslocamento = useSharedValue(0)
   const ultimoIndice = useSharedValue(-1)
   const lista = useRef<Animated.ScrollView>(null)
@@ -127,13 +138,18 @@ export default function RoletaAnos({ theme, anos, ano, onSelecionar, onEscolhido
   }
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { height: ALTURA_ITEM * VISIVEIS }]}>
       {/* Faixa fixa no meio: marca qual item esta valendo */}
       <View
         pointerEvents="none"
         style={[
           styles.faixa,
-          { top: CENTRO * ALTURA_ITEM, backgroundColor: theme.accentSoft, borderColor: theme.accent },
+          {
+            top: CENTRO * ALTURA_ITEM,
+            height: ALTURA_ITEM,
+            backgroundColor: theme.accentSoft,
+            borderColor: theme.accent,
+          },
         ]}
       />
 
@@ -156,6 +172,7 @@ export default function RoletaAnos({ theme, anos, ano, onSelecionar, onEscolhido
             indice={indice}
             deslocamento={deslocamento}
             selecionado={valor === ano}
+            altura={ALTURA_ITEM}
             onPress={() => {
               lista.current?.scrollTo({ y: indice * ALTURA_ITEM, animated: true })
               onSelecionar(valor)
@@ -169,16 +186,15 @@ export default function RoletaAnos({ theme, anos, ano, onSelecionar, onEscolhido
 }
 
 const styles = StyleSheet.create({
-  wrap: { height: ALTURA_ITEM * VISIVEIS, position: 'relative' },
+  wrap: { position: 'relative' },
   faixa: {
     position: 'absolute',
     left: 0,
     right: 0,
-    height: ALTURA_ITEM,
     borderRadius: 14,
     borderWidth: 1,
   },
-  item: { height: ALTURA_ITEM, alignItems: 'center', justifyContent: 'center' },
+  item: { alignItems: 'center', justifyContent: 'center' },
   toque: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   texto: { fontSize: 20, fontWeight: '800', letterSpacing: -0.4 },
 })
