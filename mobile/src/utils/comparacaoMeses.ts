@@ -8,6 +8,10 @@
 // estar erradas — um sinal trocado transformaria economia em gasto na cara do
 // usuario.
 
+import type { BancoDeDados, CardItem, FixoRecorrente } from '../../app/types'
+import { addMonthsToCompetencia } from './competency'
+import { fixosDoMes } from './fixos'
+
 export type ResumoMes = {
   /** Salario mais as entradas do mes. */
   entrou: number
@@ -130,4 +134,82 @@ export function compararMeses(atual: ResumoMes, anterior: ResumoMes, quantasCate
 export function proporcao(valor: number, maior: number) {
   if (!maior) return 0
   return Math.min(1, Math.abs(valor) / Math.abs(maior))
+}
+
+export type PontoDoMes = ResumoMes & {
+  /** "2026-Agosto". */
+  chave: string
+  /** "ago" — o rotulo do eixo. */
+  rotulo: string
+}
+
+/** "2026-Agosto" -> "ago". */
+export function rotuloCurto(chave: string) {
+  const mes = String(chave || '').split('-')[1] || ''
+  return mes.slice(0, 3).toLowerCase()
+}
+
+/**
+ * Os ultimos meses ate a competencia aberta, do mais antigo para o mais novo.
+ *
+ * Uma linha precisa de serie: com dois pontos ela vira um traco, e o desenho
+ * nao diz mais do que dois numeros lado a lado ja diriam.
+ */
+export function serieDeMeses(params: {
+  bancoDeDados: BancoDeDados
+  fixosRecorrentes: FixoRecorrente[]
+  cards: CardItem[]
+  /** A competencia da direita do grafico. */
+  chaveFinal: string
+  quantidade?: number
+}): PontoDoMes[] {
+  const { bancoDeDados, fixosRecorrentes, cards, chaveFinal, quantidade = 6 } = params
+  const pontos: PontoDoMes[] = []
+
+  for (let atras = quantidade - 1; atras >= 0; atras -= 1) {
+    const chave = addMonthsToCompetencia(chaveFinal, -atras)
+    const mes = bancoDeDados?.[chave]
+
+    const fixos = fixosDoMes(fixosRecorrentes || [], mes?.fixoPagos, chave)
+    const cartoes = (cards || []).reduce((total, card) => {
+      const parcelas = (card?.parcelas || [])
+        .filter((item) => item.competencia === chave)
+        .reduce((soma, item) => soma + (Number(item.valorParcela) || 0), 0)
+      const assinaturas = fixosDoMes(card?.assinaturas || [], undefined, chave).reduce(
+        (soma, item) => soma + (Number(item.valor) || 0),
+        0
+      )
+      return total + parcelas + assinaturas
+    }, 0)
+
+    pontos.push({
+      chave,
+      rotulo: rotuloCurto(chave),
+      ...resumirMes({
+        salario: Number(mes?.salario || 0),
+        entradas: mes?.entradas || [],
+        saidas: mes?.saidas || [],
+        fixos,
+        cartoes,
+      }),
+    })
+  }
+
+  return pontos
+}
+
+/**
+ * A escala vertical do grafico.
+ *
+ * O zero entra sempre: sem ele uma sobra negativa desenharia abaixo do fundo
+ * do desenho, e uma serie toda positiva pareceria variar muito mais do que
+ * varia, por comecar o eixo no menor valor.
+ */
+export function escalaDaSerie(pontos: PontoDoMes[]) {
+  const valores = pontos.flatMap((ponto) => [ponto.entrou, ponto.saiu, ponto.sobrou])
+  const maior = Math.max(0, ...valores)
+  const menor = Math.min(0, ...valores)
+  // Serie toda zerada: qualquer altura serve, desde que nao divida por zero.
+  const amplitude = maior - menor || 1
+  return { maior, menor, amplitude }
 }

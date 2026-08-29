@@ -7,10 +7,12 @@ import { supabase } from '../lib/supabase'
 import { useTemaSalvo } from '../theme/useTemaSalvo'
 import {
   BACKUP_LAST_KEY,
+  SINCRONIZADO_KEY,
   STORAGE_KEY,
   criarAppDataInicial,
   normalizarAppData,
 } from '../data/appData'
+import { idsPendentes, temPendencia } from '../utils/pendencias'
 import type {
   AppData,
   PremiumEntitlement,
@@ -46,6 +48,12 @@ type FinanceContextValue = {
 
   sincronizando: boolean
   dadosRemotosCarregados: boolean
+  /** Ha algo na tela que ainda nao chegou ao servidor. */
+  pendenteDeEnvio: boolean
+  /** Ids dos itens que mudaram desde a ultima confirmacao do servidor. */
+  idsNaoSalvos: Set<string>
+  /** Tenta subir agora, sem esperar a proxima janela. */
+  sincronizarAgora: () => void
 
   // perfil
   usuarioId: string | null
@@ -187,6 +195,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [sincronizando, setSincronizando] = useState(false)
   const [dadosRemotosCarregados, setDadosRemotosCarregados] = useState(false)
 
+  /**
+   * A copia que o servidor confirmou ter recebido.
+   *
+   * E a referencia de tudo: o que esta na tela menos ela e o que falta subir.
+   * Fica em ref porque as tentativas de envio a leem de dentro de callbacks
+   * antigos, e um valor de estado ali estaria vencido.
+   */
+  const confirmadoRef = useRef<AppData | null>(null)
+  const [confirmado, setConfirmado] = useState<AppData | null>(null)
+  const appDataRef = useRef(appData)
+  const tentarDeNovoRef = useRef<(() => void) | null>(null)
+
   const [usuarioId, setUsuarioId] = useState<string | null>(null)
   const [nome, setNome] = useState('Usuário')
   const [email, setEmail] = useState('')
@@ -229,6 +249,55 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       setPremiumLoading(false)
     }
   }
+
+  /** A copia local, ja normalizada. Null quando nao existe ou esta corrompida. */
+  const lerCopiaLocal = useCallback(async (): Promise<AppData | null> => {
+    try {
+      const bruto = await AsyncStorage.getItem(STORAGE_KEY)
+      return bruto ? normalizarAppData(JSON.parse(bruto)) : null
+    } catch {
+      return null
+    }
+  }, [])
+
+  /** O que o servidor confirmou da ultima vez, se ainda estiver guardado. */
+  const lerConfirmado = useCallback(async (): Promise<AppData | null> => {
+    try {
+      const bruto = await AsyncStorage.getItem(SINCRONIZADO_KEY)
+      return bruto ? normalizarAppData(JSON.parse(bruto)) : null
+    } catch {
+      return null
+    }
+  }, [])
+
+  const guardarConfirmado = useCallback((dados: AppData | null) => {
+    confirmadoRef.current = dados
+    setConfirmado(dados)
+    if (dados) AsyncStorage.setItem(SINCRONIZADO_KEY, JSON.stringify(dados)).catch(() => undefined)
+  }, [])
+
+  const retentativaRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  /**
+   * Marca outra tentativa daqui a pouco.
+   *
+   * Trinta segundos: perto o bastante para o gasto subir assim que o sinal
+   * volta, longe o bastante para nao ficar batendo no servidor sem parar
+   * enquanto o aparelho esta em modo aviao. Quem realmente resolve sao os
+   * gatilhos de "voltou a internet" e "voltou para o app"; isto e a rede de
+   * seguranca de quando nenhum dos dois dispara.
+   */
+  const agendarNovaTentativa = useCallback(() => {
+    if (retentativaRef.current) clearTimeout(retentativaRef.current)
+    retentativaRef.current = setTimeout(() => {
+      tentarDeNovoRef.current?.()
+    }, 30000)
+  }, [])
+
+  const sincronizarAgora = useCallback(() => {
+    if (retentativaRef.current) clearTimeout(retentativaRef.current)
+    tentarDeNovoRef.current?.()
+  }, [])
 
   const recarregarStatusPremium = async () => {
     if (!usuarioIdRef.current) return
@@ -280,11 +349,42 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           }
           setAvatarPerfil(normalizado.global.profileAvatar || '💼')
           setDadosRemotosCarregados(true)
+
+          // A copia do servidor e, por definicao, o que ele tem. Mas se o
+          // aparelho guarda mudancas que nunca subiram, quem manda e a copia
+          // local: sobrescreve-la com a do servidor apagaria o que a pessoa
+          // lancou sem internet.
+          const local = await lerCopiaLocal()
+          const confirmadoSalvo = await lerConfirmado()
+
+          if (local && confirmadoSalvo && temPendencia(local, confirmadoSalvo)) {
+            ignorarNoHistoricoRef.current = true
+            setAppData(local)
+            guardarConfirmado(confirmadoSalvo)
+          } else {
+            guardarConfirmado(normalizado)
+          }
         } else {
           router.replace('/premium')
           return
         }
       } catch (error) {
+        // Sem rede a leitura falha. Antes isso derrubava a pessoa no login,
+        // com os dados intactos no aparelho — agora o app abre com a copia
+        // local e sobe tudo quando a internet voltar.
+        const local = await lerCopiaLocal()
+
+        if (local) {
+          console.warn('[dados] Sem resposta do servidor; abrindo com a cópia local.', error)
+          ignorarNoHistoricoRef.current = true
+          setAppData(local)
+          if (local.global.profileName) setNome(local.global.profileName)
+          setAvatarPerfil(local.global.profileAvatar || '💼')
+          guardarConfirmado(await lerConfirmado())
+          setDadosRemotosCarregados(true)
+          return
+        }
+
         console.error('[dados] Falha ao carregar dados do usuário, redirecionando para login:', error)
         router.replace('/login')
       } finally {
@@ -295,11 +395,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     carregarTudo()
     // Carga unica: o tema agora tem o proprio guardiao, entao mudar o modo
     // claro/escuro do navegador nao precisa mais rebuscar tudo no Supabase.
+    // Os leitores de disco sao estaveis; lista-los aqui nao mudaria nada, e
+    // rodar isto duas vezes buscaria os dados de novo sem motivo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // --- copia local dos dados ---
   useEffect(() => {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(appData))
+  }, [appData])
+
+  // --- copia do que o servidor tem, sempre a mao ---
+  useEffect(() => {
+    appDataRef.current = appData
   }, [appData])
 
   // --- sincronizacao com o Supabase (com debounce) e backup diario ---
@@ -337,33 +445,51 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    /**
+     * Sobe o que esta na tela agora.
+     *
+     * Envia sempre o estado mais recente, e nao o que existia quando a
+     * tentativa foi agendada: entre o agendamento e a subida a pessoa pode ter
+     * lancado mais coisa, e mandar a versao velha marcaria como salvo algo que
+     * o servidor nunca recebeu.
+     */
     const sincronizarBanco = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!session?.user) return
+      const enviado = appDataRef.current
 
       try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        if (!session?.user) return
+
         setSincronizando(true)
+
         const { error } = await supabase.from('financial_data').upsert({
           user_id: session.user.id,
-          data: appData,
+          data: enviado,
           updated_at: new Date().toISOString(),
         })
 
         if (error) {
-          console.error('[sincronização] Falha ao salvar dados na nuvem:', error)
+          console.warn('[sincronização] Não foi possível salvar na nuvem agora:', error)
+          agendarNovaTentativa()
           return
         }
 
-        await criarBackupSeNecessario(session.user.id, appData)
+        guardarConfirmado(enviado)
+        await criarBackupSeNecessario(session.user.id, enviado)
       } catch (error) {
-        console.error('[sincronização] Falha ao sincronizar dados:', error)
+        // Sem rede a chamada estoura. Nao e erro do usuario: os dados estao
+        // no aparelho e sobem na proxima tentativa.
+        console.warn('[sincronização] Sem conexão com o servidor; tentaremos de novo.', error)
+        agendarNovaTentativa()
       } finally {
         setSincronizando(false)
       }
     }
+
+    tentarDeNovoRef.current = sincronizarBanco
 
     if (!dadosRemotosCarregados || carregando) return
 
@@ -375,7 +501,47 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
     }
-  }, [appData, carregando, dadosRemotosCarregados])
+  }, [appData, carregando, dadosRemotosCarregados, guardarConfirmado, agendarNovaTentativa])
+
+  /**
+   * Volta a tentar assim que a internet volta.
+   *
+   * O evento `online` do navegador e o sinal mais direto que existe: dispara
+   * no instante em que a conexao e restabelecida, sem esperar o proximo
+   * intervalo.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.addEventListener) return
+
+    const aoVoltar = () => sincronizarAgora()
+    window.addEventListener('online', aoVoltar)
+    return () => window.removeEventListener('online', aoVoltar)
+  }, [sincronizarAgora])
+
+  // Voltar para o app tambem e hora de tentar: no celular a tela fica parada
+  // em segundo plano e o evento `online` pode ter passado sem ninguem ouvir.
+  useEffect(() => {
+    const inscricao = AppState.addEventListener('change', (proximo) => {
+      if (proximo === 'active') sincronizarAgora()
+    })
+    return () => inscricao.remove()
+  }, [sincronizarAgora])
+
+  useEffect(() => {
+    return () => {
+      if (retentativaRef.current) clearTimeout(retentativaRef.current)
+    }
+  }, [])
+
+  const pendenteDeEnvio = useMemo(
+    () => dadosRemotosCarregados && !carregando && temPendencia(appData, confirmado),
+    [appData, confirmado, carregando, dadosRemotosCarregados]
+  )
+
+  const idsNaoSalvos = useMemo(
+    () => (pendenteDeEnvio ? idsPendentes(appData, confirmado) : new Set<string>()),
+    [appData, confirmado, pendenteDeEnvio]
+  )
 
   // --- revalida o premium quando o app volta do segundo plano ---
   useEffect(() => {
@@ -402,6 +568,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       refazer,
       sincronizando,
       dadosRemotosCarregados,
+      pendenteDeEnvio,
+      idsNaoSalvos,
+      sincronizarAgora,
       usuarioId,
       nome,
       setNome,
@@ -428,6 +597,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       refazer,
       sincronizando,
       dadosRemotosCarregados,
+      pendenteDeEnvio,
+      idsNaoSalvos,
+      sincronizarAgora,
       usuarioId,
       nome,
       email,

@@ -48,6 +48,10 @@ type Props = {
    * gastava altura demais para pouca informacao.
    */
   compacto?: boolean
+  /** O item mudou e ainda nao chegou ao servidor. */
+  pendente?: boolean
+  /** Toque no selo de pendente: forca a subida agora. */
+  onPendentePress?: () => void
 }
 
 export default function ListRow({
@@ -66,11 +70,34 @@ export default function ListRow({
   children,
   acoesExtras,
   compacto = false,
+  pendente = false,
+  onPendentePress,
 }: Props) {
   const temRodape = Boolean(valor || status || onEditar || onExcluir || acoesExtras)
 
+  /**
+   * O selo de "ainda nao salvo".
+   *
+   * Fica antes dos outros botoes porque e informacao, nao acao secundaria:
+   * quem bate o olho na linha precisa ver que aquele lancamento so existe
+   * neste aparelho. Tocar nele manda subir na hora.
+   */
+  const seloPendente = pendente ? (
+    <PressableScale
+      onPress={onPendentePress}
+      disabled={!onPendentePress}
+      scaleTo={0.9}
+      accessibilityRole="button"
+      accessibilityLabel={`${titulo}: ainda não salvo na nuvem. Toque para salvar agora.`}
+      style={[styles.pendente, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}
+    >
+      <Icon name="atualizar" size={12} color={theme.accent} />
+    </PressableScale>
+  ) : null
+
   const botoes = (
     <View style={styles.acoes}>
+      {seloPendente}
       {acoesExtras}
 
       {status ? (
@@ -237,6 +264,14 @@ const styles = StyleSheet.create({
   valor: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
   meta: { fontSize: 11, fontWeight: '500', marginTop: 2 },
   acoes: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
+  pendente: {
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   status: {
     flexDirection: 'row',
     alignItems: 'center',

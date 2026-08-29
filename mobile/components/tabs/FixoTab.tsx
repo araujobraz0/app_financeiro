@@ -19,6 +19,9 @@ type FixoTabProps = {
   onAlternarPago: (id: string) => void
   onEditar: (item: FixoItem) => void
   onExcluir: (id: string, nome: string) => void
+  /** Ids que ainda nao chegaram ao servidor. */
+  idsNaoSalvos: Set<string>
+  onSalvarAgora: () => void
 }
 
 /**
@@ -39,6 +42,8 @@ function FixoTab({
   onAlternarPago,
   onEditar,
   onExcluir,
+  idsNaoSalvos,
+  onSalvarAgora,
 }: FixoTabProps) {
   const total = totalFixoPago + totalFixoNaoPago
   const progresso = total > 0 ? totalFixoPago / total : 0
@@ -131,6 +136,8 @@ function FixoTab({
             onExcluir={() => onExcluir(item.id, item.nome)}
             destacado={highlightedItemId === item.id}
             refItem={registrarItem(item.id)}
+            pendente={idsNaoSalvos.has(item.id)}
+            onPendentePress={onSalvarAgora}
           />
         ))
       )}

@@ -81,6 +81,13 @@ export const styles = StyleSheet.create({
   bottomBar: { position: 'absolute', left: 14, right: 14, minHeight: 68, borderRadius: 34, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 6, paddingBottom: 6, shadowOpacity: 0.16, shadowRadius: 32, shadowOffset: { width: 0, height: 12 }, elevation: 12 },
   bottomHalf: { flex: 1, flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', gap: 2, paddingBottom: 0, paddingHorizontal: 2 },
   plusButton: { width: 58, height: 58, marginHorizontal: 10, borderRadius: 999, alignItems: 'center', justifyContent: 'center', marginTop: 0, alignSelf: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', shadowOpacity: 0.22, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
+  // O selo de premium ja traz a propria margem de baixo; a linha so os
+  // encosta um no outro e deixa quebrar quando nao couberem.
+  selosTopo: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
+  passoInstalar: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, marginBottom: 14 },
+  passoNumero: { width: 24, height: 24, borderRadius: 999, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  passoNumeroTexto: { fontSize: 12, fontWeight: '900' },
+  passoTexto: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: '600', lineHeight: 19 },
   syncBadge: { position: 'absolute', right: 18, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
   syncBadgeText: { fontSize: 12, fontWeight: '800' },
   modalCard: { width: '86%', maxWidth: 430, maxHeight: '94%', alignSelf: 'center', borderRadius: 30, paddingHorizontal: 20, paddingTop: 22, paddingBottom: 30, borderWidth: 1, overflow: 'hidden', shadowColor: '#000000', shadowOpacity: 0.24, shadowRadius: 36, shadowOffset: { width: 0, height: 18 }, elevation: 18 },

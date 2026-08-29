@@ -35,6 +35,9 @@ type VariavelTabProps = {
   onExcluirEntrada: (id: string, nome: string) => void
   onEditarSaida: (item: SaidaItem) => void
   onExcluirSaida: (id: string, nome: string) => void
+  /** Ids que ainda nao chegaram ao servidor. */
+  idsNaoSalvos: Set<string>
+  onSalvarAgora: () => void
 }
 
 /**
@@ -67,6 +70,8 @@ function VariavelTab({
   onExcluirEntrada,
   onEditarSaida,
   onExcluirSaida,
+  idsNaoSalvos,
+  onSalvarAgora,
 }: VariavelTabProps) {
   return (
     <>
@@ -235,6 +240,8 @@ function VariavelTab({
                 onExcluir={() => onExcluirEntrada(item.id, item.nome)}
                 destacado={highlightedItemId === item.id}
                 refItem={registrarItem(item.id)}
+                pendente={idsNaoSalvos.has(item.id)}
+                onPendentePress={onSalvarAgora}
               />
             ))
           )
@@ -256,6 +263,8 @@ function VariavelTab({
               onExcluir={() => onExcluirSaida(item.id, item.nome)}
               destacado={highlightedItemId === item.id}
               refItem={registrarItem(item.id)}
+              pendente={idsNaoSalvos.has(item.id)}
+              onPendentePress={onSalvarAgora}
             />
           ))
         )}

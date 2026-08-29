@@ -18,6 +18,14 @@ export const VERSAO_MIGRACAO_FIXOS = 2
 
 export const STORAGE_KEY = 'controle-financeiro-v16'
 export const BACKUP_LAST_KEY = 'controle-financeiro-ultimo-backup-mobile'
+/**
+ * A ultima copia que o servidor confirmou ter recebido.
+ *
+ * Guardada separada da copia local porque servem a coisas diferentes: a local
+ * e o que a pessoa ve, esta e a referencia para saber o que ainda falta subir
+ * — inclusive depois de fechar e reabrir o app sem internet.
+ */
+export const SINCRONIZADO_KEY = 'controle-financeiro-sincronizado-v1'
 export const categoriasPadrao = ['Mercado', 'Saúde', 'Extra', 'Lazer', 'Uber', 'Comida']
 export const onboardingFixosBase = [
   { nome: 'Comissão de formatura', valor: 130 },

@@ -24,6 +24,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import PdfPreview from '../components/PdfPreview'
 import AppModal from '../components/common/AppModal'
+import ModalSheet from '../components/common/ModalSheet'
 import * as Haptics from 'expo-haptics'
 import BottomTabItem from '../components/home/BottomTabItem'
 import Calendario from '../components/common/Calendario'
@@ -45,6 +46,7 @@ import type { NoteFormValues } from '../components/modals/NoteModal'
 import ShoppingWishModal, { emptyShoppingWishValues } from '../components/modals/ShoppingWishModal'
 import type { ShoppingWishFormValues } from '../components/modals/ShoppingWishModal'
 import ConfirmDeleteModal from '../components/modals/ConfirmDeleteModal'
+import BotaoInstalar from '../components/home/BotaoInstalar'
 import FaixaPremium from '../components/home/FaixaPremium'
 import BackupsModal from '../components/modals/BackupsModal'
 import MemoriaDaVozModal from '../components/modals/MemoriaDaVozModal'
@@ -122,7 +124,8 @@ import {
 } from '../src/utils/export'
 import type { ExportData } from '../src/utils/export'
 import Icon from '../components/common/Icon'
-import { resumirMes } from '../src/utils/comparacaoMeses'
+import { serieDeMeses } from '../src/utils/comparacaoMeses'
+import { useInstalacao } from '../src/utils/instalar'
 import type {
   EntradaItem, SaidaItem, FixoItem, FixoRecorrente, NoteItem, PixItem, CardInstallment, CardItem,
   ShoppingWishItem, DadosMes, BancoDeDados, GlobalData,
@@ -202,6 +205,9 @@ function HomeScreenContent() {
     atualizarSemHistorico,
     carregando,
     sincronizando,
+    pendenteDeEnvio,
+    idsNaoSalvos,
+    sincronizarAgora,
     usuarioId,
     nome,
     setNome,
@@ -336,6 +342,8 @@ function HomeScreenContent() {
   const [previewPdfUri, setPreviewPdfUri] = useState('')
   const [previewPdfGerando, setPreviewPdfGerando] = useState(false)
   const [buscaGlobal, setBuscaGlobal] = useState('')
+  const instalacao = useInstalacao()
+  const [modalInstalarAberto, setModalInstalarAberto] = useState(false)
   const [modalCompraDesejoAberto, setModalCompraDesejoAberto] = useState(false)
   const [compraDesejoEditandoId, setCompraDesejoEditandoId] = useState<string | null>(null)
   // Campos da compra desejada vivem dentro do ShoppingWishModal.
@@ -887,40 +895,24 @@ function HomeScreenContent() {
   const chaveAnterior = useMemo(() => addMonthsToCompetencia(chaveAtual, -1), [chaveAtual])
   const nomeMesAnterior = chaveAnterior.split('-')[1] || ''
 
-  const resumoAtual = useMemo(
+  /**
+   * Os ultimos seis meses ate a competencia aberta.
+   *
+   * Uma linha precisa de serie: com dois pontos ela vira um traco, e o desenho
+   * nao diria mais do que dois numeros lado a lado ja diriam. Meses que nunca
+   * existiram entram zerados, e nao como buraco.
+   */
+  const serieDeMesesRecentes = useMemo(
     () =>
-      resumirMes({
-        salario,
-        entradas,
-        saidas,
-        fixos: fixosDoMesAtual,
-        cartoes: totalCartoesMes,
+      serieDeMeses({
+        bancoDeDados,
+        fixosRecorrentes: globalData.fixosRecorrentes || [],
+        cards: globalData.cards || [],
+        chaveFinal: chaveAtual,
+        quantidade: 6,
       }),
-    [salario, entradas, saidas, fixosDoMesAtual, totalCartoesMes]
+    [bancoDeDados, globalData.fixosRecorrentes, globalData.cards, chaveAtual]
   )
-
-  const resumoAnterior = useMemo(() => {
-    const mes = bancoDeDados[chaveAnterior]
-    const fixos = fixosDoMes(globalData.fixosRecorrentes || [], mes?.fixoPagos, chaveAnterior)
-    const cartoes = (globalData.cards || []).reduce((total, card) => {
-      const parcelas = (card.parcelas || [])
-        .filter((item) => item.competencia === chaveAnterior)
-        .reduce((soma, item) => soma + Number(item.valorParcela || 0), 0)
-      const assinaturas = fixosDoMes(card.assinaturas || [], undefined, chaveAnterior).reduce(
-        (soma, item) => soma + Number(item.valor || 0),
-        0
-      )
-      return total + parcelas + assinaturas
-    }, 0)
-
-    return resumirMes({
-      salario: Number(mes?.salario || 0),
-      entradas: mes?.entradas || [],
-      saidas: mes?.saidas || [],
-      fixos,
-      cartoes,
-    })
-  }, [bancoDeDados, chaveAnterior, globalData.fixosRecorrentes, globalData.cards])
 
   const saidasFiltradas = filtroCategoria === 'Todas' ? saidas : saidas.filter((item) => item.categoria === filtroCategoria)
   const totalCategoriaSelecionada =
@@ -3168,12 +3160,28 @@ function HomeScreenContent() {
         keyboardShouldPersistTaps='handled'
       >
         <View ref={conteudoRolagemRef} collapsable={false}>
-        <FaixaPremium
-          theme={theme}
-          ativo={premiumValido}
-          expiraEm={premiumExpiresAt}
-          onPress={irParaTelaPremium}
-        />
+        {/* Premium e "instalar" lado a lado: os dois dizem a mesma classe de
+            coisa, o estado do app para aquela pessoa. */}
+        <View style={styles.selosTopo}>
+          <FaixaPremium
+            theme={theme}
+            ativo={premiumValido}
+            expiraEm={premiumExpiresAt}
+            onPress={irParaTelaPremium}
+          />
+          {instalacao.disponivel ? (
+            <BotaoInstalar
+              theme={theme}
+              onPress={() => {
+                // No iPhone nao existe dialogo de instalacao: o caminho e o
+                // menu de compartilhar, entao aqui se explica em vez de tentar
+                // abrir algo que nao vai abrir.
+                if (instalacao.precisaDeInstrucoes) setModalInstalarAberto(true)
+                else instalacao.instalar()
+              }}
+            />
+          ) : null}
+        </View>
         <BuscaGlobal theme={theme} valor={buscaGlobal} onChange={setBuscaGlobal} />
         {resultadosBuscaGlobal.length > 0 && (
           <View style={[styles.manageCard, { backgroundColor: theme.card, borderColor: theme.border, marginTop: 0, marginBottom: 8 }]}>
@@ -3235,8 +3243,7 @@ function HomeScreenContent() {
             <AppearIn index={4}>
               <ComparacaoMesCard
                 theme={theme}
-                atual={resumoAtual}
-                anterior={resumoAnterior}
+                serie={serieDeMesesRecentes}
                 nomeAtual={mesSelecionado}
                 nomeAnterior={nomeMesAnterior}
                 formatarValorVisivel={formatarValorVisivel}
@@ -3294,6 +3301,8 @@ function HomeScreenContent() {
             onAlternarPago={alternarPagoFixo}
             onEditar={abrirEditarFixo}
             onExcluir={(id, nome) => abrirConfirmacaoExclusao('fixo', id, nome)}
+            idsNaoSalvos={idsNaoSalvos}
+            onSalvarAgora={sincronizarAgora}
           />
         )}
 
@@ -3322,6 +3331,8 @@ function HomeScreenContent() {
             onExcluirEntrada={(id, nome) => abrirConfirmacaoExclusao('entrada', id, nome)}
             onEditarSaida={abrirEditarSaida}
             onExcluirSaida={(id, nome) => abrirConfirmacaoExclusao('saida', id, nome)}
+            idsNaoSalvos={idsNaoSalvos}
+            onSalvarAgora={sincronizarAgora}
           />
         )}
 
@@ -3396,6 +3407,8 @@ function HomeScreenContent() {
         <PressableScale
           onPress={abrirAcaoRapida}
           scaleTo={0.9}
+          accessibilityRole="button"
+          accessibilityLabel="Adicionar lançamento"
           hapticStyle={Haptics.ImpactFeedbackStyle.Medium}
           style={[styles.plusButton, { backgroundColor: theme.primary, shadowColor: theme.primary }]}
         >
@@ -3832,11 +3845,68 @@ function HomeScreenContent() {
         </View>
       </AppModal>
 
-      {sincronizando && (
-        <View style={[styles.syncBadge, { backgroundColor: theme.accentSoft, borderColor: theme.borderStrong, bottom: 115 + Math.max(insets.bottom, 10) }]}>
-          <Text style={[styles.syncBadgeText, { color: theme.accent }]}>Salvando...</Text>
-        </View>
-      )}
+      {/* Enquanto sobe, "Salvando...". Se ficou algo para tras, o aviso vira
+          botao: tocar manda tentar de novo na hora. Antes a falha era muda —
+          o gasto ficava so no aparelho e ninguem ficava sabendo. */}
+      {sincronizando || pendenteDeEnvio ? (
+        <PressableScale
+          onPress={sincronizarAgora}
+          disabled={sincronizando}
+          scaleTo={0.95}
+          accessibilityRole="button"
+          accessibilityLabel={
+            sincronizando ? 'Salvando na nuvem' : 'Toque para salvar na nuvem agora'
+          }
+          style={[
+            styles.syncBadge,
+            {
+              backgroundColor: theme.accentSoft,
+              borderColor: theme.accent,
+              // Acima do botao de voz, que ocupa de 86 a 140 a partir da
+              // base: no lugar antigo os dois se sobrepunham.
+              bottom: Math.max(insets.bottom, 10) + 150,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+            },
+          ]}
+        >
+          <Icon name={sincronizando ? 'atualizar' : 'backup'} size={13} color={theme.accent} />
+          <Text style={[styles.syncBadgeText, { color: theme.accent }]}>
+            {sincronizando
+              ? 'Salvando...'
+              : idsNaoSalvos.size > 0
+                ? `${idsNaoSalvos.size} não ${idsNaoSalvos.size === 1 ? 'salvo' : 'salvos'}`
+                : 'Salvar agora'}
+          </Text>
+        </PressableScale>
+      ) : null}
+      {/* O iPhone nao tem dialogo de instalacao: o Safari so instala pelo
+          menu de compartilhar. Restou explicar o caminho. */}
+      <ModalSheet
+        theme={theme}
+        visible={modalInstalarAberto}
+        onClose={() => setModalInstalarAberto(false)}
+        titulo="Colocar na tela inicial"
+        subtitulo="No iPhone o caminho é pelo Safari, em três toques."
+        acoes={[{ label: 'Entendi', onPress: () => setModalInstalarAberto(false), primaria: true }]}
+      >
+        {[
+          'Toque no botão de compartilhar, embaixo na barra do Safari.',
+          'Role a lista e escolha "Adicionar à Tela de Início".',
+          'Confirme. O Brazllet aparece com ícone próprio, e abre em tela cheia.',
+        ].map((passo, indice) => (
+          <View key={passo} style={styles.passoInstalar}>
+            <View style={[styles.passoNumero, { backgroundColor: theme.primary }]}>
+              <Text style={[styles.passoNumeroTexto, { color: theme.textInverse }]}>
+                {indice + 1}
+              </Text>
+            </View>
+            <Text style={[styles.passoTexto, { color: theme.text }]}>{passo}</Text>
+          </View>
+        ))}
+      </ModalSheet>
+
       <AppModal
         key={`calendario-${calendarioFormKey}`}
         level={100}
