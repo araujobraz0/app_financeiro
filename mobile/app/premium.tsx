@@ -311,6 +311,46 @@ export default function PremiumScreen() {
     }
   }, [mostrarPopup, onboardingPending])
 
+  /**
+   * Voltar, de onde quer que a pessoa tenha vindo.
+   *
+   * Quem acabou de criar a conta chega aqui por `router.replace` — nao ha
+   * historico, e `router.back()` nao fazia nada. O botao ficava vivo na tela
+   * e morto no toque.
+   *
+   * Com o primeiro acesso pendente o destino e ele, e nao a home: a home
+   * devolve para ca enquanto nao houver dados, entao voltar para la so
+   * piscaria a tela e traria a pessoa de volta. O primeiro acesso funciona
+   * sem premium; a home, para quem ainda nao montou nada, nao.
+   */
+  const voltar = useCallback(() => {
+    if (onboardingPending) {
+      router.replace('/primeiro-acesso')
+      return
+    }
+    if (router.canGoBack()) {
+      router.back()
+      return
+    }
+    router.replace('/home')
+  }, [onboardingPending])
+
+  /**
+   * Sair da conta.
+   *
+   * Sem isto nao havia caminho nenhum daqui para o login: quem entrou na
+   * conta errada ficava preso na tela de pagamento, porque a home devolve
+   * para ca enquanto o primeiro acesso nao terminou.
+   */
+  const sairDaConta = useCallback(async () => {
+    try {
+      await supabase.auth.signOut()
+    } catch (error) {
+      console.error('[premium] Falha ao sair da conta:', error)
+    }
+    router.replace('/login')
+  }, [])
+
   const handleCopyPix = useCallback(async () => {
     if (!pixData?.qr_code) {
       mostrarPopup('Código indisponível', 'Ainda não existe um código Pix para copiar.')
@@ -354,7 +394,7 @@ export default function PremiumScreen() {
       >
         <View style={styles.topBar}>
           <PressableScale
-            onPress={() => router.back()}
+            onPress={voltar}
             scaleTo={0.94}
             accessibilityRole="button"
             accessibilityLabel="Voltar"
@@ -551,6 +591,20 @@ export default function PremiumScreen() {
           </AppearIn>
         ) : null}
 
+        {/* O caminho de volta para o login. Fica no fim de proposito: quem
+            veio pagar nao tropeça nele, e quem entrou na conta errada tem
+            para onde ir. */}
+        <PressableScale
+          onPress={sairDaConta}
+          scaleTo={0.97}
+          accessibilityRole="button"
+          accessibilityLabel="Sair e entrar com outra conta"
+          style={styles.sairBotao}
+        >
+          <Icon name="sair" size={15} color={theme.muted} />
+          <Text style={[styles.sairTexto, { color: theme.muted }]}>Sair e entrar com outra conta</Text>
+        </PressableScale>
+
       </ScrollView>
 
       <AppPopup
@@ -566,6 +620,15 @@ export default function PremiumScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
+  sairBotao: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 46,
+    marginTop: 18,
+  },
+  sairTexto: { fontSize: 12.5, fontWeight: '800' },
   flex: { flex: 1 },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { fontSize: 13.5, fontWeight: '700' },
