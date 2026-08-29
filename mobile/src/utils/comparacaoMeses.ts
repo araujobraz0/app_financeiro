@@ -15,9 +15,16 @@ import { fixosDoMes } from './fixos'
 export type ResumoMes = {
   /** Salario mais as entradas do mes. */
   entrou: number
-  /** Saidas variaveis, gastos fixos e cartoes somados. */
+  /**
+   * O que de fato saiu: saidas variaveis, os fixos ja pagos e os cartoes.
+   *
+   * Fixo em aberto nao entra. A conta e a mesma que o app usa no saldo do mes,
+   * e essa igualdade e o ponto: com todos os fixos, este grafico dava um
+   * numero e o saldo la em cima dava outro para o mesmo mes — o mesmo mes com
+   * duas verdades.
+   */
   saiu: number
-  /** O que sobrou: entrou menos saiu. Negativo quando o mes fechou no vermelho. */
+  /** Entrou menos saiu. E exatamente o saldo do mes que a home mostra. */
   sobrou: number
   /** Quanto cada categoria de saida variavel levou. */
   porCategoria: Record<string, number>
@@ -136,6 +143,18 @@ export function proporcao(valor: number, maior: number) {
   return Math.min(1, Math.abs(valor) / Math.abs(maior))
 }
 
+/**
+ * O mes teve alguma coisa acontecendo.
+ *
+ * O salario sozinho nao conta. O primeiro acesso grava o salario em cinco
+ * anos de competencias de uma vez, entao um mes em que a pessoa nunca entrou
+ * no app tem salario e mais nada — plotado, ele inventaria uma renda que
+ * ninguem recebeu e uma sobra que ninguem teve.
+ */
+function teveMovimento(resumo: ResumoMes, entradas: number, saidas: number, fixos: number, cartoes: number) {
+  return entradas > 0 || saidas > 0 || fixos > 0 || cartoes > 0 || resumo.saiu > 0
+}
+
 export type PontoDoMes = ResumoMes & {
   /** "2026-Agosto". */
   chave: string
@@ -165,12 +184,18 @@ export function serieDeMeses(params: {
 }): PontoDoMes[] {
   const { bancoDeDados, fixosRecorrentes, cards, chaveFinal, quantidade = 6 } = params
   const pontos: PontoDoMes[] = []
+  const teveAlgo: boolean[] = []
 
   for (let atras = quantidade - 1; atras >= 0; atras -= 1) {
     const chave = addMonthsToCompetencia(chaveFinal, -atras)
     const mes = bancoDeDados?.[chave]
 
-    const fixos = fixosDoMes(fixosRecorrentes || [], mes?.fixoPagos, chave)
+    // So os pagos, para bater com o saldo do mes que a home mostra. Com os
+    // fixos em aberto no meio, o mesmo mes aparecia com dois numeros: um aqui
+    // e outro la em cima.
+    const fixos = fixosDoMes(fixosRecorrentes || [], mes?.fixoPagos, chave).filter(
+      (item) => item.pago
+    )
     const cartoes = (cards || []).reduce((total, card) => {
       const parcelas = (card?.parcelas || [])
         .filter((item) => item.competencia === chave)
@@ -182,20 +207,33 @@ export function serieDeMeses(params: {
       return total + parcelas + assinaturas
     }, 0)
 
-    pontos.push({
-      chave,
-      rotulo: rotuloCurto(chave),
-      ...resumirMes({
-        salario: Number(mes?.salario || 0),
-        entradas: mes?.entradas || [],
-        saidas: mes?.saidas || [],
-        fixos,
-        cartoes,
-      }),
+    const resumo = resumirMes({
+      salario: Number(mes?.salario || 0),
+      entradas: mes?.entradas || [],
+      saidas: mes?.saidas || [],
+      fixos,
+      cartoes,
     })
+
+    pontos.push({ chave, rotulo: rotuloCurto(chave), ...resumo })
+    teveAlgo.push(
+      teveMovimento(
+        resumo,
+        (mes?.entradas || []).length,
+        (mes?.saidas || []).length,
+        fixos.length,
+        cartoes
+      )
+    )
   }
 
-  return pontos
+  // Corta so o comeco: meses em branco antes de a pessoa comecar a usar o app
+  // nao sao historia, sao o salario que o primeiro acesso espalhou. Um mes
+  // parado no meio da serie continua no grafico — ali o vazio e informacao.
+  const primeiroComMovimento = teveAlgo.findIndex(Boolean)
+  if (primeiroComMovimento < 0) return []
+
+  return pontos.slice(primeiroComMovimento)
 }
 
 /**

@@ -125,6 +125,7 @@ import {
 import type { ExportData } from '../src/utils/export'
 import Icon from '../components/common/Icon'
 import { serieDeMeses } from '../src/utils/comparacaoMeses'
+import { sobraMediaMensal } from '../src/utils/desejos'
 import { useInstalacao } from '../src/utils/instalar'
 import type {
   EntradaItem, SaidaItem, FixoItem, FixoRecorrente, NoteItem, PixItem, CardInstallment, CardItem,
@@ -912,6 +913,18 @@ function HomeScreenContent() {
         quantidade: 6,
       }),
     [bancoDeDados, globalData.fixosRecorrentes, globalData.cards, chaveAtual]
+  )
+
+  /**
+   * Quanto sobra por mes, em media.
+   *
+   * Sai da mesma serie que alimenta o grafico. E o que transforma "faltam
+   * R$ 2.190" em "uns 5 meses" na lista de desejos — a pergunta que se faz
+   * olhando um preco que ainda nao cabe.
+   */
+  const sobraMediaDosMeses = useMemo(
+    () => sobraMediaMensal(serieDeMesesRecentes),
+    [serieDeMesesRecentes]
   )
 
   const saidasFiltradas = filtroCategoria === 'Todas' ? saidas : saidas.filter((item) => item.categoria === filtroCategoria)
@@ -3253,6 +3266,7 @@ function HomeScreenContent() {
             <AppearIn index={5}>
               <ComprasDesejoCard
                 saldoAcumulado={saldoAcumulado}
+                sobraMensal={sobraMediaDosMeses}
               theme={theme}
                 itens={comprasDesejoVisiveis}
                 highlightedItemId={highlightedItemId}

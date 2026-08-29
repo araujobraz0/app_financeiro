@@ -77,12 +77,14 @@ export default function FaixaPremium({ theme, ativo, expiraEm, onPress }: Props)
 
 const styles = StyleSheet.create({
   faixa: {
-    alignSelf: 'flex-start',
+    // A margem de baixo saiu daqui: quem posiciona e a linha que segura este
+    // selo e o botao de instalar. Com ela, o selo subia 8px em relacao ao
+    // botao ao lado e os dois ficavam tortos.
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     minHeight: 24,
-    marginBottom: 8,
     paddingLeft: 4,
     paddingRight: 9,
     borderRadius: 999,

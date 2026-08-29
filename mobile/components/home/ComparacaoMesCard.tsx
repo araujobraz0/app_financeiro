@@ -67,7 +67,9 @@ function ComparacaoMesCard({ theme, serie, nomeAtual, nomeAnterior, formatarValo
 
   const escala = useMemo(() => escalaDaSerie(serie), [serie])
 
-  if (comparacao.vazio) return null
+  // Sem um mes anterior nao ha o que comparar, e a linha nao teria de onde
+  // vir. Acontece no primeiro mes de uso, quando a serie so tem o mes aberto.
+  if (serie.length < 2 || comparacao.vazio) return null
 
   const linhas = [
     { chave: 'entrou' as const, rotulo: 'Entrou', cor: theme.green, dados: comparacao.entrou, subirEhBom: true },
