@@ -26,6 +26,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native'
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -54,7 +55,7 @@ import Icon, { type IconName } from '../components/common/Icon'
 import Interruptor from '../components/common/Interruptor'
 import AppearIn from '../components/common/motion/AppearIn'
 import PressableScale from '../components/common/motion/PressableScale'
-import CartaoVisual from '../components/tabs/CartaoVisual'
+import CartaoEditavel from '../components/tabs/CartaoEditavel'
 import { useTemaSalvo } from '../src/theme/useTemaSalvo'
 
 type FixedPreset = {
@@ -177,8 +178,17 @@ function criarBancoInicial(salario: number, categoriasVariaveis: string[]) {
 
 export default function PrimeiroAcessoScreen() {
   const insets = useSafeAreaInsets()
+  const { width: larguraTela } = useWindowDimensions()
   const { theme } = useTemaSalvo()
   const styles = useMemo(() => criarEstilos(theme), [theme])
+
+  // O cartao acompanha a tela: com os campos dentro dele, os 250 fixos do
+  // cartao so de leitura ficavam apertados demais para digitar.
+  //
+  // Desconta a margem da pagina (20 de cada lado) e o respiro do bloco que o
+  // envolve (14 de cada lado). Sem essa conta o cartao nascia mais largo que
+  // a caixa em que ele mora.
+  const larguraDoCartao = Math.round(Math.max(240, Math.min(340, larguraTela - 40 - 28)))
 
   const [passo, setPasso] = useState(0)
   const scrollRef = useRef<ScrollView>(null)
@@ -204,7 +214,14 @@ export default function PrimeiroAcessoScreen() {
   const [newCardName, setNewCardName] = useState('')
   const [newCardClosing, setNewCardClosing] = useState('')
   const [newCardDue, setNewCardDue] = useState('')
-  const [cartaoEditando, setCartaoEditando] = useState<string | null>(null)
+  /**
+   * O id do proximo cartao, sorteado antes de ele existir.
+   *
+   * A cor sai do id. Sem reservar o id agora, o cartao em branco teria uma
+   * cor enquanto e preenchido e outra depois de criado — trocaria de cor no
+   * toque do botao.
+   */
+  const [proximoCardId, setProximoCardId] = useState(() => createId('card'))
 
   const [calendarVisible, setCalendarVisible] = useState(false)
   const [calendarTarget, setCalendarTarget] = useState<AlvoDoCalendario>('new_closing')
@@ -354,13 +371,14 @@ export default function PrimeiroAcessoScreen() {
     setCards((prev) => [
       ...prev,
       {
-        id: createId('card'),
+        id: proximoCardId,
         nome,
         fechamentoText: formatarInputDiaMes(newCardClosing),
         vencimentoText: formatarInputDiaMes(newCardDue),
       },
     ])
 
+    setProximoCardId(createId('card'))
     setNewCardName('')
     setNewCardClosing('')
     setNewCardDue('')
@@ -442,34 +460,6 @@ export default function PrimeiroAcessoScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cards]
   )
-
-  /** O rascunho vira o formato que o cartao visual do app entende. */
-  const paraCartaoVisual = (rascunho: DraftCardItem): CardItem => {
-    const fecha = parseDiaMesInput(rascunho.fechamentoText, mesAtual, anoAtual)
-    const vence = parseDiaMesInput(rascunho.vencimentoText, Math.min(12, mesAtual + 1), anoAtual)
-    return {
-      id: rascunho.id,
-      nome: rascunho.nome || 'Cartão sem nome',
-      limite: 0,
-      fechamento: fecha?.dia ?? null,
-      fechamentoMes: fecha?.mes ?? null,
-      vencimento: vence?.dia ?? null,
-      vencimentoMes: vence?.mes ?? null,
-      parcelas: [],
-    }
-  }
-
-  /**
-   * Linha de baixo do cartao.
-   *
-   * O proprio cartao ja escreve "Fecha dia N" no canto, entao aqui vai o
-   * vencimento — repetir o fechamento nos dois lugares era so ruido.
-   */
-  const resumoDoCartao = (rascunho: DraftCardItem) => {
-    if (rascunho.vencimentoText) return `Vence ${rascunho.vencimentoText}`
-    if (rascunho.fechamentoText) return 'Vencimento depois'
-    return 'Datas depois'
-  }
 
   const handleContinue = async () => {
     setLoading(true)
@@ -571,38 +561,11 @@ export default function PrimeiroAcessoScreen() {
     irParaPasso(passo + 1)
   }
 
-  /**
-   * Campo de data que abre o calendario.
-   *
-   * Antes era um campo de texto DD/MM com um botaozinho de calendario ao lado
-   * — e o botao ficava por baixo do proprio campo, sem receber toque. Um
-   * campo so, que abre o calendario, resolve as duas coisas.
-   */
-  const campoDeData = (rotulo: string, valor: string, aoTocar: () => void) => (
-    <View style={styles.dataCampoWrap}>
-      <Text style={styles.rotuloCampo} numberOfLines={1}>
-        {rotulo}
-      </Text>
-      <PressableScale
-        onPress={aoTocar}
-        scaleTo={0.97}
-        accessibilityRole="button"
-        accessibilityLabel={`${rotulo}: ${valor || 'escolher data'}`}
-        style={[styles.dataBotao, !!valor && styles.dataBotaoPreenchido]}
-      >
-        <Icon name="calendario" size={14} color={valor ? theme.primary : theme.faint} />
-        <Text style={[styles.dataTexto, !valor && styles.dataTextoVazio]} numberOfLines={1}>
-          {valor || 'Escolher'}
-        </Text>
-      </PressableScale>
-    </View>
-  )
-
   /** Campo de dinheiro, do tamanho grande do salario ao pequeno da linha. */
   const campoDeDinheiro = (
     valor: string,
     aoMudar: (texto: string) => void,
-    variante: 'grande' | 'linha' | 'bloco',
+    variante: 'grande' | 'linha' | 'bloco' | 'metade',
     extra?: { ref?: React.RefObject<TextInput | null>; erro?: boolean; aceso?: boolean }
   ) => (
     <View
@@ -610,6 +573,7 @@ export default function PrimeiroAcessoScreen() {
         styles.dinheiroWrap,
         variante === 'grande' && styles.dinheiroWrapGrande,
         variante === 'linha' && styles.dinheiroWrapLinha,
+        variante === 'metade' && styles.dinheiroWrapMetade,
         extra?.aceso && styles.dinheiroWrapAceso,
         extra?.erro && styles.dinheiroWrapErro,
       ]}
@@ -632,6 +596,25 @@ export default function PrimeiroAcessoScreen() {
   )
 
   const secaoVazia = (texto: string) => <Text style={styles.vazioTexto}>{texto}</Text>
+
+  /**
+   * O cabecalho dos blocos de criar.
+   *
+   * Antes cada um comecava com um rotulo de formulario em caixa alta solto no
+   * topo. Com o simbolo e a explicacao na mesma linha, o bloco se apresenta
+   * em vez de so rotular o que vem depois.
+   */
+  const cabecalhoDeCriar = (icone: IconName, titulo: string, subtitulo: string) => (
+    <View style={styles.criarCabecalho}>
+      <View style={styles.criarSelo}>
+        <Icon name={icone} size={16} color={theme.primary} />
+      </View>
+      <View style={styles.criarTextos}>
+        <Text style={styles.criarTitulo}>{titulo}</Text>
+        <Text style={styles.criarSub}>{subtitulo}</Text>
+      </View>
+    </View>
+  )
 
   const passoSalario = (
     <>
@@ -753,8 +736,9 @@ export default function PrimeiroAcessoScreen() {
         ? secaoVazia('Nenhum gasto fixo ainda. Dá para pular este passo e criar depois, dentro do app.')
         : null}
 
-      <View style={styles.blocoAdicionar}>
-        <Text style={styles.rotuloSecao}>Novo gasto fixo</Text>
+      <View style={styles.blocoCriar}>
+        {cabecalhoDeCriar('aba_fixo', 'Novo gasto fixo', 'Entra criado e se repete todo mês.')}
+
         <TextInput
           value={newCustomFixedName}
           onChangeText={setNewCustomFixedName}
@@ -766,24 +750,28 @@ export default function PrimeiroAcessoScreen() {
           onBlur={dismissKeyboard}
           blurOnSubmit
         />
-        <View style={styles.espacoCurto}>
+
+        {/* Valor e botao na mesma linha: empilhados, o bloco ficava com tres
+            caixas iguais uma embaixo da outra e cara de formulario. */}
+        <View style={styles.criarLinhaFinal}>
           {campoDeDinheiro(
             newCustomFixedValue,
             (value) =>
               handleMaskedMoneyInput(value, setNewCustomFixedValue, { prefix: false, emptyAsBlank: false }),
-            'bloco'
+            'metade'
           )}
+          <PressableScale
+            onPress={adicionarNovoFixo}
+            disabled={!newCustomFixedName.trim()}
+            scaleTo={0.96}
+            accessibilityRole="button"
+            accessibilityLabel="Adicionar gasto fixo"
+            style={[styles.botaoCriar, !newCustomFixedName.trim() && styles.botaoDesabilitado]}
+          >
+            <Icon name="adicionar" size={15} color={theme.textInverse} />
+            <Text style={styles.botaoCriarTexto}>Adicionar</Text>
+          </PressableScale>
         </View>
-        <PressableScale
-          onPress={adicionarNovoFixo}
-          disabled={!newCustomFixedName.trim()}
-          scaleTo={0.97}
-          accessibilityRole="button"
-          style={[styles.botaoAdicionar, !newCustomFixedName.trim() && styles.botaoDesabilitado]}
-        >
-          <Icon name="adicionar" size={15} color={theme.textInverse} />
-          <Text style={styles.botaoAdicionarTexto}>Adicionar gasto fixo</Text>
-        </PressableScale>
       </View>
     </>
   )
@@ -829,15 +817,18 @@ export default function PrimeiroAcessoScreen() {
         </View>
       </View>
 
-      <View style={styles.blocoAdicionar}>
-        <Text style={styles.rotuloSecao}>Outra categoria</Text>
-        <View style={styles.linhaAdicionar}>
+      <View style={styles.blocoCriar}>
+        {cabecalhoDeCriar('aba_variavel', 'Criar outra categoria', 'Ela já entra marcada.')}
+
+        {/* Uma pilula so, com o botao dentro: uma categoria e uma palavra, e
+            um campo de formulario inteiro para ela era exagero. */}
+        <View style={styles.pilulaCampo}>
           <TextInput
             value={newCustomVariableName}
             onChangeText={setNewCustomVariableName}
             placeholder="Pets, viagem, estudos..."
             placeholderTextColor={theme.faint}
-            style={[styles.campoTexto, styles.campoTextoFlex]}
+            style={styles.pilulaInput}
             returnKeyType="done"
             onSubmitEditing={adicionarCategoriaVariavelCustom}
             onBlur={dismissKeyboard}
@@ -846,12 +837,12 @@ export default function PrimeiroAcessoScreen() {
           <PressableScale
             onPress={adicionarCategoriaVariavelCustom}
             disabled={!newCustomVariableName.trim()}
-            scaleTo={0.92}
+            scaleTo={0.9}
             accessibilityRole="button"
-            accessibilityLabel="Adicionar categoria"
-            style={[styles.botaoMais, !newCustomVariableName.trim() && styles.botaoDesabilitado]}
+            accessibilityLabel="Criar categoria"
+            style={[styles.pilulaBotao, !newCustomVariableName.trim() && styles.botaoDesabilitado]}
           >
-            <Icon name="adicionar" size={18} color={theme.textInverse} />
+            <Icon name="adicionar" size={17} color={theme.textInverse} />
           </PressableScale>
         </View>
       </View>
@@ -881,98 +872,66 @@ export default function PrimeiroAcessoScreen() {
           {cards.length > 0 ? (
             <View style={styles.blocoLista}>
               <Text style={styles.rotuloSecao}>Seus cartões</Text>
-              {cards.map((item) => {
-                const aberto = cartaoEditando === item.id
-                return (
-                  <View key={item.id} style={styles.cartaoLinha}>
-                    {/* O cartao visual tem largura fixa; solto a esquerda ele
-                        ficava desalinhado dos blocos de largura inteira. */}
-                    <View style={styles.cartaoCentro}>
-                      <CartaoVisual
-                        card={paraCartaoVisual(item)}
-                        theme={theme}
-                        ativo={aberto}
-                        limiteTexto={resumoDoCartao(item)}
-                        onPress={() => setCartaoEditando(aberto ? null : item.id)}
-                      />
-                    </View>
-
-                    {aberto ? (
-                      <View style={styles.cartaoEditor}>
-                        <Text style={styles.rotuloCampo}>Nome</Text>
-                        <TextInput
-                          value={item.nome}
-                          onChangeText={(value) => atualizarCartaoCampo(item.id, 'nome', value)}
-                          placeholder="Nome do cartão"
-                          placeholderTextColor={theme.faint}
-                          style={styles.campoTexto}
-                          returnKeyType="done"
-                          onSubmitEditing={dismissKeyboard}
-                          onBlur={dismissKeyboard}
-                          blurOnSubmit
-                        />
-
-                        <View style={styles.gradeDatas}>
-                          {campoDeData('Fechamento', item.fechamentoText, () =>
-                            abrirCalendarioCartao(
-                              { id: item.id, field: 'fechamentoText' },
-                              item.fechamentoText,
-                              mesAtual
-                            )
-                          )}
-                          {campoDeData('Vencimento', item.vencimentoText, () =>
-                            abrirCalendarioCartao(
-                              { id: item.id, field: 'vencimentoText' },
-                              item.vencimentoText,
-                              Math.min(12, mesAtual + 1)
-                            )
-                          )}
-                        </View>
-
-                        <PressableScale
-                          onPress={() => {
-                            setCartaoEditando(null)
-                            removerCartao(item.id)
-                          }}
-                          scaleTo={0.97}
-                          accessibilityRole="button"
-                          style={styles.cartaoRemover}
-                        >
-                          <Icon name="excluir" size={14} color={theme.red} />
-                          <Text style={styles.cartaoRemoverTexto}>Remover cartão</Text>
-                        </PressableScale>
-                      </View>
-                    ) : null}
-                  </View>
-                )
-              })}
+              {cards.map((item) => (
+                <View key={item.id} style={styles.cartaoCentro}>
+                  <CartaoEditavel
+                    theme={theme}
+                    corId={item.id}
+                    largura={larguraDoCartao}
+                    nome={item.nome}
+                    onNome={(valor) => atualizarCartaoCampo(item.id, 'nome', valor)}
+                    aoTerminarNome={dismissKeyboard}
+                    fechamento={item.fechamentoText}
+                    vencimento={item.vencimentoText}
+                    onFechamento={() =>
+                      abrirCalendarioCartao(
+                        { id: item.id, field: 'fechamentoText' },
+                        item.fechamentoText,
+                        mesAtual
+                      )
+                    }
+                    onVencimento={() =>
+                      abrirCalendarioCartao(
+                        { id: item.id, field: 'vencimentoText' },
+                        item.vencimentoText,
+                        Math.min(12, mesAtual + 1)
+                      )
+                    }
+                    onRemover={() => removerCartao(item.id)}
+                  />
+                </View>
+              ))}
             </View>
-          ) : (
-            secaoVazia('Nenhum cartão ainda. Cadastre abaixo, ou pule e faça isso depois.')
-          )}
+          ) : null}
 
-          <View style={styles.blocoAdicionar}>
-            <Text style={styles.rotuloSecao}>Novo cartão</Text>
-            <TextInput
-              value={newCardName}
-              onChangeText={setNewCardName}
-              placeholder="Nome do cartão"
-              placeholderTextColor={theme.faint}
-              style={styles.campoTexto}
-              returnKeyType="done"
-              onSubmitEditing={adicionarCartao}
-              onBlur={dismissKeyboard}
-              blurOnSubmit
-            />
+          {/* O cartao novo tambem e um cartao, e nao um formulario ao lado de
+              um: o que se ve enquanto digita ja e o resultado. */}
+          <View style={styles.blocoNovoCartao}>
+            <Text style={styles.rotuloSecao}>
+              {cards.length > 0 ? 'Adicionar outro' : 'Seu primeiro cartão'}
+            </Text>
 
-            <View style={styles.gradeDatas}>
-              {campoDeData('Fechamento', newCardClosing, () =>
-                abrirCalendarioCartao('new_closing', newCardClosing, mesAtual)
-              )}
-              {campoDeData('Vencimento', newCardDue, () =>
-                abrirCalendarioCartao('new_due', newCardDue, Math.min(12, mesAtual + 1))
-              )}
+            <View style={styles.cartaoCentro}>
+              <CartaoEditavel
+                theme={theme}
+                corId={proximoCardId}
+                largura={larguraDoCartao}
+                nome={newCardName}
+                onNome={setNewCardName}
+                placeholderNome="Toque e escreva o nome"
+                aoTerminarNome={adicionarCartao}
+                fechamento={newCardClosing}
+                vencimento={newCardDue}
+                onFechamento={() => abrirCalendarioCartao('new_closing', newCardClosing, mesAtual)}
+                onVencimento={() =>
+                  abrirCalendarioCartao('new_due', newCardDue, Math.min(12, mesAtual + 1))
+                }
+              />
             </View>
+
+            <Text style={styles.ajudaTexto}>
+              As datas são opcionais — dá para completar depois, dentro do app.
+            </Text>
 
             <PressableScale
               onPress={adicionarCartao}
@@ -991,11 +950,18 @@ export default function PrimeiroAcessoScreen() {
   )
 
   const sobra = salario - totalFixosPreview
-  const etiquetas = [
-    ...fixedItemsPreview.map((item) => item.nome),
-    ...categoriasVariaveisPreview,
-    ...(hasCreditCards ? cardsPreview.map((item) => item.nome) : []),
-  ]
+
+  /**
+   * As etiquetas do resumo, agrupadas.
+   *
+   * Antes era uma fila unica com fixos, categorias e cartoes misturados —
+   * "Aluguel", "Mercado" e "Nubank" lado a lado, sem dizer o que era o que.
+   */
+  const gruposDoResumo = [
+    { rotulo: 'Gastos fixos', nomes: fixedItemsPreview.map((item) => item.nome) },
+    { rotulo: 'Categorias', nomes: categoriasVariaveisPreview },
+    { rotulo: 'Cartões', nomes: hasCreditCards ? cardsPreview.map((item) => item.nome) : [] },
+  ].filter((grupo) => grupo.nomes.length > 0)
 
   const passoResumo = (
     <>
@@ -1040,13 +1006,25 @@ export default function PrimeiroAcessoScreen() {
           ))}
         </View>
 
-        {etiquetas.length ? (
-          <View style={styles.resumoEtiquetas}>
-            {etiquetas.slice(0, 12).map((nome, i) => (
-              <View key={`${nome}-${i}`} style={styles.resumoEtiqueta}>
-                <Text style={styles.resumoEtiquetaTexto} numberOfLines={1}>
-                  {nome}
-                </Text>
+        {gruposDoResumo.length ? (
+          <View style={styles.resumoGrupos}>
+            {gruposDoResumo.map((grupo) => (
+              <View key={grupo.rotulo}>
+                <Text style={styles.resumoGrupoRotulo}>{grupo.rotulo}</Text>
+                <View style={styles.resumoEtiquetas}>
+                  {grupo.nomes.slice(0, 10).map((nome, i) => (
+                    <View key={`${nome}-${i}`} style={styles.resumoEtiqueta}>
+                      <Text style={styles.resumoEtiquetaTexto} numberOfLines={1}>
+                        {nome}
+                      </Text>
+                    </View>
+                  ))}
+                  {grupo.nomes.length > 10 ? (
+                    <View style={styles.resumoEtiqueta}>
+                      <Text style={styles.resumoEtiquetaTexto}>+{grupo.nomes.length - 10}</Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
             ))}
           </View>
@@ -1379,14 +1357,84 @@ const criarEstilos = (theme: Tema) =>
       padding: 15,
     },
     blocoLista: { gap: 10 },
-    blocoAdicionar: {
+    blocoNovoCartao: {
       backgroundColor: theme.backgroundSoft,
       borderRadius: 20,
       borderWidth: 1,
       borderColor: theme.border,
       borderStyle: 'dashed',
       padding: 14,
-      gap: 10,
+      gap: 12,
+    },
+    blocoCriar: {
+      backgroundColor: theme.card,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 14,
+      gap: 11,
+      shadowColor: theme.shadow,
+      shadowOpacity: 1,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 1,
+    },
+    criarCabecalho: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+    criarSelo: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.cardSoft,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    criarTextos: { flex: 1, minWidth: 0 },
+    criarTitulo: { fontSize: 14, fontWeight: '900', color: theme.text, letterSpacing: -0.3 },
+    criarSub: { fontSize: 11.5, fontWeight: '600', color: theme.muted, marginTop: 2 },
+    criarLinhaFinal: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+    botaoCriar: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      minHeight: 50,
+      borderRadius: 16,
+      backgroundColor: theme.primary,
+    },
+    botaoCriarTexto: { fontSize: 13.5, fontWeight: '900', color: theme.textInverse },
+
+    pilulaCampo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      minHeight: 52,
+      paddingLeft: 16,
+      paddingRight: 5,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.cardSoft,
+    },
+    pilulaInput: {
+      flex: 1,
+      minWidth: 0,
+      fontSize: 14.5,
+      fontWeight: '700',
+      color: theme.text,
+      paddingVertical: 0,
+    },
+    pilulaBotao: {
+      width: 42,
+      height: 42,
+      flexShrink: 0,
+      borderRadius: 999,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.primary,
     },
 
     rotuloSecao: {
@@ -1423,7 +1471,6 @@ const criarEstilos = (theme: Tema) =>
     },
     tituloMenor: { fontSize: 14.5, fontWeight: '900', color: theme.text, letterSpacing: -0.3 },
     subtituloMenor: { fontSize: 12, fontWeight: '600', color: theme.muted, lineHeight: 18, marginTop: 3 },
-    espacoCurto: { marginTop: -2 },
 
     linhaInterruptor: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     linhaInterruptorTextos: { flex: 1, minWidth: 0 },
@@ -1441,6 +1488,7 @@ const criarEstilos = (theme: Tema) =>
     },
     dinheiroWrapGrande: { minHeight: 66, borderRadius: 18, borderWidth: 1.5 },
     dinheiroWrapLinha: { width: 150, flexShrink: 1, minWidth: 0, minHeight: 44 },
+    dinheiroWrapMetade: { flex: 1, minWidth: 0 },
     dinheiroWrapAceso: { borderColor: theme.accent, backgroundColor: theme.accentSoft },
     dinheiroWrapErro: { borderColor: theme.red, borderWidth: 1.5 },
     dinheiroPrefixo: { fontSize: 14, fontWeight: '900', color: theme.primary, marginRight: 8 },
@@ -1469,8 +1517,6 @@ const criarEstilos = (theme: Tema) =>
       fontWeight: '700',
       color: theme.text,
     },
-    campoTextoFlex: { flex: 1, minWidth: 0 },
-    linhaAdicionar: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
     // ------------------------------------------------------ item marcavel
     itemCartao: {
@@ -1548,44 +1594,7 @@ const criarEstilos = (theme: Tema) =>
     },
 
     // ------------------------------------------------------------ cartoes
-    cartaoLinha: { gap: 10 },
     cartaoCentro: { alignItems: 'center' },
-    cartaoEditor: {
-      backgroundColor: theme.cardSoft,
-      borderRadius: 18,
-      borderWidth: 1,
-      borderColor: theme.border,
-      padding: 14,
-      gap: 12,
-    },
-    gradeDatas: { flexDirection: 'row', gap: 10 },
-    dataCampoWrap: { flex: 1, minWidth: 0 },
-    dataBotao: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      minHeight: 48,
-      borderRadius: 15,
-      borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.card,
-      paddingHorizontal: 12,
-    },
-    dataBotaoPreenchido: { borderColor: theme.primary },
-    dataTexto: { flex: 1, minWidth: 0, fontSize: 14, fontWeight: '800', color: theme.text },
-    dataTextoVazio: { color: theme.faint, fontWeight: '700' },
-    cartaoRemover: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 7,
-      minHeight: 42,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.card,
-    },
-    cartaoRemoverTexto: { fontSize: 12.5, fontWeight: '800', color: theme.red },
 
     // ------------------------------------------------------------- botoes
     botaoAdicionar: {
@@ -1598,15 +1607,6 @@ const criarEstilos = (theme: Tema) =>
       backgroundColor: theme.primary,
     },
     botaoAdicionarTexto: { fontSize: 13.5, fontWeight: '900', color: theme.textInverse },
-    botaoMais: {
-      width: 48,
-      height: 48,
-      flexShrink: 0,
-      borderRadius: 15,
-      backgroundColor: theme.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
     botaoDesabilitado: { opacity: 0.45 },
 
     // ------------------------------------------------------------- resumo
@@ -1687,7 +1687,16 @@ const criarEstilos = (theme: Tema) =>
       textTransform: 'uppercase',
     },
 
-    resumoEtiquetas: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 13 },
+    resumoGrupos: { gap: 12, marginTop: 15 },
+    resumoGrupoRotulo: {
+      fontSize: 9.5,
+      fontWeight: '900',
+      color: theme.faint,
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+      marginBottom: 7,
+    },
+    resumoEtiquetas: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     resumoEtiqueta: {
       maxWidth: '100%',
       paddingVertical: 6,
