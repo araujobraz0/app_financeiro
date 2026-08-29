@@ -523,6 +523,7 @@ export default function PrimeiroAcessoScreen() {
           shoppingWishes: [],
           investmentPercentage: 10,
           investmentBaseMode: 'salary',
+          investimentos: [],
           hideValues: false,
         },
       }

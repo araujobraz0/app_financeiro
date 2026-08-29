@@ -2,7 +2,16 @@
 // Extraido do home.tsx: e a camada que define a forma dos dados,
 // usada tanto na criacao inicial quanto ao carregar do Supabase.
 
-import type { AppData, BancoDeDados, DadosMes, FixoRecorrente, GlobalData } from '../../app/types'
+import type {
+  AporteItem,
+  AppData,
+  BancoDeDados,
+  DadosMes,
+  FixoRecorrente,
+  GlobalData,
+  InvestimentoItem,
+  TipoInvestimento,
+} from '../../app/types'
 import { listaAnosAtual } from '../utils/competency'
 import { meses } from '../utils/dates'
 import { consolidarFixosPorNome, migrarFixosLegado } from '../utils/fixos'
@@ -77,6 +86,42 @@ function normalizarAprendidas(bruto: unknown): Record<string, string> {
   return limpo
 }
 
+/**
+ * A carteira vinda do disco.
+ *
+ * Backup antigo nao tem o campo: cai em lista vazia, e nao em erro. Cada
+ * numero passa por Number() porque um valor gravado como texto quebraria
+ * todas as somas da carteira em silencio.
+ */
+function normalizarInvestimentos(bruto: any): InvestimentoItem[] {
+  if (!Array.isArray(bruto)) return []
+
+  const tipos: TipoInvestimento[] = [
+    'renda_fixa', 'tesouro', 'acoes', 'fiis', 'fundos', 'cripto', 'poupanca', 'outros',
+  ]
+
+  return bruto.map((item: any, indice: number) => {
+    const aportes: AporteItem[] = Array.isArray(item?.aportes)
+      ? item.aportes.map((aporte: any, i: number) => ({
+          id: String(aporte?.id || `aporte-${indice}-${i}`),
+          valor: Number(aporte?.valor || 0),
+          competencia: String(aporte?.competencia || ''),
+          dia: Number(aporte?.dia || 1),
+        }))
+      : []
+
+    return {
+      id: String(item?.id || `investimento-${indice}`),
+      nome: String(item?.nome || 'Investimento'),
+      tipo: tipos.includes(item?.tipo) ? item.tipo : 'outros',
+      instituicao: String(item?.instituicao || ''),
+      valorAtual: Number(item?.valorAtual || 0),
+      atualizadoEm: String(item?.atualizadoEm || ''),
+      aportes,
+    }
+  })
+}
+
 export function globalDefaults(): GlobalData {
   return {
     firstAccessCompleted: false,
@@ -92,6 +137,7 @@ export function globalDefaults(): GlobalData {
     shoppingWishes: [],
     investmentPercentage: 10,
     investmentBaseMode: 'salary',
+    investimentos: [],
     hideValues: false,
     fixosRecorrentes: [],
     fixosMigrados: false,
@@ -385,6 +431,7 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
         : [],
       investmentPercentage: Math.min(50, Math.max(0, Number(globalBase.investmentPercentage ?? 10))),
       investmentBaseMode: globalBase.investmentBaseMode === 'salary_plus_entries' ? 'salary_plus_entries' : 'salary',
+      investimentos: normalizarInvestimentos(globalBase.investimentos),
       hideValues: Boolean(globalBase.hideValues),
       fixosRecorrentes,
       limitesCategorias: normalizarLimites(globalBase.limitesCategorias),

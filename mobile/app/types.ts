@@ -145,6 +145,51 @@ export type BancoDeDados = Record<string, DadosMes>
 
 export type InvestmentBaseMode = 'salary' | 'salary_plus_entries'
 
+/**
+ * A classe do ativo.
+ *
+ * A divisao segue a que os apps de carteira usam por aqui, porque e a que a
+ * corretora ja mostra no extrato — a pessoa nao precisa traduzir nada.
+ */
+export type TipoInvestimento =
+  | 'renda_fixa'
+  | 'tesouro'
+  | 'acoes'
+  | 'fiis'
+  | 'fundos'
+  | 'cripto'
+  | 'poupanca'
+  | 'outros'
+
+/** Uma entrada de dinheiro no ativo. */
+export type AporteItem = {
+  id: string
+  valor: number
+  /** Competencia em que entrou, no formato "2026-Agosto". */
+  competencia: string
+  dia: number
+}
+
+/**
+ * Um ativo da carteira.
+ *
+ * O app nao busca cotacao: `valorAtual` e o saldo que a pessoa le no extrato
+ * da corretora e digita aqui. O que foi investido sai da soma dos aportes,
+ * entao o rendimento e sempre a diferenca entre os dois — sem cotacao, e sem
+ * pedir que ela faca a conta.
+ */
+export type InvestimentoItem = {
+  id: string
+  nome: string
+  tipo: TipoInvestimento
+  instituicao: string
+  /** Saldo de hoje, digitado pela pessoa. */
+  valorAtual: number
+  /** Quando o saldo foi atualizado pela ultima vez, em ISO. */
+  atualizadoEm: string
+  aportes: AporteItem[]
+}
+
 export type GlobalData = {
   firstAccessCompleted: boolean
   salaryMode: 'fixo' | 'variavel' | null
@@ -159,6 +204,8 @@ export type GlobalData = {
   shoppingWishes: ShoppingWishItem[]
   investmentPercentage: number
   investmentBaseMode: InvestmentBaseMode
+  /** A carteira. Vazia ate a pessoa cadastrar o primeiro ativo. */
+  investimentos: InvestimentoItem[]
   hideValues: boolean
   /** Gastos fixos do usuario, com o historico de valores. */
   fixosRecorrentes: FixoRecorrente[]
@@ -237,7 +284,7 @@ export type Tema = {
   skeletonHighlight: string
 }
 
-export type AbaInferior = 'home' | 'fixo' | 'variavel' | 'cartao'
+export type AbaInferior = 'home' | 'fixo' | 'variavel' | 'cartao' | 'investir'
 export type SortMode = 'recentes' | 'maior_valor' | 'menor_valor' | 'alfabetica'
 export type SettingsThemeMode = 'manual' | 'system'
 export type TipoVariavelTab = 'entrada' | 'saida'
@@ -257,5 +304,5 @@ export type SearchResult = {
 
 export type CardModalMode = 'card' | 'installment'
 export type SortTarget = 'fixo' | 'entradas' | 'saidas' | 'notas' | 'cartao'
-export type DeleteTarget = 'fixo' | 'entrada' | 'saida' | 'pix' | 'nota' | 'cartao' | 'parcela' | 'categoria' | 'compra_desejo' | 'objetivo' | 'assinatura'
+export type DeleteTarget = 'fixo' | 'entrada' | 'saida' | 'pix' | 'nota' | 'cartao' | 'parcela' | 'categoria' | 'compra_desejo' | 'objetivo' | 'assinatura' | 'investimento'
 export type CalendarTarget = 'dia_edicao' | 'cartao_fechamento' | 'cartao_vencimento' | 'wish_data'
