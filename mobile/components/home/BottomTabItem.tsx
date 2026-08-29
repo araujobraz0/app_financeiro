@@ -77,19 +77,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 2,
     paddingVertical: 7,
-    paddingHorizontal: 1,
+    paddingHorizontal: 2,
   },
   pill: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 16,
   },
   label: {
-    // 9.5 e nao 10: com cinco abas mais o "+", "Variáveis" nao cabia inteiro e
-    // virava "Variá...". O icone carrega o reconhecimento, mas um rotulo
-    // cortado ainda parece defeito.
-    fontSize: 9.5,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0,
-    lineHeight: 12,
+    letterSpacing: 0.1,
+    lineHeight: 13,
   },
 })

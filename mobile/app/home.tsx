@@ -42,12 +42,6 @@ import SelectionModal from '../components/modals/SelectionModal'
 import CategoryNameModal from '../components/modals/CategoryNameModal'
 import NoteModal, { emptyNoteFormValues } from '../components/modals/NoteModal'
 import type { NoteFormValues } from '../components/modals/NoteModal'
-import AporteModal from '../components/modals/AporteModal'
-import MetaAporteModal from '../components/modals/MetaAporteModal'
-import InvestimentoModal, {
-  type InvestimentoFormValues,
-  valoresVaziosDeInvestimento,
-} from '../components/modals/InvestimentoModal'
 import ShoppingWishModal, { emptyShoppingWishValues } from '../components/modals/ShoppingWishModal'
 import type { ShoppingWishFormValues } from '../components/modals/ShoppingWishModal'
 import ConfirmDeleteModal from '../components/modals/ConfirmDeleteModal'
@@ -87,7 +81,6 @@ import CartaoTab from '../components/tabs/CartaoTab'
 import ResumoCards from '../components/home/ResumoCards'
 import GraficoCategoriasCard from '../components/home/GraficoCategoriasCard'
 import ComprasDesejoCard from '../components/home/ComprasDesejoCard'
-import InvestimentosCard from '../components/home/InvestimentosCard'
 import NotasPixCard from '../components/home/NotasPixCard'
 import {
   categoriaEhImportado,
@@ -128,14 +121,12 @@ import {
 } from '../src/utils/export'
 import type { ExportData } from '../src/utils/export'
 import Icon from '../components/common/Icon'
-import { aportadoNaCompetencia, metaDeAporte } from '../src/utils/investimentos'
 import type {
   EntradaItem, SaidaItem, FixoItem, FixoRecorrente, NoteItem, PixItem, CardInstallment, CardItem,
   ShoppingWishItem, DadosMes, BancoDeDados, GlobalData,
   AppData, PremiumEntitlement, AbaInferior, SortMode, SettingsThemeMode,
   TipoVariavelTab, TipoFormularioLancamento, QuickAddType, ModoModal, ModoCategoria,
   NoteModalMode, SearchResult, CardModalMode, SortTarget, DeleteTarget, CalendarTarget,
-  InvestimentoItem, TipoInvestimento,
 } from './types'
 
 // Paleta categorica do grafico: tons dessaturados ancorados no verde e no
@@ -195,9 +186,6 @@ function ordenarLista<T extends { id?: string; nome?: string; valor?: number }>(
   if (modo === 'alfabetica') return base.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'))
   return base.sort((a, b) => getItemTimestamp(b) - getItemTimestamp(a))
 }
-
-/** Nome da categoria em que o aporte cai, quando ele desconta do mes. */
-const CATEGORIA_INVESTIMENTOS = 'Investimentos'
 
 function HomeScreenContent() {
   const insets = useSafeAreaInsets()
@@ -346,16 +334,6 @@ function HomeScreenContent() {
   const [previewPdfUri, setPreviewPdfUri] = useState('')
   const [previewPdfGerando, setPreviewPdfGerando] = useState(false)
   const [buscaGlobal, setBuscaGlobal] = useState('')
-  const [modalInvestimentoAberto, setModalInvestimentoAberto] = useState(false)
-  const [investimentoEditandoId, setInvestimentoEditandoId] = useState<string | null>(null)
-  const [investimentoTipo, setInvestimentoTipo] = useState<TipoInvestimento>('renda_fixa')
-  const [investimentoFormKey, setInvestimentoFormKey] = useState(0)
-  const [investimentoValores, setInvestimentoValores] = useState<InvestimentoFormValues>(() =>
-    valoresVaziosDeInvestimento()
-  )
-  const [modalAporteAberto, setModalAporteAberto] = useState(false)
-  const [modalMetaAporteAberto, setModalMetaAporteAberto] = useState(false)
-  const [aporteAlvoId, setAporteAlvoId] = useState<string | null>(null)
   const [modalCompraDesejoAberto, setModalCompraDesejoAberto] = useState(false)
   const [compraDesejoEditandoId, setCompraDesejoEditandoId] = useState<string | null>(null)
   // Campos da compra desejada vivem dentro do ShoppingWishModal.
@@ -1643,200 +1621,6 @@ function HomeScreenContent() {
     setCompraDesejoComprado(false)
   }
 
-  // ----------------------------------------------------------- carteira
-  // Memoizado porque o `|| []` cria um array novo a cada render, e ele e
-  // dependencia dos calculos da carteira logo abaixo.
-  const investimentos = useMemo(() => globalData.investimentos || [], [globalData.investimentos])
-
-  /**
-   * O alvo de aporte do mes.
-   *
-   * A porcentagem e o modo de calculo ja existiam nas configuracoes, mas nao
-   * levavam a lugar nenhum: o app dizia "guarde 10%" e parava ai. Agora eles
-   * viram a meta da barra de aporte da carteira.
-   */
-  const metaDoMes = useMemo(
-    () =>
-      metaDeAporte(
-        globalData.investmentBaseMode === 'salary_plus_entries' ? salario + totalEntradas : salario,
-        globalData.investmentPercentage
-      ),
-    [globalData.investmentBaseMode, globalData.investmentPercentage, salario, totalEntradas]
-  )
-
-  const aportadoNoMes = useMemo(
-    () => aportadoNaCompetencia(investimentos, chaveAtual),
-    [investimentos, chaveAtual]
-  )
-
-  const abrirNovoInvestimento = (item?: InvestimentoItem) => {
-    if (
-      bloquearAcaoSemPremium(
-        item ? 'Editar investimentos é um recurso premium.' : 'Cadastrar investimentos é um recurso premium.'
-      )
-    )
-      return
-
-    setInvestimentoEditandoId(item?.id || null)
-    setInvestimentoTipo(item?.tipo || 'renda_fixa')
-    setInvestimentoValores({
-      nome: item?.nome || '',
-      instituicao: item?.instituicao || '',
-      saldo: formatarValorInput(item?.valorAtual || 0),
-      aporteInicial: formatarValorInput(0),
-    })
-    setInvestimentoFormKey((prev) => prev + 1)
-    setModalInvestimentoAberto(true)
-  }
-
-  const salvarInvestimento = (values: InvestimentoFormValues) => {
-    const nome = values.nome.trim()
-    if (!nome) return
-
-    const saldo = moneyStringToNumber(values.saldo)
-    const agora = new Date()
-
-    setAppData((prev) => {
-      const lista = prev.global.investimentos || []
-
-      if (investimentoEditandoId) {
-        return {
-          ...prev,
-          global: {
-            ...prev.global,
-            investimentos: lista.map((item) =>
-              item.id === investimentoEditandoId
-                ? {
-                    ...item,
-                    nome,
-                    tipo: investimentoTipo,
-                    instituicao: values.instituicao.trim(),
-                    valorAtual: saldo,
-                    // So carimba a data quando o saldo mudou de verdade: senao
-                    // corrigir o nome faria o app dizer que o saldo e de hoje.
-                    atualizadoEm:
-                      saldo === item.valorAtual ? item.atualizadoEm : agora.toISOString(),
-                  }
-                : item
-            ),
-          },
-        }
-      }
-
-      const inicial = moneyStringToNumber(values.aporteInicial)
-      const novo: InvestimentoItem = {
-        id: `investimento-${Date.now()}`,
-        nome,
-        tipo: investimentoTipo,
-        instituicao: values.instituicao.trim(),
-        valorAtual: saldo,
-        atualizadoEm: agora.toISOString(),
-        // Sem competencia de proposito: isto e o saldo de partida, dinheiro
-        // que entrou ao longo de anos. Carimbado com o mes aberto, ele
-        // contaria como aporte deste mes e daria a meta como batida no
-        // instante em que a pessoa cadastrasse o que ja tinha.
-        aportes: inicial > 0
-          ? [{ id: `aporte-${Date.now()}`, valor: inicial, competencia: '', dia: agora.getDate() }]
-          : [],
-      }
-
-      return { ...prev, global: { ...prev.global, investimentos: [...lista, novo] } }
-    })
-
-    setModalInvestimentoAberto(false)
-    setInvestimentoEditandoId(null)
-  }
-
-  const excluirInvestimento = () => {
-    const id = investimentoEditandoId
-    setModalInvestimentoAberto(false)
-    setInvestimentoEditandoId(null)
-    if (!id) return
-
-    const alvo = investimentos.find((item) => item.id === id)
-    abrirConfirmacaoExclusao('investimento', id, alvo?.nome || 'investimento')
-  }
-
-  const abrirAporte = (item: InvestimentoItem) => {
-    if (bloquearAcaoSemPremium('Registrar aportes é um recurso premium.')) return
-    setAporteAlvoId(item.id)
-    setModalAporteAberto(true)
-  }
-
-  /**
-   * Registra o aporte.
-   *
-   * O saldo do ativo sobe junto: o dinheiro acabou de entrar nele. Sem isso o
-   * app mostraria um prejuizo do tamanho do aporte ate a pessoa lembrar de
-   * corrigir o saldo a mao.
-   */
-  const salvarAporte = (valor: number, lancarComoSaida: boolean) => {
-    const id = aporteAlvoId
-    if (!id || valor <= 0) return
-
-    const agora = new Date()
-    const alvo = investimentos.find((item) => item.id === id)
-
-    setAppData((prev) => {
-      const lista = (prev.global.investimentos || []).map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              valorAtual: (Number(item.valorAtual) || 0) + valor,
-              atualizadoEm: agora.toISOString(),
-              aportes: [
-                ...(item.aportes || []),
-                {
-                  id: `aporte-${Date.now()}`,
-                  valor,
-                  competencia: chaveAtual,
-                  dia: agora.getDate(),
-                },
-              ],
-            }
-          : item
-      )
-
-      if (!lancarComoSaida) {
-        return { ...prev, global: { ...prev.global, investimentos: lista } }
-      }
-
-      // A saida correspondente. A categoria entra na lista do mes quando
-      // ainda nao existe, senao o lancamento nasceria numa categoria que o
-      // filtro e o grafico nao conhecem.
-      const mes = prev.bancoDeDados[chaveAtual]
-      const categorias = mes.categoriasSaidas || []
-      const temCategoria = categorias.some(
-        (categoria) => categoria.toLowerCase() === CATEGORIA_INVESTIMENTOS.toLowerCase()
-      )
-
-      return {
-        ...prev,
-        global: { ...prev.global, investimentos: lista },
-        bancoDeDados: {
-          ...prev.bancoDeDados,
-          [chaveAtual]: {
-            ...mes,
-            categoriasSaidas: temCategoria ? categorias : [...categorias, CATEGORIA_INVESTIMENTOS],
-            saidas: [
-              ...mes.saidas,
-              {
-                id: `saida-aporte-${Date.now()}`,
-                nome: `Aporte · ${alvo?.nome || 'investimento'}`,
-                valor,
-                dia: agora.getDate(),
-                categoria: CATEGORIA_INVESTIMENTOS,
-              },
-            ],
-          },
-        },
-      }
-    })
-
-    setModalAporteAberto(false)
-    setAporteAlvoId(null)
-  }
-
   const abrirNovaCompraDesejo = (item?: ShoppingWishItem) => {
     setCompraDesejoEditandoId(item?.id || null)
     setWishInitialValues({
@@ -2246,14 +2030,6 @@ function HomeScreenContent() {
   }
 
   const abrirAcaoRapida = () => {
-    // Na aba de investimentos o "+" cadastra um ativo. As opcoes do modal de
-    // acao rapida — entrada, saida, fixo, parcela — nao tem nada a ver com o
-    // que esta na tela ali.
-    if (abaInferior === 'investir') {
-      abrirNovoInvestimento()
-      return
-    }
-
     const tipoPadrao = getDefaultQuickAddType()
     setAcaoRapidaPadrao(tipoPadrao)
     abrirFormularioPorAcao(tipoPadrao)
@@ -2741,15 +2517,6 @@ function HomeScreenContent() {
     else if (type === 'assinatura') excluirAssinatura(id)
     else if (type === 'categoria') excluirCategoria(id)
     else if (type === 'compra_desejo') excluirCompraDesejo(id)
-    else if (type === 'investimento') {
-      setAppData((prev) => ({
-        ...prev,
-        global: {
-          ...prev.global,
-          investimentos: (prev.global.investimentos || []).filter((item) => item.id !== id),
-        },
-      }))
-    }
 
     setConfirmacaoExclusao(null)
   }
@@ -3458,25 +3225,6 @@ function HomeScreenContent() {
           </>
         )}
 
-        {abaInferior === 'investir' && (
-          <AppearIn index={1}>
-            <InvestimentosCard
-              theme={theme}
-              itens={investimentos}
-              aportadoNoMes={aportadoNoMes}
-              metaDoMes={metaDoMes}
-              nomeDoMes={mesSelecionado}
-              highlightedItemId={highlightedItemId}
-              formatarValorVisivel={formatarValorVisivel}
-              registrarItem={registrarItem}
-              onNovo={() => abrirNovoInvestimento()}
-              onEditar={abrirNovoInvestimento}
-              onAportar={abrirAporte}
-              onEditarMeta={() => setModalMetaAporteAberto(true)}
-            />
-          </AppearIn>
-        )}
-
         {abaInferior === 'fixo' && (
           <FixoTab
             theme={theme}
@@ -3585,7 +3333,7 @@ function HomeScreenContent() {
       ) : null}
 
       {!algumModalAberto && <View style={[styles.bottomBar, { backgroundColor: theme.card, borderColor: theme.border, bottom: Math.max(insets.bottom, 10) }]}>
-        <View style={[styles.bottomHalf, styles.bottomHalfDupla]}>
+        <View style={styles.bottomHalf}>
           <BottomTabItem label="Home" icon="aba_home" active={abaInferior === 'home'} theme={theme} onPress={() => setAbaInferior('home')} />
           <BottomTabItem label="Cartões" icon="aba_cartao" active={abaInferior === 'cartao'} theme={theme} onPress={() => setAbaInferior('cartao')} />
         </View>
@@ -3597,10 +3345,9 @@ function HomeScreenContent() {
         >
           <Icon name="adicionar" size={26} color={theme.textInverse} />
         </PressableScale>
-        <View style={[styles.bottomHalf, styles.bottomHalfTripla]}>
+        <View style={styles.bottomHalf}>
           <BottomTabItem label="Fixos" icon="aba_fixo" active={abaInferior === 'fixo'} theme={theme} onPress={() => setAbaInferior('fixo')} />
           <BottomTabItem label="Variáveis" icon="aba_variavel" active={abaInferior === 'variavel'} theme={theme} onPress={() => setAbaInferior('variavel')} />
-          <BottomTabItem label="Investir" icon="investir" active={abaInferior === 'investir'} theme={theme} onPress={() => setAbaInferior('investir')} />
         </View>
       </View>}
 
@@ -4005,45 +3752,6 @@ function HomeScreenContent() {
         onDataChange={setCompraDesejoData}
         onOpenCalendar={() => abrirCalendario('wish_data', compraDesejoData, meses.indexOf(mesSelecionado) + 1)}
         onSave={salvarCompraDesejo}
-      />
-
-      <InvestimentoModal
-        key={`investimento-${investimentoFormKey}`}
-        visible={modalInvestimentoAberto}
-        onClose={() => {
-          setModalInvestimentoAberto(false)
-          setInvestimentoEditandoId(null)
-        }}
-        theme={theme}
-        editando={investimentos.find((item) => item.id === investimentoEditandoId) || null}
-        initialValues={investimentoValores}
-        tipo={investimentoTipo}
-        onTipoChange={setInvestimentoTipo}
-        onSave={salvarInvestimento}
-        onExcluir={excluirInvestimento}
-      />
-
-      <MetaAporteModal
-        visible={modalMetaAporteAberto}
-        onClose={() => setModalMetaAporteAberto(false)}
-        theme={theme}
-        percentual={globalData.investmentPercentage}
-        base={globalData.investmentBaseMode}
-        salario={salario}
-        entradas={totalEntradas}
-        onMudar={atualizarPreferenciasInvestimento}
-      />
-
-      <AporteModal
-        visible={modalAporteAberto}
-        onClose={() => {
-          setModalAporteAberto(false)
-          setAporteAlvoId(null)
-        }}
-        theme={theme}
-        item={investimentos.find((item) => item.id === aporteAlvoId) || null}
-        nomeDoMes={mesSelecionado}
-        onSalvar={salvarAporte}
       />
 
       <AppModal visible={modalPremiumBloqueioAberto} onClose={() => setModalPremiumBloqueioAberto(false)}>
