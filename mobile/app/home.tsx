@@ -80,6 +80,7 @@ import VariavelTab from '../components/tabs/VariavelTab'
 import CartaoTab from '../components/tabs/CartaoTab'
 import ResumoCards from '../components/home/ResumoCards'
 import GraficoCategoriasCard from '../components/home/GraficoCategoriasCard'
+import ComparacaoMesCard from '../components/home/ComparacaoMesCard'
 import ComprasDesejoCard from '../components/home/ComprasDesejoCard'
 import NotasPixCard from '../components/home/NotasPixCard'
 import {
@@ -121,6 +122,7 @@ import {
 } from '../src/utils/export'
 import type { ExportData } from '../src/utils/export'
 import Icon from '../components/common/Icon'
+import { resumirMes } from '../src/utils/comparacaoMeses'
 import type {
   EntradaItem, SaidaItem, FixoItem, FixoRecorrente, NoteItem, PixItem, CardInstallment, CardItem,
   ShoppingWishItem, DadosMes, BancoDeDados, GlobalData,
@@ -874,6 +876,51 @@ function HomeScreenContent() {
       cor: coresPizza[index % coresPizza.length],
     }))
   }, [totaisCategorias])
+
+  /**
+   * O mes aberto e o anterior, reduzidos aos numeros que dao para comparar.
+   *
+   * O anterior e lido direto do banco, sem depender de a competencia existir:
+   * quem acabou de comecar nao tem julho nenhum, e a comparacao simplesmente
+   * nao aparece.
+   */
+  const chaveAnterior = useMemo(() => addMonthsToCompetencia(chaveAtual, -1), [chaveAtual])
+  const nomeMesAnterior = chaveAnterior.split('-')[1] || ''
+
+  const resumoAtual = useMemo(
+    () =>
+      resumirMes({
+        salario,
+        entradas,
+        saidas,
+        fixos: fixosDoMesAtual,
+        cartoes: totalCartoesMes,
+      }),
+    [salario, entradas, saidas, fixosDoMesAtual, totalCartoesMes]
+  )
+
+  const resumoAnterior = useMemo(() => {
+    const mes = bancoDeDados[chaveAnterior]
+    const fixos = fixosDoMes(globalData.fixosRecorrentes || [], mes?.fixoPagos, chaveAnterior)
+    const cartoes = (globalData.cards || []).reduce((total, card) => {
+      const parcelas = (card.parcelas || [])
+        .filter((item) => item.competencia === chaveAnterior)
+        .reduce((soma, item) => soma + Number(item.valorParcela || 0), 0)
+      const assinaturas = fixosDoMes(card.assinaturas || [], undefined, chaveAnterior).reduce(
+        (soma, item) => soma + Number(item.valor || 0),
+        0
+      )
+      return total + parcelas + assinaturas
+    }, 0)
+
+    return resumirMes({
+      salario: Number(mes?.salario || 0),
+      entradas: mes?.entradas || [],
+      saidas: mes?.saidas || [],
+      fixos,
+      cartoes,
+    })
+  }, [bancoDeDados, chaveAnterior, globalData.fixosRecorrentes, globalData.cards])
 
   const saidasFiltradas = filtroCategoria === 'Todas' ? saidas : saidas.filter((item) => item.categoria === filtroCategoria)
   const totalCategoriaSelecionada =
@@ -3046,13 +3093,11 @@ function HomeScreenContent() {
     }))
   }
 
-  const atualizarPreferenciasInvestimento = (payload: Partial<Pick<GlobalData, 'investmentPercentage' | 'investmentBaseMode' | 'hideValues'>>) => {
+  /** O olho do cabecalho: esconde e mostra os valores. */
+  const alternarOcultarValores = () => {
     setAppData((prev) => ({
       ...prev,
-      global: {
-        ...prev.global,
-        ...payload,
-      },
+      global: { ...prev.global, hideValues: !prev.global.hideValues },
     }))
   }
 
@@ -3097,7 +3142,7 @@ function HomeScreenContent() {
         temaEscuro={temaEscuro}
         onAbrirPerfil={() => setModalConfiguracoesAberto(true)}
         onAbrirConfiguracoes={() => setModalConfiguracoesAberto(true)}
-        onAlternarValores={() => atualizarPreferenciasInvestimento({ hideValues: !ocultarValores })}
+        onAlternarValores={alternarOcultarValores}
         onAlternarTema={alternarTema}
         onSair={handleSair}
         podeDesfazer={podeDesfazer}
@@ -3184,6 +3229,17 @@ function HomeScreenContent() {
                 saidas={saidas}
                 formatarValorVisivel={formatarValorVisivel}
                 formatarDia={(dia) => formatarDiaMes(dia, chaveAtual)}
+              />
+            </AppearIn>
+
+            <AppearIn index={4}>
+              <ComparacaoMesCard
+                theme={theme}
+                atual={resumoAtual}
+                anterior={resumoAnterior}
+                nomeAtual={mesSelecionado}
+                nomeAnterior={nomeMesAnterior}
+                formatarValorVisivel={formatarValorVisivel}
               />
             </AppearIn>
 

@@ -88,8 +88,7 @@ function mudouAlgumLancamento(anterior: AppData, atual: AppData) {
     a.cards !== b.cards ||
     a.pixContacts !== b.pixContacts ||
     a.notes !== b.notes ||
-    a.shoppingWishes !== b.shoppingWishes ||
-    a.goals !== b.goals
+    a.shoppingWishes !== b.shoppingWishes
   )
 }
 

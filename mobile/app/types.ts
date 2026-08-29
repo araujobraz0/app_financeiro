@@ -105,13 +105,6 @@ export type CardItem = {
   assinaturas?: FixoRecorrente[]
 }
 
-export type GoalItem = {
-  id: string
-  titulo: string
-  alvo: number
-  atual: number
-}
-
 export type ShoppingWishItem = {
   id: string
   nome: string
@@ -143,8 +136,6 @@ export type DadosMes = {
 
 export type BancoDeDados = Record<string, DadosMes>
 
-export type InvestmentBaseMode = 'salary' | 'salary_plus_entries'
-
 export type GlobalData = {
   firstAccessCompleted: boolean
   salaryMode: 'fixo' | 'variavel' | null
@@ -155,10 +146,7 @@ export type GlobalData = {
   cards: CardItem[]
   profileAvatar?: string
   profileName?: string
-  goals: GoalItem[]
   shoppingWishes: ShoppingWishItem[]
-  investmentPercentage: number
-  investmentBaseMode: InvestmentBaseMode
   hideValues: boolean
   /** Gastos fixos do usuario, com o historico de valores. */
   fixosRecorrentes: FixoRecorrente[]
@@ -257,5 +245,5 @@ export type SearchResult = {
 
 export type CardModalMode = 'card' | 'installment'
 export type SortTarget = 'fixo' | 'entradas' | 'saidas' | 'notas' | 'cartao'
-export type DeleteTarget = 'fixo' | 'entrada' | 'saida' | 'pix' | 'nota' | 'cartao' | 'parcela' | 'categoria' | 'compra_desejo' | 'objetivo' | 'assinatura'
+export type DeleteTarget = 'fixo' | 'entrada' | 'saida' | 'pix' | 'nota' | 'cartao' | 'parcela' | 'categoria' | 'compra_desejo' | 'assinatura'
 export type CalendarTarget = 'dia_edicao' | 'cartao_fechamento' | 'cartao_vencimento' | 'wish_data'

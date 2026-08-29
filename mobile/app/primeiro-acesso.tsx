@@ -519,10 +519,7 @@ export default function PrimeiroAcessoScreen() {
           cards: hasCreditCards ? cardsPreview : [],
           profileAvatar: '💼',
           profileName: name,
-          goals: [],
           shoppingWishes: [],
-          investmentPercentage: 10,
-          investmentBaseMode: 'salary',
           hideValues: false,
         },
       }

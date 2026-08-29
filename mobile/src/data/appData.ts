@@ -88,10 +88,7 @@ export function globalDefaults(): GlobalData {
     cards: [],
     profileAvatar: '💼',
     profileName: '',
-    goals: [],
     shoppingWishes: [],
-    investmentPercentage: 10,
-    investmentBaseMode: 'salary',
     hideValues: false,
     fixosRecorrentes: [],
     fixosMigrados: false,
@@ -362,14 +359,6 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
           }))
         : [],
       profileAvatar: typeof globalBase.profileAvatar === 'string' && globalBase.profileAvatar.trim() ? globalBase.profileAvatar : '💼',
-      goals: Array.isArray(globalBase.goals)
-        ? globalBase.goals.map((goal: any, index: number) => ({
-            id: goal.id || `goal-${index}`,
-            titulo: String(goal.titulo || 'Objetivo'),
-            alvo: Number(goal.alvo || 0),
-            atual: Number(goal.atual || 0),
-          }))
-        : [],
       shoppingWishes: Array.isArray(globalBase.shoppingWishes)
         ? globalBase.shoppingWishes.map((item: any, index: number) => ({
             id: item.id || `wish-${index}`,
@@ -383,8 +372,6 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
             compradoEmCompetencia: String(item.compradoEmCompetencia || ''),
           }))
         : [],
-      investmentPercentage: Math.min(50, Math.max(0, Number(globalBase.investmentPercentage ?? 10))),
-      investmentBaseMode: globalBase.investmentBaseMode === 'salary_plus_entries' ? 'salary_plus_entries' : 'salary',
       hideValues: Boolean(globalBase.hideValues),
       fixosRecorrentes,
       limitesCategorias: normalizarLimites(globalBase.limitesCategorias),

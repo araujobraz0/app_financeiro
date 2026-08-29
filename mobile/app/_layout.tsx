@@ -20,6 +20,7 @@ import * as Updates from 'expo-updates'
 import Constants from 'expo-constants'
 import { supabase } from '../src/lib/supabase'
 import { aplicarAjustesWeb } from '../src/utils/estiloWeb'
+import { prepararPwa } from '../src/utils/pwa'
 
 if (Platform.OS !== 'web') {
   SplashScreen.preventAutoHideAsync()
@@ -57,6 +58,10 @@ function compareVersions(currentVersion: string, latestVersion: string) {
 
 // Ajustes de CSS da web, aplicados uma vez no carregamento.
 aplicarAjustesWeb()
+
+// Manifesto, cores da barra do sistema e service worker: e o que deixa o site
+// ser instalado na tela inicial e abrir sem internet.
+prepararPwa()
 
 export default function RootLayout() {
   const [loading, setLoading] = useState(true)
