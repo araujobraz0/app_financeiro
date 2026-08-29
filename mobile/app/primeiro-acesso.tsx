@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Keyboard,
@@ -112,6 +112,10 @@ export default function PrimeiroAcessoScreen() {
   const [screenLoading, setScreenLoading] = useState(true)
   const [name, setName] = useState('')
   const [erro, setErro] = useState('')
+  // Sem isto, tocar em "Concluir" sem salario nao parecia fazer nada: a
+  // mensagem nascia la embaixo e o campo que faltava ficava fora da tela.
+  const [faltaSalario, setFaltaSalario] = useState(false)
+  const salarioRef = useRef<TextInput>(null)
   const [salarioText, setSalarioText] = useState('0,00')
   const [isEEARStudent, setIsEEARStudent] = useState(false)
   const [fixedPresets, setFixedPresets] = useState<FixedPreset[]>(gastosFixosEEARBase)
@@ -390,8 +394,11 @@ export default function PrimeiroAcessoScreen() {
       const salario = moneyStringToNumber(salarioText)
 
       if (!salario || salario <= 0) {
-        setErro('Preencha um salário válido para continuar.')
+        setErro('Falta o salário — é o único campo obrigatório.')
+        setFaltaSalario(true)
         setLoading(false)
+        // Focar traz o campo para a tela sozinho, no navegador e no aparelho.
+        setTimeout(() => salarioRef.current?.focus(), 60)
         return
       }
 
@@ -452,7 +459,13 @@ export default function PrimeiroAcessoScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <Pressable style={styles.flex} onPress={dismissKeyboard}>
+      {/* Isto aqui era um Pressable que fechava o teclado ao tocar em qualquer
+          lugar. No celular ele engolia o gesto: quem arrastava para rolar
+          tocava nele primeiro, e a pagina inteira ficava travada — parecia
+          que nada respondia. Fechar o teclado ja e trabalho do proprio
+          ScrollView (`keyboardDismissMode` e `onScrollBeginDrag`), entao a
+          moldura pode ser uma View comum. */}
+      <View style={styles.flex}>
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -489,11 +502,15 @@ export default function PrimeiroAcessoScreen() {
                 <Text style={styles.sectionTitle}>Salário mensal</Text>
                 <Text style={styles.sectionSubtitle}>Esse campo é obrigatório e será usado como base inicial do app.</Text>
                 <Text style={styles.label}>Salário</Text>
-                <View style={styles.moneyInputWrap}>
+                <View style={[styles.moneyInputWrap, faltaSalario && styles.moneyInputWrapErro]}>
                   <Text style={styles.moneyPrefix}>R$</Text>
                   <TextInput
+                    ref={salarioRef}
                     value={salarioText}
-                    onChangeText={(value) => handleMaskedMoneyInput(value, setSalarioText, { prefix: false, emptyAsBlank: false })}
+                    onChangeText={(value) => {
+                      setFaltaSalario(false)
+                      handleMaskedMoneyInput(value, setSalarioText, { prefix: false, emptyAsBlank: false })
+                    }}
                     keyboardType='number-pad'
                     placeholder='0,00'
                     placeholderTextColor={theme.faint}
@@ -543,7 +560,7 @@ export default function PrimeiroAcessoScreen() {
                         style={[styles.fixedPremiumCard, item.selected && styles.fixedPremiumCardActive]}
                         onPress={() => toggleFixedPreset(item.id)}
                       >
-                        <View style={styles.fixedPremiumGlow} />
+                        <View pointerEvents="none" style={styles.fixedPremiumGlow} />
                         <View style={styles.fixedTopRow}>
                           <View style={[styles.checkbox, item.selected && styles.checkboxActive]}>
                             {item.selected ? <Icon name="confirmar" size={14} color={theme.textInverse} /> : null}
@@ -957,7 +974,7 @@ export default function PrimeiroAcessoScreen() {
             <View style={[styles.safeBottomBar, { height: Math.max(insets.bottom + 10, 20) }]} />
           </ScrollView>
         </KeyboardAvoidingView>
-      </Pressable>
+      </View>
     </SafeAreaView>
   )
 }
@@ -1152,6 +1169,10 @@ const criarEstilos = (theme: Tema) =>
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  moneyInputWrapErro: {
+    borderColor: theme.red,
+    borderWidth: 1.5,
   },
   moneyInputWrapSmall: {
     minHeight: 46,
