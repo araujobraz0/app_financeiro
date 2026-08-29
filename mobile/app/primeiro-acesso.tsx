@@ -20,6 +20,7 @@ import { supabase } from '../src/lib/supabase'
 import { VERSAO_MIGRACAO_FIXOS } from '../src/data/appData'
 import {
   digitsToMoneyPlainString as digitsToMoneyString,
+  formatarMoeda,
   handleMaskedMoneyInput,
   moneyStringToNumber,
 } from '../src/utils/currency'
@@ -31,10 +32,11 @@ import {
   parseDiaMesInputOptional as parseDiaMesInput,
 } from '../src/utils/dates'
 import type { AppData, BancoDeDados, CardItem, FixoRecorrente, Tema } from './types'
+import CartaoVisual from '../components/tabs/CartaoVisual'
 import Interruptor from '../components/common/Interruptor'
 import PressableScale from '../components/common/motion/PressableScale'
 import { useTemaSalvo } from '../src/theme/useTemaSalvo'
-import Icon from '../components/common/Icon'
+import Icon, { type IconName } from '../components/common/Icon'
 
 type FixedPreset = {
   id: string
@@ -130,6 +132,7 @@ export default function PrimeiroAcessoScreen() {
   const [newCardName, setNewCardName] = useState('')
   const [newCardClosing, setNewCardClosing] = useState('')
   const [newCardDue, setNewCardDue] = useState('')
+  const [cartaoEditando, setCartaoEditando] = useState<string | null>(null)
   const [calendarVisible, setCalendarVisible] = useState(false)
   const [calendarTarget, setCalendarTarget] = useState<'new_closing' | 'new_due' | { id: string; field: 'fechamentoText' | 'vencimentoText' }>('new_closing')
   const anoAtual = new Date().getFullYear()
@@ -361,6 +364,63 @@ export default function PrimeiroAcessoScreen() {
     [cards]
   )
 
+  /** O rascunho vira o formato que o cartao visual do app entende. */
+  const paraCartaoVisual = (rascunho: DraftCardItem): CardItem => {
+    const fecha = parseDiaMesInput(rascunho.fechamentoText, mesAtual, anoAtual)
+    const vence = parseDiaMesInput(rascunho.vencimentoText, Math.min(12, mesAtual + 1), anoAtual)
+    return {
+      id: rascunho.id,
+      nome: rascunho.nome || 'Cartão sem nome',
+      limite: 0,
+      fechamento: fecha?.dia ?? null,
+      fechamentoMes: fecha?.mes ?? null,
+      vencimento: vence?.dia ?? null,
+      vencimentoMes: vence?.mes ?? null,
+      parcelas: [],
+    }
+  }
+
+  /**
+   * Linha de baixo do cartao.
+   *
+   * O proprio cartao ja escreve "Fecha dia N" no canto, entao aqui vai o
+   * vencimento — repetir o fechamento nos dois lugares era so ruido.
+   */
+  const resumoDoCartao = (rascunho: DraftCardItem) => {
+    if (rascunho.vencimentoText) return `Vence ${rascunho.vencimentoText}`
+    // So o fechamento preenchido: o canto do cartao ja diz "Fecha dia N", e
+    // escrever "Datas depois" ao lado disso se contradizia.
+    if (rascunho.fechamentoText) return 'Vencimento depois'
+    return 'Datas depois'
+  }
+
+  /**
+   * Campo de data que abre o calendario.
+   *
+   * Antes era um campo de texto DD/MM com um botaozinho de calendario ao lado
+   * — e o botao ficava por baixo do proprio campo, sem receber toque. Um
+   * campo so, que abre o calendario, resolve as duas coisas.
+   */
+  const campoDeData = (rotulo: string, valor: string, aoTocar: () => void) => (
+    <View style={styles.dayFieldWrap}>
+      <Text style={[styles.label, styles.dayFieldRotulo]} numberOfLines={1}>
+        {rotulo}
+      </Text>
+      <PressableScale
+        onPress={aoTocar}
+        scaleTo={0.97}
+        accessibilityRole="button"
+        accessibilityLabel={`${rotulo}: ${valor || 'escolher data'}`}
+        style={[styles.dataBotao, !!valor && styles.dataBotaoPreenchido]}
+      >
+        <Icon name="calendario" size={14} color={valor ? theme.primary : theme.faint} />
+        <Text style={[styles.dataTexto, !valor && styles.dataTextoVazio]} numberOfLines={1}>
+          {valor || 'Escolher'}
+        </Text>
+      </PressableScale>
+    </View>
+  )
+
   const handleContinue = async () => {
     setLoading(true)
     setErro('')
@@ -555,24 +615,34 @@ export default function PrimeiroAcessoScreen() {
                 {isEEARStudent && (
                   <View style={styles.fixedPremiumStack}>
                     {fixedPresets.map((item) => (
-                      <PressableScale
+                      <View
                         key={item.id}
                         style={[styles.fixedPremiumCard, item.selected && styles.fixedPremiumCardActive]}
-                        onPress={() => toggleFixedPreset(item.id)}
                       >
-                        <View pointerEvents="none" style={styles.fixedPremiumGlow} />
-                        <View style={styles.fixedTopRow}>
+                        {/* So esta linha marca e desmarca. Antes o cartao
+                            inteiro era o botao, entao tocar no campo de valor
+                            para corrigir o numero desmarcava o gasto. */}
+                        <PressableScale
+                          onPress={() => toggleFixedPreset(item.id)}
+                          scaleTo={0.99}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: item.selected }}
+                          accessibilityLabel={item.nome}
+                          style={styles.fixedTopRow}
+                        >
                           <View style={[styles.checkbox, item.selected && styles.checkboxActive]}>
                             {item.selected ? <Icon name="confirmar" size={14} color={theme.textInverse} /> : null}
                           </View>
                           <View style={styles.fixedTitleWrap}>
                             <Text style={styles.fixedPremiumTitle}>{item.nome}</Text>
-                            <Text style={styles.fixedPremiumSubtitle}>Gasto fixo sugerido para quem marcou EEAR.</Text>
+                            <Text style={styles.fixedPremiumSubtitle}>
+                              {item.selected ? 'Vai entrar já criado' : 'Toque para incluir'}
+                            </Text>
                           </View>
-                        </View>
+                        </PressableScale>
 
                         <View style={styles.fixedValueRow}>
-                          <Text style={styles.optionValueLabel}>Valor inicial</Text>
+                          <Text style={styles.optionValueLabel}>Valor por mês</Text>
                           <View style={[styles.moneyInputWrap, styles.moneyInputWrapSmall, item.selected && styles.moneyInputWrapActive]}>
                             <Text style={styles.moneyPrefix}>R$</Text>
                             <TextInput
@@ -589,7 +659,7 @@ export default function PrimeiroAcessoScreen() {
                             />
                           </View>
                         </View>
-                      </PressableScale>
+                      </View>
                     ))}
                   </View>
                 )}
@@ -741,9 +811,9 @@ export default function PrimeiroAcessoScreen() {
                 <View style={styles.sectionBlock}>
                   <View style={styles.sectionHeaderRow}>
                     <View style={styles.sectionHeaderTextWrap}>
-                      <Text style={styles.sectionTitle}>Adicionar cartões</Text>
+                      <Text style={styles.sectionTitle}>Seus cartões</Text>
                       <Text style={styles.sectionSubtitle}>
-                        Você pode preencher fechamento e vencimento agora ou deixar em branco para completar depois.
+                        Toque em um cartão para renomear ou trocar as datas.
                       </Text>
                     </View>
                     <View style={styles.sectionPillAlt}>
@@ -751,157 +821,172 @@ export default function PrimeiroAcessoScreen() {
                     </View>
                   </View>
 
+                  {cards.length > 0 && (
+                    <View style={styles.cartoesLista}>
+                      {cards.map((item) => {
+                        const aberto = cartaoEditando === item.id
+                        return (
+                          <View key={item.id}>
+                            <CartaoVisual
+                              card={paraCartaoVisual(item)}
+                              theme={theme}
+                              ativo={aberto}
+                              limiteTexto={resumoDoCartao(item)}
+                              onPress={() => setCartaoEditando(aberto ? null : item.id)}
+                            />
+
+                            {aberto ? (
+                              <View style={styles.cartaoEditor}>
+                                <Text style={styles.label}>Nome</Text>
+                                <TextInput
+                                  value={item.nome}
+                                  onChangeText={(value) => atualizarCartaoCampo(item.id, 'nome', value)}
+                                  placeholder="Nome do cartão"
+                                  placeholderTextColor={theme.faint}
+                                  style={styles.inputCompact}
+                                  returnKeyType="done"
+                                  onSubmitEditing={dismissKeyboard}
+                                  onBlur={dismissKeyboard}
+                                  blurOnSubmit
+                                />
+
+                                <View style={styles.dayGrid}>
+                                  {campoDeData(
+                                    'Fechamento',
+                                    item.fechamentoText,
+                                    () => abrirCalendarioCartao({ id: item.id, field: 'fechamentoText' }, item.fechamentoText, mesAtual)
+                                  )}
+                                  {campoDeData(
+                                    'Vencimento',
+                                    item.vencimentoText,
+                                    () => abrirCalendarioCartao({ id: item.id, field: 'vencimentoText' }, item.vencimentoText, Math.min(12, mesAtual + 1))
+                                  )}
+                                </View>
+
+                                <PressableScale
+                                  onPress={() => {
+                                    setCartaoEditando(null)
+                                    removerCartao(item.id)
+                                  }}
+                                  scaleTo={0.97}
+                                  accessibilityRole="button"
+                                  style={styles.cartaoRemover}
+                                >
+                                  <Icon name="excluir" size={14} color={theme.red} />
+                                  <Text style={styles.cartaoRemoverTexto}>Remover cartão</Text>
+                                </PressableScale>
+                              </View>
+                            ) : null}
+                          </View>
+                        )
+                      })}
+                    </View>
+                  )}
+
                   <View style={styles.addBlockPremium}>
                     <View style={styles.addBlockHeader}>
                       <Text style={styles.addBlockTitle}>Novo cartão</Text>
-                      <Text style={styles.addBlockSub}>Cadastre quantos quiser no seu setup inicial.</Text>
+                      <Text style={styles.addBlockSub}>As datas são opcionais — dá para completar depois.</Text>
                     </View>
 
                     <TextInput
                       value={newCardName}
                       onChangeText={setNewCardName}
-                      placeholder='Nome do cartão'
+                      placeholder="Nome do cartão"
                       placeholderTextColor={theme.faint}
                       style={styles.inputCompact}
-                      returnKeyType='done'
-                      onSubmitEditing={dismissKeyboard}
+                      returnKeyType="done"
+                      onSubmitEditing={adicionarCartao}
                       onBlur={dismissKeyboard}
                       blurOnSubmit
                     />
 
                     <View style={styles.dayGrid}>
-                      <View style={styles.dayFieldWrap}>
-                        <Text style={styles.label}>Fechamento da fatura</Text>
-                        <View style={styles.dayInputWrap}>
-                          <TextInput
-                            value={newCardClosing}
-                            onChangeText={(value) => setNewCardClosing(formatarInputDiaMes(value))}
-                            keyboardType='number-pad'
-                            placeholder='DD/MM'
-                            placeholderTextColor={theme.faint}
-                            style={styles.dayInput}
-                            returnKeyType='done'
-                            onSubmitEditing={dismissKeyboard}
-                            onBlur={dismissKeyboard}
-                            blurOnSubmit
-                          />
-                          <PressableScale onPress={() => abrirCalendarioCartao('new_closing', newCardClosing, mesAtual)} style={styles.calendarBtn}>
-                            <Text style={styles.calendarBtnText}>📅</Text>
-                          </PressableScale>
-                        </View>
-                      </View>
-
-                      <View style={styles.dayFieldWrap}>
-                        <Text style={styles.label}>Vencimento</Text>
-                        <View style={styles.dayInputWrap}>
-                          <TextInput
-                            value={newCardDue}
-                            onChangeText={(value) => setNewCardDue(formatarInputDiaMes(value))}
-                            keyboardType='number-pad'
-                            placeholder='DD/MM'
-                            placeholderTextColor={theme.faint}
-                            style={styles.dayInput}
-                            returnKeyType='done'
-                            onSubmitEditing={dismissKeyboard}
-                            onBlur={dismissKeyboard}
-                            blurOnSubmit
-                          />
-                          <PressableScale onPress={() => abrirCalendarioCartao('new_due', newCardDue, Math.min(12, mesAtual + 1))} style={styles.calendarBtn}>
-                            <Text style={styles.calendarBtnText}>📅</Text>
-                          </PressableScale>
-                        </View>
-                      </View>
+                      {campoDeData('Fechamento', newCardClosing, () =>
+                        abrirCalendarioCartao('new_closing', newCardClosing, mesAtual)
+                      )}
+                      {campoDeData('Vencimento', newCardDue, () =>
+                        abrirCalendarioCartao('new_due', newCardDue, Math.min(12, mesAtual + 1))
+                      )}
                     </View>
 
-                    <Text style={styles.helperText}>Deixe os campos de dia vazios se preferir preencher depois.</Text>
-
-                    <PressableScale style={styles.addButtonPremium} onPress={adicionarCartao}>
+                    <PressableScale
+                      style={[styles.addButtonPremium, !newCardName.trim() && styles.addButtonDesabilitado]}
+                      onPress={adicionarCartao}
+                      disabled={!newCardName.trim()}
+                    >
                       <Text style={styles.addButtonText}>+ Adicionar cartão</Text>
                     </PressableScale>
                   </View>
-
-                  {cards.length > 0 && (
-                    <View style={styles.optionStackCompact}>
-                      {cards.map((item) => (
-                        <View key={item.id} style={styles.cardItemBox}>
-                          <View style={styles.customCardHeader}>
-                            <Text style={styles.optionTitle}>{item.nome || 'Cartão sem nome'}</Text>
-                            <PressableScale onPress={() => removerCartao(item.id)}>
-                              <Text style={styles.removeText}>Remover</Text>
-                            </PressableScale>
-                          </View>
-
-                          <TextInput
-                            value={item.nome}
-                            onChangeText={(value) => atualizarCartaoCampo(item.id, 'nome', value)}
-                            placeholder='Nome do cartão'
-                            placeholderTextColor={theme.faint}
-                            style={[styles.inputCompact, styles.cardItemInput]}
-                            returnKeyType='done'
-                            onSubmitEditing={dismissKeyboard}
-                            onBlur={dismissKeyboard}
-                            blurOnSubmit
-                          />
-
-                          <View style={styles.dayGrid}>
-                            <View style={styles.dayFieldWrap}>
-                              <Text style={styles.label}>Fechamento</Text>
-                              <View style={styles.dayInputWrap}>
-                                <TextInput
-                                  value={item.fechamentoText}
-                                  onChangeText={(value) => atualizarCartaoCampo(item.id, 'fechamentoText', value)}
-                                  keyboardType='number-pad'
-                                  placeholder='DD/MM'
-                                  placeholderTextColor={theme.faint}
-                                  style={styles.dayInput}
-                                  returnKeyType='done'
-                                  onSubmitEditing={dismissKeyboard}
-                                  onBlur={dismissKeyboard}
-                                  blurOnSubmit
-                                />
-                              </View>
-                            </View>
-
-                            <View style={styles.dayFieldWrap}>
-                              <Text style={styles.label}>Vencimento</Text>
-                              <View style={styles.dayInputWrap}>
-                                <TextInput
-                                  value={item.vencimentoText}
-                                  onChangeText={(value) => atualizarCartaoCampo(item.id, 'vencimentoText', value)}
-                                  keyboardType='number-pad'
-                                  placeholder='DD/MM'
-                                  placeholderTextColor={theme.faint}
-                                  style={styles.dayInput}
-                                  returnKeyType='done'
-                                  onSubmitEditing={dismissKeyboard}
-                                  onBlur={dismissKeyboard}
-                                  blurOnSubmit
-                                />
-                              </View>
-                            </View>
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  )}
                 </View>
               )}
 
-              <View style={[styles.summaryCard, styles.sectionBlockSoft]}>
-                <Text style={styles.summaryTitle}>Resumo inicial</Text>
-                <Text style={styles.summaryLine}>• Salário base: R$ {salarioText}</Text>
-                <Text style={styles.summaryLine}>
-                  • Total estimado de fixos: R$ {totalFixosPreview.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </Text>
-                <Text style={styles.summaryLine}>
-                  • Gastos fixos criados: {fixedItemsPreview.length ? fixedItemsPreview.map((item) => item.nome).join(', ') : 'Nenhum por enquanto'}
-                </Text>
-                <Text style={styles.summaryLine}>
-                  • Categorias variáveis criadas: {categoriasVariaveisPreview.length ? categoriasVariaveisPreview.join(', ') : 'Nenhuma por enquanto'}
-                </Text>
-                <Text style={styles.summaryLine}>
-                  • Cartões cadastrados: {hasCreditCards ? (cardsPreview.length ? cardsPreview.map((item) => item.nome).join(', ') : 'Nenhum ainda') : 'Não'}
-                </Text>
+              <View style={styles.resumoCartao}>
+                <Text style={styles.resumoRotulo}>Como o app vai começar</Text>
+
+                <View style={styles.resumoDestaque}>
+                  <View style={styles.resumoDestaqueTextos}>
+                    <Text style={styles.resumoDestaqueRotulo} numberOfLines={1}>Salário</Text>
+                    <Text style={styles.resumoDestaqueValor}>{formatarMoeda(moneyStringToNumber(salarioText))}</Text>
+                  </View>
+                  <View style={styles.resumoDestaqueTextos}>
+                    <Text style={styles.resumoDestaqueRotulo} numberOfLines={1}>Fixos por mês</Text>
+                    <Text style={[styles.resumoDestaqueValor, styles.resumoDestaqueSaida]}>
+                      {formatarMoeda(totalFixosPreview)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.resumoSobra}>
+                  <Text style={styles.resumoSobraRotulo}>Sobra estimada</Text>
+                  <Text
+                    style={[
+                      styles.resumoSobraValor,
+                      moneyStringToNumber(salarioText) - totalFixosPreview < 0 && styles.resumoSobraNegativa,
+                    ]}
+                  >
+                    {formatarMoeda(moneyStringToNumber(salarioText) - totalFixosPreview)}
+                  </Text>
+                </View>
+
+                <View style={styles.resumoContagens}>
+                  {[
+                    { icone: 'aba_fixo' as IconName, valor: fixedItemsPreview.length, rotulo: 'gastos fixos' },
+                    { icone: 'aba_variavel' as IconName, valor: categoriasVariaveisPreview.length, rotulo: 'categorias' },
+                    { icone: 'cartao' as IconName, valor: hasCreditCards ? cardsPreview.length : 0, rotulo: 'cartões' },
+                  ].map((linha) => (
+                    <View key={linha.rotulo} style={styles.resumoContagem}>
+                      <Icon name={linha.icone} size={14} color={theme.primary} />
+                      <Text style={styles.resumoContagemValor}>{linha.valor}</Text>
+                      <Text style={styles.resumoContagemRotulo}>{linha.rotulo}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                {fixedItemsPreview.length ||
+                categoriasVariaveisPreview.length ||
+                (hasCreditCards && cardsPreview.length) ? (
+                  <View style={styles.resumoEtiquetas}>
+                    {[
+                      ...fixedItemsPreview.map((item) => item.nome),
+                      ...categoriasVariaveisPreview,
+                      ...(hasCreditCards ? cardsPreview.map((item) => item.nome) : []),
+                    ]
+                      .slice(0, 12)
+                      .map((nome, i) => (
+                        <View key={`${nome}-${i}`} style={styles.resumoEtiqueta}>
+                          <Text style={styles.resumoEtiquetaTexto} numberOfLines={1}>
+                            {nome}
+                          </Text>
+                        </View>
+                      ))}
+                  </View>
+                ) : (
+                  <Text style={styles.resumoVazio}>
+                    Nada marcado ainda — dá para começar só com o salário e ir montando o resto dentro
+                    do app.
+                  </Text>
+                )}
               </View>
 
               {!!erro && <Text style={styles.errorText}>{erro}</Text>}
@@ -1170,12 +1255,140 @@ const criarEstilos = (theme: Tema) =>
     flexDirection: 'row',
     alignItems: 'center',
   },
+  resumoCartao: {
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: 22,
+    backgroundColor: theme.cardSoft,
+    padding: 16,
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  resumoRotulo: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    color: theme.muted,
+    marginBottom: 12,
+  },
+  resumoDestaque: { flexDirection: 'row', gap: 10 },
+  resumoDestaqueTextos: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.card,
+    paddingVertical: 11,
+    paddingHorizontal: 13,
+  },
+  resumoDestaqueRotulo: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.9,
+    color: theme.muted,
+    marginBottom: 3,
+  },
+  resumoDestaqueValor: { fontSize: 17, fontWeight: '900', letterSpacing: -0.5, color: theme.green },
+  resumoDestaqueSaida: { color: theme.red },
+  resumoSobra: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 13,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.borderStrong,
+    backgroundColor: theme.accentSoft,
+  },
+  resumoSobraRotulo: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.9,
+    color: theme.accent,
+  },
+  resumoSobraValor: { fontSize: 18, fontWeight: '900', letterSpacing: -0.5, color: theme.accent },
+  resumoSobraNegativa: { color: theme.red },
+  resumoContagens: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  resumoContagem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.card,
+  },
+  resumoContagemValor: { fontSize: 16, fontWeight: '900', color: theme.text, letterSpacing: -0.3 },
+  resumoContagemRotulo: { fontSize: 9.5, fontWeight: '700', color: theme.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+  resumoEtiquetas: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
+  resumoEtiqueta: {
+    minHeight: 26,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.card,
+  },
+  resumoEtiquetaTexto: { fontSize: 11, fontWeight: '700', color: theme.muted },
+  resumoVazio: { fontSize: 12, fontWeight: '600', lineHeight: 18, color: theme.faint, marginTop: 12 },
+
+  cartoesLista: { gap: 10, marginBottom: 14 },
+  cartaoEditor: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.cardSoft,
+  },
+  cartaoRemover: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    minHeight: 40,
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.card,
+  },
+  cartaoRemoverTexto: { color: theme.red, fontSize: 12.5, fontWeight: '800' },
+
+  dayFieldRotulo: { minHeight: 15 },
+  dataBotao: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    minHeight: 46,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.card,
+  },
+  dataBotaoPreenchido: { borderColor: theme.primary },
+  dataTexto: { flex: 1, minWidth: 0, color: theme.text, fontSize: 14, fontWeight: '800' },
+  dataTextoVazio: { color: theme.faint, fontWeight: '600' },
+  addButtonDesabilitado: { opacity: 0.5 },
+
   moneyInputWrapErro: {
     borderColor: theme.red,
     borderWidth: 1.5,
   },
   moneyInputWrapSmall: {
-    minHeight: 46,
+    width: 150,
+    // Em tela estreita ele cede espaco em vez de empurrar o rotulo para fora.
+    flexShrink: 1,
+    minWidth: 0,
+    minHeight: 44,
   },
   moneyInputWrapActive: {
     borderColor: theme.accent,
@@ -1189,6 +1402,10 @@ const criarEstilos = (theme: Tema) =>
   },
   moneyInput: {
     flex: 1,
+    // Na web o campo de texto vira um <input>, que tem largura natural de umas
+    // 20 letras. Sem isto ele nao encolhe: a linha do valor passava do cartao,
+    // e tocar no campo jogava a pagina inteira para o lado.
+    minWidth: 0,
     fontSize: 15,
     fontWeight: '800',
     color: theme.text,
@@ -1203,7 +1420,6 @@ const criarEstilos = (theme: Tema) =>
   },
   fixedPremiumCard: {
     position: 'relative',
-    overflow: 'hidden',
     borderWidth: 1,
     borderColor: theme.border,
     borderRadius: 22,
@@ -1214,16 +1430,6 @@ const criarEstilos = (theme: Tema) =>
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
-  },
-  fixedPremiumGlow: {
-    position: 'absolute',
-    top: -30,
-    right: -30,
-    width: 110,
-    height: 110,
-    borderRadius: 999,
-    backgroundColor: theme.accentSoft,
-    opacity: 0.7,
   },
   fixedPremiumCardActive: {
     borderColor: theme.accent,
@@ -1249,6 +1455,10 @@ const criarEstilos = (theme: Tema) =>
     color: theme.muted,
   },
   fixedValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
     marginTop: 10,
   },
   checkbox: {
@@ -1283,10 +1493,13 @@ const criarEstilos = (theme: Tema) =>
     marginTop: 10,
   },
   optionValueLabel: {
-    fontSize: 11.5,
+    flexShrink: 1,
+    minWidth: 0,
+    fontSize: 11,
     fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
     color: theme.muted,
-    marginBottom: 7,
   },
   addBlockPremium: {
     marginTop: 4,
@@ -1403,9 +1616,13 @@ const criarEstilos = (theme: Tema) =>
   },
   inlineInput: {
     flex: 1,
+    // Mesmo motivo do campo de valor: sem isto o <input> nao encolhe e a linha
+    // passa alguns pixels da borda do cartao.
+    minWidth: 0,
   },
   inlineAddButton: {
     width: 48,
+    flexShrink: 0,
     minHeight: 48,
     borderRadius: 15,
     backgroundColor: theme.accent,

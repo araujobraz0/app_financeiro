@@ -32,6 +32,7 @@ export default function CartaoVisual({ card, theme, ativo, limiteTexto, onPress 
         ativo ? { borderColor: theme.accent, borderWidth: 2 } : { borderColor: 'transparent', borderWidth: 2 },
       ]}
       accessibilityRole="button"
+      accessibilityLabel={card.nome}
       accessibilityState={{ selected: ativo }}
     >
       {/* Brilho diagonal: da profundidade sem depender de biblioteca de gradiente. */}
