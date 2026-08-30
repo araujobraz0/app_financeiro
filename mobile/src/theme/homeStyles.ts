@@ -83,6 +83,15 @@ export const styles = StyleSheet.create({
   plusButton: { width: 58, height: 58, marginHorizontal: 10, borderRadius: 999, alignItems: 'center', justifyContent: 'center', marginTop: 0, alignSelf: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', shadowOpacity: 0.22, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
   // O selo de premium ja traz a propria margem de baixo; a linha so os
   // encosta um no outro e deixa quebrar quando nao couberem.
+  puxarWrap: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  puxarSelo: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   selosTopo: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
   passoInstalar: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, marginBottom: 14 },
   passoNumero: { width: 24, height: 24, borderRadius: 999, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },

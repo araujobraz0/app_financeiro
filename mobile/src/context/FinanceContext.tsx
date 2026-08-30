@@ -7,12 +7,14 @@ import { supabase } from '../lib/supabase'
 import { useTemaSalvo } from '../theme/useTemaSalvo'
 import {
   BACKUP_LAST_KEY,
+  DONO_DA_COPIA_KEY,
+  PREMIUM_KEY,
   SINCRONIZADO_KEY,
   STORAGE_KEY,
   criarAppDataInicial,
   normalizarAppData,
 } from '../data/appData'
-import { idsPendentes, temPendencia } from '../utils/pendencias'
+import { idsPendentes, pareceVazio, temPendencia } from '../utils/pendencias'
 import type {
   AppData,
   PremiumEntitlement,
@@ -54,6 +56,8 @@ type FinanceContextValue = {
   idsNaoSalvos: Set<string>
   /** Tenta subir agora, sem esperar a proxima janela. */
   sincronizarAgora: () => void
+  /** Sobe o que falta e rebusca os dados do servidor. Usado no puxar para atualizar. */
+  recarregarDados: () => Promise<void>
 
   // perfil
   usuarioId: string | null
@@ -105,6 +109,34 @@ const FinanceContext = createContext<FinanceContextValue | null>(null)
 /**
  * Acesso aos dados do app. Precisa estar dentro de <FinanceProvider>.
  */
+/**
+ * Desiste depois de um tempo.
+ *
+ * Uma chamada de rede que nunca responde nem falha — acontece com sinal ruim,
+ * e tambem quando o navegador segura a requisicao — deixava o app parado na
+ * tela de carregamento para sempre. Com o limite ela vira um erro comum, e o
+ * caminho de "sem resposta do servidor" assume: a copia local aparece e a
+ * pessoa usa o app.
+ */
+function comTempoLimite<T>(promessa: PromiseLike<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolver, rejeitar) => {
+    const relogio = setTimeout(() => rejeitar(new Error('tempo esgotado')), ms)
+    Promise.resolve(promessa).then(
+      (valor) => {
+        clearTimeout(relogio)
+        resolver(valor)
+      },
+      (erro) => {
+        clearTimeout(relogio)
+        rejeitar(erro)
+      }
+    )
+  })
+}
+
+/** Oito segundos: o bastante para uma rede lenta, pouco para uma tela parada. */
+const LIMITE_DE_ESPERA = 8000
+
 export function useFinance() {
   const ctx = useContext(FinanceContext)
   if (!ctx) {
@@ -226,23 +258,57 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return new Date(premiumExpiresAt).getTime() > Date.now()
   }, [premiumAtivo, premiumExpiresAt])
 
+  /** O premium so vale enquanto a data de validade nao passou. */
+  const aindaVale = (direito: PremiumEntitlement | null) =>
+    !!direito?.premium_active &&
+    !!direito?.premium_expires_at &&
+    new Date(direito.premium_expires_at).getTime() > Date.now()
+
   const carregarStatusPremium = async (userId: string) => {
     try {
       setPremiumLoading(true)
-      const { data } = await supabase
-        .from('user_entitlements')
-        .select('premium_active, premium_expires_at')
-        .eq('user_id', userId)
-        .maybeSingle<PremiumEntitlement>()
+      const { data, error } = await comTempoLimite(
+        supabase
+          .from('user_entitlements')
+          .select('premium_active, premium_expires_at')
+          .eq('user_id', userId)
+          .maybeSingle<PremiumEntitlement>(),
+        LIMITE_DE_ESPERA
+      )
 
-      const ativo =
-        !!data?.premium_active &&
-        !!data?.premium_expires_at &&
-        new Date(data.premium_expires_at).getTime() > Date.now()
-      setPremiumAtivo(ativo)
+      if (error) throw error
+
+      setPremiumAtivo(aindaVale(data ?? null))
       setPremiumExpiresAt(data?.premium_expires_at ?? null)
+      AsyncStorage.setItem(
+        PREMIUM_KEY,
+        JSON.stringify({ usuario: userId, direito: data ?? null })
+      ).catch(() => undefined)
     } catch (error) {
-      console.error('[premium] Falha ao verificar status premium:', error)
+      /**
+       * Sem resposta do servidor, vale o ultimo direito confirmado.
+       *
+       * Antes qualquer falha de rede derrubava o premium: abrir o app sem
+       * internet dizia "plano inativo" e travava as acoes de quem tinha
+       * pagado. A copia guardada carrega a data de validade, entao ela vence
+       * sozinha no dia certo — nao e um premium eterno, e sim o mesmo direito
+       * esperando o proximo sinal.
+       */
+      console.warn('[premium] Sem resposta do servidor; usando o último direito confirmado.', error)
+
+      try {
+        const bruto = await AsyncStorage.getItem(PREMIUM_KEY)
+        const guardado = bruto ? JSON.parse(bruto) : null
+
+        if (guardado?.usuario === userId) {
+          setPremiumAtivo(aindaVale(guardado.direito))
+          setPremiumExpiresAt(guardado.direito?.premium_expires_at ?? null)
+          return
+        }
+      } catch {
+        // Copia corrompida: cai no caminho de baixo.
+      }
+
       setPremiumAtivo(false)
       setPremiumExpiresAt(null)
     } finally {
@@ -250,19 +316,35 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  /** A copia local, ja normalizada. Null quando nao existe ou esta corrompida. */
-  const lerCopiaLocal = useCallback(async (): Promise<AppData | null> => {
+  /**
+   * A copia local, se ela for desta conta e tiver alguma coisa dentro.
+   *
+   * As duas condicoes existem por um motivo cada. A conta: a copia mora numa
+   * chave so, entao entrar com outro login encontrava os dados do anterior e
+   * os subiria por cima. O conteudo: uma copia vazia nao e trabalho de
+   * ninguem, e trata-la como tal apagaria o que estava na nuvem.
+   */
+  const lerCopiaLocal = useCallback(async (usuario: string): Promise<AppData | null> => {
     try {
+      const dono = await AsyncStorage.getItem(DONO_DA_COPIA_KEY)
+      if (dono && dono !== usuario) return null
+
       const bruto = await AsyncStorage.getItem(STORAGE_KEY)
-      return bruto ? normalizarAppData(JSON.parse(bruto)) : null
+      if (!bruto) return null
+
+      const dados = normalizarAppData(JSON.parse(bruto))
+      return pareceVazio(dados) ? null : dados
     } catch {
       return null
     }
   }, [])
 
-  /** O que o servidor confirmou da ultima vez, se ainda estiver guardado. */
-  const lerConfirmado = useCallback(async (): Promise<AppData | null> => {
+  /** O que o servidor confirmou da ultima vez, se for desta conta. */
+  const lerConfirmado = useCallback(async (usuario: string): Promise<AppData | null> => {
     try {
+      const dono = await AsyncStorage.getItem(DONO_DA_COPIA_KEY)
+      if (dono && dono !== usuario) return null
+
       const bruto = await AsyncStorage.getItem(SINCRONIZADO_KEY)
       return bruto ? normalizarAppData(JSON.parse(bruto)) : null
     } catch {
@@ -299,6 +381,49 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     tentarDeNovoRef.current?.()
   }, [])
 
+  /**
+   * Puxar para atualizar.
+   *
+   * A ordem importa e nao e a obvia: primeiro sobe o que ainda nao foi, so
+   * depois busca. Baixar antes de subir jogaria a versao do servidor por
+   * cima do que a pessoa acabou de lancar — e num gesto que ela faz esperando
+   * ganhar dados, nao perder.
+   */
+  const recarregarDados = useCallback(async () => {
+    const usuario = usuarioIdRef.current
+    if (!usuario) return
+
+    if (temPendencia(appDataRef.current, confirmadoRef.current)) {
+      await tentarDeNovoRef.current?.()
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('financial_data')
+        .select('data')
+        .eq('user_id', usuario)
+        .maybeSingle()
+
+      if (error || !data?.data) return
+
+      // Se ainda ha pendencia, a subida acima falhou — provavelmente sem
+      // internet. Trocar a tela pela copia do servidor agora apagaria o que
+      // nao subiu.
+      if (temPendencia(appDataRef.current, confirmadoRef.current)) return
+
+      const normalizado = normalizarAppData(data.data)
+      ignorarNoHistoricoRef.current = true
+      setAppData(normalizado)
+      guardarConfirmado(normalizado)
+      if (normalizado.global.profileName) setNome(normalizado.global.profileName)
+      setAvatarPerfil(normalizado.global.profileAvatar || '💼')
+    } catch (error) {
+      console.warn('[dados] Não foi possível atualizar agora.', error)
+    }
+
+    await carregarStatusPremium(usuario)
+  }, [guardarConfirmado])
+
   const recarregarStatusPremium = async () => {
     if (!usuarioIdRef.current) return
     await carregarStatusPremium(usuarioIdRef.current)
@@ -322,7 +447,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         usuarioIdRef.current = session.user.id
         setUsuarioId(session.user.id)
         setEmail(session.user.email || '')
-        await carregarStatusPremium(session.user.id)
+        // De proposito sem `await`: o premium tem o proprio estado de carga e
+        // nao decide o que aparece na tela. Esperando por ele, uma rede ruim
+        // somava o tempo das duas chamadas antes de a pessoa ver qualquer
+        // coisa — e sem rede nenhuma, era o dobro da espera para chegar na
+        // copia local.
+        carregarStatusPremium(session.user.id)
 
         const nomeBaseSessao = String(
           session.user.user_metadata?.nome ||
@@ -332,11 +462,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         )
         setNome(nomeBaseSessao)
 
-        const { data, error } = await supabase
-          .from('financial_data')
-          .select('data')
-          .eq('user_id', session.user.id)
-          .maybeSingle()
+        const { data, error } = await comTempoLimite(
+          supabase.from('financial_data').select('data').eq('user_id', session.user.id).maybeSingle(),
+          LIMITE_DE_ESPERA
+        )
 
         if (error) throw error
 
@@ -354,8 +483,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           // aparelho guarda mudancas que nunca subiram, quem manda e a copia
           // local: sobrescreve-la com a do servidor apagaria o que a pessoa
           // lancou sem internet.
-          const local = await lerCopiaLocal()
-          const confirmadoSalvo = await lerConfirmado()
+          const local = await lerCopiaLocal(session.user.id)
+          const confirmadoSalvo = await lerConfirmado(session.user.id)
 
           if (local && confirmadoSalvo && temPendencia(local, confirmadoSalvo)) {
             ignorarNoHistoricoRef.current = true
@@ -372,7 +501,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         // Sem rede a leitura falha. Antes isso derrubava a pessoa no login,
         // com os dados intactos no aparelho — agora o app abre com a copia
         // local e sobe tudo quando a internet voltar.
-        const local = await lerCopiaLocal()
+        // `usuarioIdRef` ja foi preenchido antes da busca. Se nem a sessao
+        // saiu, ele e null e a copia local nao e usada — sem saber de quem
+        // sao os dados, o certo e mandar para o login.
+        const local = usuarioIdRef.current ? await lerCopiaLocal(usuarioIdRef.current) : null
 
         if (local) {
           console.warn('[dados] Sem resposta do servidor; abrindo com a cópia local.', error)
@@ -380,7 +512,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           setAppData(local)
           if (local.global.profileName) setNome(local.global.profileName)
           setAvatarPerfil(local.global.profileAvatar || '💼')
-          guardarConfirmado(await lerConfirmado())
+          guardarConfirmado(await lerConfirmado(usuarioIdRef.current || ''))
           setDadosRemotosCarregados(true)
           return
         }
@@ -401,9 +533,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // --- copia local dos dados ---
+  //
+  // A trava e o ponto deste efeito. O app nasce com um AppData vazio em
+  // memoria, e sem ela a primeira execucao — que acontece na montagem, antes
+  // de a resposta do servidor chegar — gravava esse vazio por cima da copia
+  // local. Enquanto ninguem lia essa copia o estrago ficava invisivel; desde
+  // que ela virou o plano B de quando falta internet, abrir o app offline
+  // encontrava a copia recem-zerada e subia o vazio para a nuvem.
   useEffect(() => {
+    if (!dadosRemotosCarregados || carregando) return
+
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(appData))
-  }, [appData])
+    if (usuarioIdRef.current) {
+      AsyncStorage.setItem(DONO_DA_COPIA_KEY, usuarioIdRef.current)
+    }
+  }, [appData, carregando, dadosRemotosCarregados])
 
   // --- copia do que o servidor tem, sempre a mao ---
   useEffect(() => {
@@ -455,6 +599,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
      */
     const sincronizarBanco = async () => {
       const enviado = appDataRef.current
+
+      /**
+       * A ultima trava antes da nuvem.
+       *
+       * Subir um AppData sem nada dentro por cima de um que tem dados apaga o
+       * trabalho da pessoa, e nenhuma acao normal do app produz esse estado —
+       * nem apagar tudo a mao, que deixaria salario ou categorias. Quando
+       * acontece e defeito, e um defeito nao pode ter permissao de gravar.
+       */
+      if (pareceVazio(enviado) && !pareceVazio(confirmadoRef.current)) {
+        console.error('[sincronização] Envio vazio barrado: os dados locais sumiram sem motivo.')
+        return
+      }
 
       try {
         const {
@@ -571,6 +728,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       pendenteDeEnvio,
       idsNaoSalvos,
       sincronizarAgora,
+      recarregarDados,
       usuarioId,
       nome,
       setNome,
@@ -600,6 +758,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       pendenteDeEnvio,
       idsNaoSalvos,
       sincronizarAgora,
+      recarregarDados,
       usuarioId,
       nome,
       email,

@@ -7,6 +7,7 @@ import {
   Linking,
   Keyboard,
   Platform,
+  RefreshControl,
   ScrollView,
   Share,
   Text,
@@ -127,6 +128,7 @@ import Icon from '../components/common/Icon'
 import { serieDeMeses } from '../src/utils/comparacaoMeses'
 import { sobraMediaMensal } from '../src/utils/desejos'
 import { useInstalacao } from '../src/utils/instalar'
+import { usePuxarParaAtualizar } from '../src/utils/puxarParaAtualizar'
 import type {
   EntradaItem, SaidaItem, FixoItem, FixoRecorrente, NoteItem, PixItem, CardInstallment, CardItem,
   ShoppingWishItem, DadosMes, BancoDeDados, GlobalData,
@@ -209,6 +211,7 @@ function HomeScreenContent() {
     pendenteDeEnvio,
     idsNaoSalvos,
     sincronizarAgora,
+    recarregarDados,
     usuarioId,
     nome,
     setNome,
@@ -344,6 +347,16 @@ function HomeScreenContent() {
   const [previewPdfGerando, setPreviewPdfGerando] = useState(false)
   const [buscaGlobal, setBuscaGlobal] = useState('')
   const instalacao = useInstalacao()
+
+  /**
+   * Puxar a pagina para baixo: sobe o que falta e rebusca do servidor.
+   *
+   * O gesto e feito na mao porque o `RefreshControl` do React Native vira uma
+   * View vazia no navegador — passar o componente e nao acontecer nada e o
+   * resultado esperado la.
+   */
+  const puxar = usePuxarParaAtualizar(() => mainScrollRef.current, recarregarDados, !carregando)
+
   const [modalInstalarAberto, setModalInstalarAberto] = useState(false)
   const [modalCompraDesejoAberto, setModalCompraDesejoAberto] = useState(false)
   const [compraDesejoEditandoId, setCompraDesejoEditandoId] = useState<string | null>(null)
@@ -3171,7 +3184,43 @@ function HomeScreenContent() {
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps='handled'
+        refreshControl={
+          <RefreshControl
+            refreshing={puxar.atualizando}
+            onRefresh={recarregarDados}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+            progressBackgroundColor={theme.card}
+          />
+        }
       >
+        {/* O indicador do gesto. Ele acompanha o dedo enquanto o arrasto nao
+            chega no ponto de valer, e fica parado ali enquanto atualiza. */}
+        {puxar.visivel ? (
+          <View style={[styles.puxarWrap, { height: puxar.distancia }]} pointerEvents="none">
+            <View
+              style={[
+                styles.puxarSelo,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: puxar.progresso >= 1 ? theme.primary : theme.border,
+                  opacity: 0.35 + puxar.progresso * 0.65,
+                },
+              ]}
+            >
+              {puxar.atualizando ? (
+                <ActivityIndicator size="small" color={theme.primary} />
+              ) : (
+                <Icon
+                  name="atualizar"
+                  size={17}
+                  color={puxar.progresso >= 1 ? theme.primary : theme.muted}
+                />
+              )}
+            </View>
+          </View>
+        ) : null}
+
         <View ref={conteudoRolagemRef} collapsable={false}>
         {/* Premium e "instalar" lado a lado: os dois dizem a mesma classe de
             coisa, o estado do app para aquela pessoa. */}

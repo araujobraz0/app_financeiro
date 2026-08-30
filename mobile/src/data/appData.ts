@@ -26,6 +26,22 @@ export const BACKUP_LAST_KEY = 'controle-financeiro-ultimo-backup-mobile'
  * — inclusive depois de fechar e reabrir o app sem internet.
  */
 export const SINCRONIZADO_KEY = 'controle-financeiro-sincronizado-v1'
+/**
+ * De quem e a copia guardada neste aparelho.
+ *
+ * As copias locais moram numa chave so, sem o id do usuario. Entrar com outra
+ * conta encontrava a copia da conta anterior e nao tinha como saber que ela
+ * era de outra pessoa.
+ */
+export const DONO_DA_COPIA_KEY = 'controle-financeiro-dono-da-copia'
+/**
+ * O ultimo direito de premium que o servidor confirmou.
+ *
+ * Guardado para sobreviver a falta de internet. A data de validade viaja
+ * junto, entao a copia nao vira um premium eterno: ela vence sozinha no dia
+ * marcado, mesmo sem nunca mais falar com o servidor.
+ */
+export const PREMIUM_KEY = 'controle-financeiro-premium-confirmado'
 export const categoriasPadrao = ['Mercado', 'Saúde', 'Extra', 'Lazer', 'Uber', 'Comida']
 export const onboardingFixosBase = [
   { nome: 'Comissão de formatura', valor: 130 },

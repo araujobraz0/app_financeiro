@@ -107,3 +107,34 @@ export function temPendencia(atual: AppData | null, confirmado: AppData | null) 
   if (!confirmado) return true
   return assinatura(atual) !== assinatura(confirmado)
 }
+
+/**
+ * Os dados nao tem nada dentro.
+ *
+ * O app comeca com um AppData vazio em memoria — cinco anos de competencias
+ * em branco — antes de a resposta do servidor chegar. Distinguir esse esbozo
+ * de dados de verdade e o que impede uma copia vazia de ser tratada como se
+ * fosse o trabalho de alguem.
+ */
+export function pareceVazio(dados: AppData | null) {
+  if (!dados) return true
+
+  const global = dados.global
+  const temCoisaGlobal = Boolean(
+    global &&
+      ((global.fixosRecorrentes || []).length ||
+        (global.cards || []).length ||
+        (global.notes || []).length ||
+        (global.pixContacts || []).length ||
+        (global.shoppingWishes || []).length)
+  )
+  if (temCoisaGlobal) return false
+
+  for (const mes of Object.values(dados.bancoDeDados || {})) {
+    if ((mes?.entradas || []).length) return false
+    if ((mes?.saidas || []).length) return false
+    if (Number(mes?.salario || 0) > 0) return false
+  }
+
+  return true
+}

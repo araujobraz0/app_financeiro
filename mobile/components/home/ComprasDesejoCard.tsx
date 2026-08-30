@@ -67,32 +67,53 @@ function ComprasDesejoCard({
   const proximo = resumo.proximo
   const restantes = avaliados.slice(1)
 
-  const acoes = (item: ShoppingWishItem, comprado: boolean) => (
+  /** Linha de acoes dos itens que ainda faltam: ocupa a largura toda. */
+  const acoes = (item: ShoppingWishItem) => (
     <View style={local.acoes}>
       <PressableScale
-        onPress={() => onAlternarComprado(item.id, !comprado)}
+        onPress={() => onAlternarComprado(item.id, true)}
         scaleTo={0.94}
         accessibilityRole="button"
-        accessibilityLabel={comprado ? `Reabrir ${item.nome}` : `Marcar ${item.nome} como comprado`}
-        style={[
-          local.marcar,
-          {
-            backgroundColor: comprado ? theme.cardSoft : theme.primary,
-            borderColor: comprado ? theme.border : theme.primary,
-          },
-        ]}
+        accessibilityLabel={`Marcar ${item.nome} como comprado`}
+        style={[local.marcar, { backgroundColor: theme.primary, borderColor: theme.primary }]}
       >
-        <Icon
-          name={comprado ? 'desfazer' : 'carrinho'}
-          size={13}
-          color={comprado ? theme.muted : theme.textInverse}
-        />
-        <Text
-          style={[local.marcarTexto, { color: comprado ? theme.muted : theme.textInverse }]}
-          numberOfLines={1}
-        >
-          {comprado ? 'Reabrir' : 'Comprei'}
+        <Icon name="carrinho" size={13} color={theme.textInverse} />
+        <Text style={[local.marcarTexto, { color: theme.textInverse }]} numberOfLines={1}>
+          Comprei
         </Text>
+      </PressableScale>
+
+      <PressableScale
+        onPress={() => onExcluir(item.id, item.nome)}
+        scaleTo={0.9}
+        hitSlop={6}
+        accessibilityRole="button"
+        accessibilityLabel={`Excluir ${item.nome}`}
+        style={[local.icone, { backgroundColor: theme.card, borderColor: theme.border }]}
+      >
+        <Icon name="excluir" size={14} color={theme.red} />
+      </PressableScale>
+    </View>
+  )
+
+  /**
+   * Acoes do que ja foi comprado: so os dois icones.
+   *
+   * Aqui a linha ja carrega nome, mes e preco. O botao de largura inteira
+   * dividia o que sobrava com tudo isso, e "Reabrir" saia quase por fora da
+   * propria caixa.
+   */
+  const acoesDoComprado = (item: ShoppingWishItem) => (
+    <View style={local.acoesCompactas}>
+      <PressableScale
+        onPress={() => onAlternarComprado(item.id, false)}
+        scaleTo={0.9}
+        hitSlop={6}
+        accessibilityRole="button"
+        accessibilityLabel={`Reabrir ${item.nome}`}
+        style={[local.icone, { backgroundColor: theme.card, borderColor: theme.border }]}
+      >
+        <Icon name="desfazer" size={14} color={theme.muted} />
       </PressableScale>
 
       <PressableScale
@@ -221,7 +242,7 @@ function ComprasDesejoCard({
             </Text>
           </PressableScale>
 
-          {acoes(proximo.item, false)}
+          {acoes(proximo.item)}
         </CaixaDestacavel>
       ) : null}
 
@@ -277,7 +298,7 @@ function ComprasDesejoCard({
                 </View>
               </PressableScale>
 
-              {acoes(desejo.item, false)}
+              {acoes(desejo.item)}
             </CaixaDestacavel>
           ))}
         </View>
@@ -320,7 +341,7 @@ function ComprasDesejoCard({
                   <Text style={[local.compradoPreco, { color: theme.faint }]} numberOfLines={1}>
                     {formatarValorVisivel(Number(item.precoAtual || 0))}
                   </Text>
-                  {acoes(item, true)}
+                  {acoesDoComprado(item)}
                 </View>
               ))
             : null}
@@ -344,13 +365,16 @@ const local = StyleSheet.create({
   },
   vazioTexto: { fontSize: 12.5, fontWeight: '600', textAlign: 'center', lineHeight: 18 },
 
-  destaque: { borderRadius: 20, borderWidth: 1, padding: 14 },
+  // Menor do que nasceu: com 14 de respiro, preco de 22 e barra de 7 ele
+  // tomava quase a tela inteira num celular, e a lista abaixo ficava fora de
+  // vista.
+  destaque: { borderRadius: 18, borderWidth: 1, paddingHorizontal: 13, paddingVertical: 12 },
   destaqueTopo: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
-    marginBottom: 7,
+    marginBottom: 5,
   },
   etiqueta: {
     flexShrink: 1,
@@ -371,13 +395,13 @@ const local = StyleSheet.create({
     borderWidth: 1,
   },
   prazoTexto: { fontSize: 10, fontWeight: '800' },
-  destaqueNome: { fontSize: 16, fontWeight: '900', letterSpacing: -0.4, lineHeight: 21 },
-  destaqueLinha: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 4 },
-  destaquePreco: { fontSize: 22, fontWeight: '900', letterSpacing: -0.7 },
+  destaqueNome: { fontSize: 14.5, fontWeight: '900', letterSpacing: -0.3, lineHeight: 19 },
+  destaqueLinha: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 2 },
+  destaquePreco: { fontSize: 18, fontWeight: '900', letterSpacing: -0.5 },
   loja: { flex: 1, minWidth: 0, fontSize: 11, fontWeight: '600' },
-  destaqueNota: { fontSize: 11, fontWeight: '600', marginTop: 7 },
+  destaqueNota: { fontSize: 10.5, fontWeight: '600', marginTop: 6 },
 
-  trilha: { height: 7, borderRadius: 999, overflow: 'hidden', marginTop: 10 },
+  trilha: { height: 6, borderRadius: 999, overflow: 'hidden', marginTop: 8 },
   trilhaFina: { height: 4, borderRadius: 999, overflow: 'hidden', marginTop: 8 },
   preenchimento: { height: '100%', borderRadius: 999 },
 
@@ -391,7 +415,8 @@ const local = StyleSheet.create({
   linhaMeta: { fontSize: 10.5, fontWeight: '600', marginTop: 2 },
   linhaPreco: { fontSize: 14, fontWeight: '900', letterSpacing: -0.3, flexShrink: 0 },
 
-  acoes: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 11 },
+  acoes: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 10 },
+  acoesCompactas: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
   marcar: {
     flex: 1,
     minWidth: 0,
