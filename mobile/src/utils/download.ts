@@ -38,8 +38,7 @@ export function baixarXlsx(dados: ArrayBuffer, nomeArquivo: string) {
 }
 
 /**
- * Abre o seletor de arquivos do navegador.
- * Resolve com null se o usuario fechar sem escolher nada.
+ * Abre o seletor de arquivos do navegador e devolve tudo que foi escolhido.
  *
  * `accept` vazio nao filtra nada, e e assim que a importacao chama. O filtro
  * parecia inofensivo e nao era: extensao que o sistema nao conhece — .ofx e o
@@ -47,35 +46,38 @@ export function baixarXlsx(dados: ArrayBuffer, nomeArquivo: string) {
  * impossivel de escolher. Quem decide se o arquivo serve e o leitor, que olha
  * o conteudo e explica na previa quando nao reconhece.
  */
-export function escolherArquivo(accept: string): Promise<File | null> {
+export function escolherArquivos(accept: string, varios = true): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement('input')
     input.type = 'file'
     if (accept) input.accept = accept
+    input.multiple = varios
     input.style.display = 'none'
 
     let resolvido = false
-    const finalizar = (arquivo: File | null) => {
+    const finalizar = (arquivos: File[]) => {
       if (resolvido) return
       resolvido = true
       window.removeEventListener('focus', aoVoltarOFoco)
       window.removeEventListener('blur', aoPerderOFoco)
       document.removeEventListener('visibilitychange', aoTrocarDeTela)
       if (input.parentNode) document.body.removeChild(input)
-      resolve(arquivo)
+      resolve(arquivos)
     }
 
-    input.onchange = () => finalizar(input.files?.[0] ?? null)
-    input.oncancel = () => finalizar(null)
+    const escolhidos = () => Array.from(input.files || [])
+
+    input.onchange = () => finalizar(escolhidos())
+    input.oncancel = () => finalizar([])
 
     /**
      * A rede de seguranca para o navegador que nao dispara 'cancel'.
      *
      * Ela so pode agir DEPOIS que a janela perdeu o foco para a janela de
      * arquivos. Sem essa trava, um 'focus' que chegasse antes — a propria
-     * pagina voltando a si — resolvia null com a janela ainda aberta: a
-     * pessoa escolhia o arquivo e nada acontecia, como se o app nao
-     * deixasse selecionar.
+     * pagina voltando a si — resolvia "nada escolhido" com a janela ainda
+     * aberta: a pessoa selecionava o arquivo e nada acontecia, como se o app
+     * nao deixasse selecionar.
      */
     let janelaAbriu = false
     const aoPerderOFoco = () => {
@@ -91,8 +93,8 @@ export function escolherArquivo(accept: string): Promise<File | null> {
       // O 'change' costuma chegar depois do 'focus'. Duas chances antes de
       // desistir, porque com arquivo grande o navegador demora a preencher.
       setTimeout(() => {
-        if (input.files?.length) return finalizar(input.files[0])
-        setTimeout(() => finalizar(input.files?.[0] ?? null), 1500)
+        if (input.files?.length) return finalizar(escolhidos())
+        setTimeout(() => finalizar(escolhidos()), 1500)
       }, 600)
     }
 
@@ -103,6 +105,11 @@ export function escolherArquivo(accept: string): Promise<File | null> {
     document.body.appendChild(input)
     input.click()
   })
+}
+
+/** O mesmo seletor, para quem so aceita um arquivo (foto de perfil, backup). */
+export function escolherArquivo(accept: string): Promise<File | null> {
+  return escolherArquivos(accept, false).then((arquivos) => arquivos[0] ?? null)
 }
 
 export function lerArquivoComoTexto(arquivo: File): Promise<string> {

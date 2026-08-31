@@ -36,6 +36,8 @@ export type ItemPrevia = {
   incluir: boolean
   /** O identificador do banco, guardado para a proxima importacao. */
   fitid: string
+  /** Nome do arquivo de onde veio, quando veio mais de um. */
+  arquivo: string
 }
 
 export type ResumoPrevia = {
@@ -167,6 +169,7 @@ export function montarPrevia(
       // caro da importacao, porque bagunca o saldo sem avisar.
       incluir: repetido === 'nao',
       fitid: lancamento.fitid,
+      arquivo: lancamento.arquivo || '',
     }
   })
 }
@@ -230,8 +233,15 @@ export function descreverLeitura(leitura: Leitura) {
     desconhecido: 'Arquivo',
   }
 
+  const total = leitura.lancamentos.length
   const partes = [nomes[leitura.formato]]
-  if (leitura.encontrados) partes.push(`${leitura.encontrados} linha(s) lida(s)`)
-  if (leitura.descartados) partes.push(`${leitura.descartados} sem valor`)
+
+  partes.push(total === 1 ? '1 lançamento' : `${total} lançamentos`)
+  if (leitura.descartados) {
+    partes.push(
+      leitura.descartados === 1 ? '1 linha sem valor' : `${leitura.descartados} linhas sem valor`
+    )
+  }
+
   return partes.join(' · ')
 }

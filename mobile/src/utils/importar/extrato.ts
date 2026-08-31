@@ -27,6 +27,14 @@ export type LancamentoImportado = {
   data: DataLida
   /** O identificador do proprio banco, quando o arquivo traz. */
   fitid: string
+  /**
+   * De qual arquivo o lancamento veio.
+   *
+   * So importa quando se escolhe mais de um extrato de uma vez: e o que
+   * permite a previa dizer de onde saiu cada linha e o que permite reconhecer
+   * a transacao que aparece nos dois arquivos, quando os periodos se cruzam.
+   */
+  arquivo: string
 }
 
 export type Formato = 'ofx' | 'csv' | 'planilha' | 'desconhecido'
@@ -161,6 +169,7 @@ export function lerOfx(texto: string): Leitura {
       valor,
       data,
       fitid,
+      arquivo: '',
     })
   }
 
@@ -369,6 +378,7 @@ export function lerTabela(linhas: (string | number)[][], formato: Formato = 'csv
       valor,
       data,
       fitid: '',
+      arquivo: '',
     })
   })
 
@@ -377,14 +387,23 @@ export function lerTabela(linhas: (string | number)[][], formato: Formato = 'csv
   return { formato, lancamentos, avisos, encontrados: corpo.length, descartados }
 }
 
+/** Carimba de que arquivo veio cada lancamento lido. */
+export function comArquivo(leitura: Leitura, nome: string): Leitura {
+  return {
+    ...leitura,
+    lancamentos: leitura.lancamentos.map((lancamento) => ({ ...lancamento, arquivo: nome })),
+  }
+}
+
 /** Escolhe o leitor pelo nome do arquivo e pelo proprio conteudo. */
 export function lerExtrato(nome: string, texto: string): Leitura {
   const minusculo = String(nome || '').toLowerCase()
 
   // O conteudo manda mais que a extensao: arquivo OFX salvo como .txt e comum.
-  if (minusculo.endsWith('.ofx') || /<OFX>|<STMTTRN>|OFXHEADER/i.test(texto)) {
-    return lerOfx(texto)
-  }
+  const leitura =
+    minusculo.endsWith('.ofx') || /<OFX>|<STMTTRN>|OFXHEADER/i.test(texto)
+      ? lerOfx(texto)
+      : lerTabela(lerCsv(texto), 'csv')
 
-  return lerTabela(lerCsv(texto), 'csv')
+  return comArquivo(leitura, nome)
 }

@@ -32,7 +32,7 @@ import Calendario from '../components/common/Calendario'
 import SeletorCompetencia from '../components/common/SeletorCompetencia'
 import PreviaExportacaoModal from '../components/modals/PreviaExportacaoModal'
 import { gerarPdfUri } from '../src/utils/export/pdfDoc'
-import { lerExtrato, lerTabela } from '../src/utils/importar/extrato'
+import { comArquivo, lerExtrato, lerTabela } from '../src/utils/importar/extrato'
 import type { Leitura } from '../src/utils/importar/extrato'
 import {
   assinaturasDoBanco,
@@ -80,6 +80,7 @@ import {
   baixarUrl,
   baixarXlsx,
   escolherArquivo,
+  escolherArquivos,
   lerArquivoComoArrayBuffer,
   lerArquivoComoTexto,
 } from '../src/utils/download'
@@ -373,8 +374,8 @@ function HomeScreenContent() {
   const [compraDesejoData, setCompraDesejoData] = useState('')
   const [compraDesejoComprado, setCompraDesejoComprado] = useState(false)
   const [modalPreviewImportacaoAberto, setModalPreviewImportacaoAberto] = useState(false)
-  const [arquivoImportacaoNome, setArquivoImportacaoNome] = useState('')
-  const [leituraImportacao, setLeituraImportacao] = useState<Leitura | null>(null)
+  const [nomesImportacao, setNomesImportacao] = useState<string[]>([])
+  const [leiturasImportacao, setLeiturasImportacao] = useState<Leitura[]>([])
   const [itensImportacao, setItensImportacao] = useState<ItemPrevia[]>([])
   const [modalCalendarioAberto, setModalCalendarioAberto] = useState(false)
   const [backupsDisponiveis, setBackupsDisponiveis] = useState<{ id: string; created_at: string }[]>([])
@@ -1969,6 +1970,33 @@ function HomeScreenContent() {
    * src/utils/importar, que e testavel isoladamente. Aqui so entra o que
    * depende do app: em que mes cada lancamento cai e o que ja foi lancado.
    */
+  /** Le um arquivo escolhido, pelo caminho que o formato dele pede. */
+  const lerArquivoDeExtrato = async (arquivo: File): Promise<Leitura> => {
+    const nome = String(arquivo.name || '')
+    const minusculo = nome.toLowerCase()
+
+    if (minusculo.endsWith('.xlsx') || minusculo.endsWith('.xls')) {
+      // A planilha vira matriz de celulas direto, sem passar por texto: o
+      // caminho antigo juntava as celulas com ';' e corrompia qualquer
+      // descricao que ja tivesse ponto e virgula.
+      const buffer = await lerArquivoComoArrayBuffer(arquivo)
+      const wb = XLSX.read(buffer, { type: 'array' })
+      const planilha = wb.Sheets[wb.SheetNames[0]]
+      const matriz = XLSX.utils.sheet_to_json<(string | number)[]>(planilha, {
+        header: 1,
+        defval: '',
+        raw: true,
+      })
+      return comArquivo(lerTabela(matriz, 'planilha'), nome)
+    }
+
+    const conteudo = await lerArquivoComoTexto(arquivo)
+    return lerExtrato(nome, conteudo)
+  }
+
+  /** Formatos que nao adianta tentar ler; melhor dizer do que abrir vazio. */
+  const NAO_E_EXTRATO = /\.(png|jpe?g|gif|webp|heic|zip|rar|docx?|pptx?|mp[34]|mov)$/
+
   const importarDadosBanco = async () => {
     if (
       bloquearAcaoSemPremium(
@@ -1980,62 +2008,88 @@ function HomeScreenContent() {
 
     try {
       setProcessandoArquivo('importar')
-      const arquivo = await escolherArquivo('')
-      if (!arquivo) return
+      const escolhidos = await escolherArquivos('')
+      if (!escolhidos.length) return
 
-      const nomeArquivo = String(arquivo.name || '')
-      const minusculo = nomeArquivo.toLowerCase()
+      const pdfs = escolhidos.filter((a) => String(a.name || '').toLowerCase().endsWith('.pdf'))
+      const outros = escolhidos.filter((a) => NAO_E_EXTRATO.test(String(a.name || '').toLowerCase()))
+      const paraLer = escolhidos.filter((a) => !pdfs.includes(a) && !outros.includes(a))
 
-      if (minusculo.endsWith('.pdf')) {
-        Alert.alert(
-          'Importação de PDF',
-          'Ainda não leio extrato em PDF. No site do banco, baixe o mesmo extrato em OFX ou CSV — costuma ser a mesma tela.'
-        )
-        return
-      }
-
-      // Agora que a janela de arquivos nao filtra nada, da para escolher uma
-      // foto por engano. Melhor dizer isso do que abrir uma previa vazia.
-      if (/\.(png|jpe?g|gif|webp|heic|zip|rar|docx?|pptx?|mp[34]|mov)$/.test(minusculo)) {
+      if (!paraLer.length) {
+        if (pdfs.length) {
+          Alert.alert(
+            'Importação de PDF',
+            'Ainda não leio extrato em PDF. No site do banco, baixe o mesmo extrato em OFX ou CSV — costuma ser a mesma tela.'
+          )
+          return
+        }
         Alert.alert('Arquivo não é um extrato', 'Escolha o extrato do banco em CSV, Excel ou OFX.')
         return
       }
 
-      let leitura: Leitura
-
-      if (minusculo.endsWith('.xlsx') || minusculo.endsWith('.xls')) {
-        // A planilha vira matriz de celulas direto, sem passar por texto: o
-        // caminho antigo juntava as celulas com ';' e corrompia qualquer
-        // descricao que ja tivesse ponto e virgula.
-        const buffer = await lerArquivoComoArrayBuffer(arquivo)
-        const wb = XLSX.read(buffer, { type: 'array' })
-        const planilha = wb.Sheets[wb.SheetNames[0]]
-        const matriz = XLSX.utils.sheet_to_json<(string | number)[]>(planilha, {
-          header: 1,
-          defval: '',
-          raw: true,
-        })
-        leitura = lerTabela(matriz, 'planilha')
-      } else {
-        const conteudo = await lerArquivoComoTexto(arquivo)
-        leitura = lerExtrato(nomeArquivo, conteudo)
+      /**
+       * Um arquivo que falha nao derruba os outros.
+       *
+       * Escolhendo cinco extratos de uma vez, um corrompido nao pode fazer os
+       * quatro bons desaparecerem — vira um aviso na previa e o resto entra.
+       */
+      const lidos: Leitura[] = []
+      for (const arquivo of paraLer) {
+        try {
+          lidos.push(await lerArquivoDeExtrato(arquivo))
+        } catch (erro) {
+          console.error('[importar] Falha ao ler', arquivo.name, erro)
+          lidos.push({
+            formato: 'desconhecido',
+            lancamentos: [],
+            avisos: [`Não consegui abrir "${arquivo.name}".`],
+            encontrados: 0,
+            descartados: 0,
+          })
+        }
       }
 
-      const itens = montarPrevia(leitura.lancamentos, {
-        competenciaPadrao: chaveAtual,
-        categorizar: categorizarAutomaticamente,
-        jaNoApp: assinaturasDoBanco(bancoDeDados),
-      })
+      // Os avisos dos arquivos ignorados aparecem junto com os dos lidos.
+      const ignorados = [...pdfs, ...outros].map((arquivo) => ({
+        formato: 'desconhecido' as const,
+        lancamentos: [],
+        avisos: [
+          String(arquivo.name || '').toLowerCase().endsWith('.pdf')
+            ? `"${arquivo.name}" é PDF: baixe o mesmo extrato em OFX ou CSV.`
+            : `"${arquivo.name}" não parece um extrato e ficou de fora.`,
+        ],
+        encontrados: 0,
+        descartados: 0,
+      }))
+
+      const leituras = [...lidos, ...ignorados]
+
+      /**
+       * Uma previa so para todos os arquivos.
+       *
+       * A deteccao de repetido roda sobre a lista inteira, e nao arquivo por
+       * arquivo: e o que pega a transacao que aparece nos dois extratos
+       * quando os periodos se cruzam — o motivo mais comum de duplicar tudo
+       * ao importar meses seguidos.
+       */
+      const itens = montarPrevia(
+        leituras.flatMap((leitura) => leitura.lancamentos),
+        {
+          competenciaPadrao: chaveAtual,
+          categorizar: categorizarAutomaticamente,
+          jaNoApp: assinaturasDoBanco(bancoDeDados),
+        }
+      )
 
       // Mesmo vindo vazia a previa abre: e la que estao os avisos dizendo por
       // que nada foi reconhecido. Antes so aparecia um alerta generico.
-      setArquivoImportacaoNome(nomeArquivo || 'arquivo importado')
-      setLeituraImportacao(leitura)
+      setNomesImportacao(escolhidos.map((arquivo) => String(arquivo.name || 'arquivo')))
+      setLeiturasImportacao(leituras)
       setItensImportacao(itens)
       setModalPreviewImportacaoAberto(true)
     } catch (error) {
       console.error('[importar] Falha ao importar arquivo:', error)
-      Alert.alert('Erro', 'Não foi possível ler o arquivo. Confira se o formato é CSV, OFX ou XLSX.')
+      Alert.alert('Erro', 'Não foi possível ler os arquivos. Confira se o formato é CSV, OFX ou XLSX.')
     } finally {
       setProcessandoArquivo(null)
     }
@@ -2066,8 +2120,8 @@ function HomeScreenContent() {
   const fecharPreviaImportacao = useCallback(() => {
     setModalPreviewImportacaoAberto(false)
     setItensImportacao([])
-    setLeituraImportacao(null)
-    setArquivoImportacaoNome('')
+    setLeiturasImportacao([])
+    setNomesImportacao([])
   }, [])
 
   /**
@@ -3889,8 +3943,8 @@ function HomeScreenContent() {
         visible={modalPreviewImportacaoAberto}
         onClose={fecharPreviaImportacao}
         theme={theme}
-        nomeArquivo={arquivoImportacaoNome}
-        leitura={leituraImportacao}
+        nomes={nomesImportacao}
+        leituras={leiturasImportacao}
         itens={itensImportacao}
         categorias={categoriasSaidas}
         onAlternarItem={alternarItemImportacao}

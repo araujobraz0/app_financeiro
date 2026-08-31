@@ -33,8 +33,10 @@ type Props = {
   visible: boolean
   onClose: () => void
   theme: Tema
-  nomeArquivo: string
-  leitura: Leitura | null
+  /** Nomes de tudo que foi escolhido, na ordem. */
+  nomes: string[]
+  /** Uma leitura por arquivo lido. */
+  leituras: Leitura[]
   itens: ItemPrevia[]
   categorias: string[]
   onAlternarItem: (id: string) => void
@@ -58,8 +60,8 @@ export default function PreviaImportacaoModal({
   visible,
   onClose,
   theme,
-  nomeArquivo,
-  leitura,
+  nomes,
+  leituras,
   itens,
   categorias,
   onAlternarItem,
@@ -71,6 +73,8 @@ export default function PreviaImportacaoModal({
   const [filtro, setFiltro] = useState<Filtro>('tudo')
   const [limite, setLimite] = useState(PASSO)
   const [editandoCategoria, setEditandoCategoria] = useState<string | null>(null)
+  /** Nome do arquivo que a lista esta mostrando; vazio mostra todos. */
+  const [arquivoAtivo, setArquivoAtivo] = useState('')
 
   const resumo = useMemo(() => resumirPrevia(itens), [itens])
 
@@ -91,13 +95,48 @@ export default function PreviaImportacaoModal({
     return itens
   }, [itens, filtro])
 
-  const visiveis = filtrados.slice(0, limite)
-  const restantes = filtrados.length - visiveis.length
-  const avisos = leitura?.avisos || []
+  /**
+   * Um aviso por arquivo, com o nome na frente quando ha mais de um.
+   *
+   * Sem o nome, escolhendo quatro extratos de uma vez, "3 linhas antes da
+   * tabela foram puladas" nao diz de qual arquivo se trata.
+   */
+  const avisos = useMemo(() => {
+    const varios = leituras.length > 1
+    return leituras.flatMap((leituraDoArquivo, indice) =>
+      leituraDoArquivo.avisos.map((aviso) =>
+        varios && nomes[indice] ? `${nomes[indice]}: ${aviso}` : aviso
+      )
+    )
+  }, [leituras, nomes])
+
+  /** Quantos lancamentos vieram de cada arquivo. */
+  const porArquivo = useMemo(() => {
+    const contagem = new Map<string, number>()
+    itens.forEach((item) => {
+      contagem.set(item.arquivo, (contagem.get(item.arquivo) || 0) + 1)
+    })
+    return nomes.map((nome) => ({ nome, quantidade: contagem.get(nome) || 0 }))
+  }, [itens, nomes])
+
+  const variosArquivos = nomes.length > 1
+
+  const filtradosPorArquivo = useMemo(
+    () => (arquivoAtivo ? filtrados.filter((item) => item.arquivo === arquivoAtivo) : filtrados),
+    [filtrados, arquivoAtivo]
+  )
+
+  const visiveis = filtradosPorArquivo.slice(0, limite)
+  const restantes = filtradosPorArquivo.length - visiveis.length
   const vazio = itens.length === 0
 
   const trocarFiltro = (novo: Filtro) => {
     setFiltro(novo)
+    setLimite(PASSO)
+  }
+
+  const trocarArquivo = (nome: string) => {
+    setArquivoAtivo((atual) => (atual === nome ? '' : nome))
     setLimite(PASSO)
   }
 
@@ -204,6 +243,7 @@ export default function PreviaImportacaoModal({
             <Text style={[styles.itemMetaTexto, { color: theme.muted }]} numberOfLines={1}>
               {String(item.dia).padStart(2, '0')} de {competenciaEmTexto(item.competencia)}
               {item.temData ? '' : ' · sem data no arquivo'}
+              {variosArquivos && item.arquivo ? ` · ${item.arquivo}` : ''}
             </Text>
           </View>
 
@@ -248,8 +288,11 @@ export default function PreviaImportacaoModal({
         titulo="Conferir antes de importar"
         subtitulo={
           vazio
-            ? 'Não consegui reconhecer lançamentos neste arquivo.'
-            : `${resumo.marcados} de ${itens.length} lançamentos marcados para entrar`
+            ? nomes.length > 1
+              ? 'Não consegui reconhecer lançamentos nestes arquivos.'
+              : 'Não consegui reconhecer lançamentos neste arquivo.'
+            : `${resumo.marcados} de ${itens.length} lançamentos marcados` +
+              (variosArquivos ? `, de ${nomes.length} arquivos` : '')
         }
         alto={!vazio}
         acoes={[
@@ -262,19 +305,58 @@ export default function PreviaImportacaoModal({
           },
         ]}
       >
-        {/* ---------- O arquivo ---------- */}
-        <View style={[styles.arquivo, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-          <View style={[styles.arquivoIcone, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Icon name={ICONE_DO_FORMATO[leitura?.formato || 'desconhecido']} size={18} color={theme.primary} />
-          </View>
-          <View style={styles.arquivoTextos}>
-            <Text style={[styles.arquivoNome, { color: theme.text }]} numberOfLines={1}>
-              {nomeArquivo}
-            </Text>
-            <Text style={[styles.arquivoDetalhe, { color: theme.muted }]} numberOfLines={2}>
-              {leitura ? descreverLeitura(leitura) : 'Arquivo lido'}
-            </Text>
-          </View>
+        {/* ---------- Os arquivos ----------
+            Um bloco por arquivo escolhido: da para escolher varios de uma
+            vez, e sem isto nao daria para saber o que cada um trouxe — nem
+            perceber o extrato que veio vazio no meio dos outros. */}
+        <View style={styles.arquivos}>
+          {nomes.map((nome, indice) => {
+            const leituraDoArquivo = leituras[indice]
+            const selecionado = arquivoAtivo === nome
+            const quantidade = porArquivo[indice]?.quantidade ?? 0
+
+            const conteudo = (
+              <>
+                <View style={[styles.arquivoIcone, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <Icon
+                    name={ICONE_DO_FORMATO[leituraDoArquivo?.formato || 'desconhecido']}
+                    size={18}
+                    color={theme.primary}
+                  />
+                </View>
+                <View style={styles.arquivoTextos}>
+                  <Text style={[styles.arquivoNome, { color: theme.text }]} numberOfLines={1}>
+                    {nome}
+                  </Text>
+                  <Text style={[styles.arquivoDetalhe, { color: theme.muted }]} numberOfLines={2}>
+                    {leituraDoArquivo ? descreverLeitura(leituraDoArquivo) : 'Não foi lido'}
+                  </Text>
+                </View>
+                {variosArquivos && quantidade > 0 ? (
+                  <Icon name={selecionado ? 'confirmar' : 'filtrar'} size={15} color={theme.faint} />
+                ) : null}
+              </>
+            )
+
+            const estilo = [
+              styles.arquivo,
+              {
+                backgroundColor: selecionado ? theme.accentSoft : theme.cardSoft,
+                borderColor: selecionado ? theme.accent : theme.border,
+              },
+            ]
+
+            // Com varios arquivos, tocar no bloco filtra a lista por ele.
+            return variosArquivos && quantidade > 0 ? (
+              <PressableScale key={nome} onPress={() => trocarArquivo(nome)} scaleTo={0.985} style={estilo}>
+                {conteudo}
+              </PressableScale>
+            ) : (
+              <View key={nome} style={estilo}>
+                {conteudo}
+              </View>
+            )
+          })}
         </View>
 
         {/* ---------- Avisos da leitura ---------- */}
@@ -291,8 +373,9 @@ export default function PreviaImportacaoModal({
 
         {vazio ? (
           <Text style={[styles.vazio, { color: theme.muted }]}>
-            Extratos em CSV, Excel e OFX funcionam. Se o seu banco exporta em PDF, troque o formato
-            para OFX ou CSV na hora de baixar — é a mesma tela do internet banking.
+            Extratos em CSV, Excel e OFX funcionam, e dá para escolher vários de uma vez. Se o seu
+            banco exporta em PDF, troque o formato para OFX ou CSV na hora de baixar — é a mesma
+            tela do internet banking.
           </Text>
         ) : (
           <>
@@ -353,7 +436,9 @@ export default function PreviaImportacaoModal({
             {/* ---------- Lista ---------- */}
             <View style={styles.lista}>
               {visiveis.length === 0 ? (
-                <Text style={[styles.vazio, { color: theme.muted }]}>Nada neste filtro.</Text>
+                <Text style={[styles.vazio, { color: theme.muted }]}>
+                  {arquivoAtivo ? 'Nada deste arquivo neste filtro.' : 'Nada neste filtro.'}
+                </Text>
               ) : (
                 visiveis.map(linhaItem)
               )}
@@ -393,6 +478,7 @@ export default function PreviaImportacaoModal({
 }
 
 const styles = StyleSheet.create({
+  arquivos: { gap: 8 },
   arquivo: {
     flexDirection: 'row',
     alignItems: 'center',
