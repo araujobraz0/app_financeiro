@@ -40,32 +40,65 @@ export function baixarXlsx(dados: ArrayBuffer, nomeArquivo: string) {
 /**
  * Abre o seletor de arquivos do navegador.
  * Resolve com null se o usuario fechar sem escolher nada.
+ *
+ * `accept` vazio nao filtra nada, e e assim que a importacao chama. O filtro
+ * parecia inofensivo e nao era: extensao que o sistema nao conhece — .ofx e o
+ * caso — some da janela ou aparece apagada, entao o arquivo do banco ficava
+ * impossivel de escolher. Quem decide se o arquivo serve e o leitor, que olha
+ * o conteudo e explica na previa quando nao reconhece.
  */
 export function escolherArquivo(accept: string): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = accept
+    if (accept) input.accept = accept
     input.style.display = 'none'
 
     let resolvido = false
     const finalizar = (arquivo: File | null) => {
       if (resolvido) return
       resolvido = true
+      window.removeEventListener('focus', aoVoltarOFoco)
+      window.removeEventListener('blur', aoPerderOFoco)
+      document.removeEventListener('visibilitychange', aoTrocarDeTela)
       if (input.parentNode) document.body.removeChild(input)
       resolve(arquivo)
     }
 
     input.onchange = () => finalizar(input.files?.[0] ?? null)
-
-    // Nem todo navegador dispara 'cancel'; o focus serve de rede de
-    // seguranca para nao deixar a Promise pendurada para sempre.
     input.oncancel = () => finalizar(null)
-    window.addEventListener(
-      'focus',
-      () => setTimeout(() => finalizar(input.files?.[0] ?? null), 400),
-      { once: true }
-    )
+
+    /**
+     * A rede de seguranca para o navegador que nao dispara 'cancel'.
+     *
+     * Ela so pode agir DEPOIS que a janela perdeu o foco para a janela de
+     * arquivos. Sem essa trava, um 'focus' que chegasse antes — a propria
+     * pagina voltando a si — resolvia null com a janela ainda aberta: a
+     * pessoa escolhia o arquivo e nada acontecia, como se o app nao
+     * deixasse selecionar.
+     */
+    let janelaAbriu = false
+    const aoPerderOFoco = () => {
+      janelaAbriu = true
+    }
+    const aoTrocarDeTela = () => {
+      // No celular a janela de arquivos e outra tela, e nem sempre ha 'blur'.
+      if (document.visibilityState === 'hidden') janelaAbriu = true
+    }
+
+    const aoVoltarOFoco = () => {
+      if (!janelaAbriu) return
+      // O 'change' costuma chegar depois do 'focus'. Duas chances antes de
+      // desistir, porque com arquivo grande o navegador demora a preencher.
+      setTimeout(() => {
+        if (input.files?.length) return finalizar(input.files[0])
+        setTimeout(() => finalizar(input.files?.[0] ?? null), 1500)
+      }, 600)
+    }
+
+    window.addEventListener('blur', aoPerderOFoco)
+    window.addEventListener('focus', aoVoltarOFoco)
+    document.addEventListener('visibilitychange', aoTrocarDeTela)
 
     document.body.appendChild(input)
     input.click()

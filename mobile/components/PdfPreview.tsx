@@ -54,7 +54,12 @@ export default function PdfPreview({ uri, theme, nomeArquivo = 'relatorio.pdf', 
       <View style={[styles.wrap, style]}>
         {/* @ts-ignore - iframe e elemento web puro */}
         <iframe
-          src={uri}
+          /*
+           * Os parametros escondem a barra do visualizador do Chrome e fazem
+           * a pagina caber na largura. Sem eles, metade da area da previa era
+           * a barra preta do proprio navegador mostrando o nome do blob.
+           */
+          src={`${uri}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
           onError={() => setFalhou(true)}
           style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
           title="Prévia do PDF"

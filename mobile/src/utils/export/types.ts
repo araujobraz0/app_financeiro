@@ -5,7 +5,11 @@
 import type { EntradaItem, FixoItem, SaidaItem } from '../../../app/types'
 
 export type ExportResumo = {
+  /** "Agosto/2026" — como aparece no cabecalho do arquivo. */
   competencia: string
+  /** "Agosto". Separado para montar a data de cada lancamento. */
+  mesNome: string
+  ano: number
   salario: number
   entradas: number
   fixosPagos: number

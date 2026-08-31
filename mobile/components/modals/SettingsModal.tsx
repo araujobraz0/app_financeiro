@@ -155,7 +155,8 @@ export default function SettingsModal({
     cor: string,
     fundo: string,
     onPress: () => void,
-    ocupado: boolean
+    ocupado: boolean,
+    largo = false
   ) => (
     <PressableScale
       onPress={onPress}
@@ -163,6 +164,7 @@ export default function SettingsModal({
       scaleTo={0.96}
       style={[
         styles.azulejo,
+        largo && styles.azulejoLargo,
         { backgroundColor: fundo, borderColor: theme.border, opacity: ocupado ? 0.55 : 1 },
       ]}
     >
@@ -172,7 +174,7 @@ export default function SettingsModal({
       <Text style={[styles.azulejoTitulo, { color: theme.text }]} numberOfLines={1}>
         {ocupado ? 'Preparando...' : titulo}
       </Text>
-      <Text style={[styles.azulejoDescricao, { color: theme.muted }]} numberOfLines={2}>
+      <Text style={[styles.azulejoDescricao, { color: theme.muted }]} numberOfLines={3}>
         {descricao}
       </Text>
     </PressableScale>
@@ -328,57 +330,71 @@ export default function SettingsModal({
         </View>
       ) : null}
 
-      {/* ---------- Arquivos ---------- */}
+      {/* ---------- Arquivos ----------
+          Tirar e por dados sao coisas opostas e estavam na mesma grade, com o
+          mesmo peso: "Importar" era so o quarto quadrado, do lado de CSV.
+          Agora cada uma tem o seu titulo e o seu bloco. */}
       {secao === 'arquivos' ? (
         <View style={styles.conteudo}>
-          <View style={styles.azulejos}>
-            {azulejo(
-              'documento',
-              'PDF',
-              'Relatório visual para compartilhar',
-              theme.red,
-              theme.redSoft,
-              () => onOpenExportPreview('pdf'),
-              processingFile === 'pdf'
-            )}
-            {azulejo(
-              'planilha',
-              'Excel',
-              'Planilha organizada em abas',
-              theme.green,
-              theme.greenSoft,
-              () => onOpenExportPreview('excel'),
-              processingFile === 'excel'
-            )}
-            {azulejo(
-              'exportar',
-              'CSV',
-              'Resumo estruturado em texto',
-              theme.blue,
-              theme.blueSoft,
-              () => onOpenExportPreview('csv'),
-              processingFile === 'csv'
-            )}
-            {azulejo(
-              'importar',
-              'Importar',
-              'Extrato do banco em CSV, Excel ou OFX',
-              theme.accent,
-              theme.accentSoft,
-              onImportData,
-              processingFile === 'importar'
+          <View>
+            <Text style={[styles.tituloDoBloco, { color: theme.faint }]}>Levar para fora</Text>
+            <View style={styles.azulejos}>
+              {azulejo(
+                'documento',
+                'PDF',
+                'Relatório do mês',
+                theme.red,
+                theme.redSoft,
+                () => onOpenExportPreview('pdf'),
+                processingFile === 'pdf'
+              )}
+              {azulejo(
+                'planilha',
+                'Excel',
+                'Somar e filtrar',
+                theme.green,
+                theme.greenSoft,
+                () => onOpenExportPreview('excel'),
+                processingFile === 'excel'
+              )}
+              {azulejo(
+                'exportar',
+                'CSV',
+                'Uma linha por lançamento',
+                theme.blue,
+                theme.blueSoft,
+                () => onOpenExportPreview('csv'),
+                processingFile === 'csv'
+              )}
+            </View>
+          </View>
+
+          <View>
+            <Text style={[styles.tituloDoBloco, { color: theme.faint }]}>Trazer para dentro</Text>
+            {grupo(
+              linha(
+                'importar',
+                processingFile === 'importar' ? 'Lendo o arquivo...' : 'Importar extrato',
+                'CSV, Excel ou OFX do banco. Você confere tudo antes de entrar.',
+                seta,
+                onImportData,
+                processingFile === 'importar'
+              )
             )}
           </View>
 
-          {grupo(
-            linha(
-              'backup',
-              'Backups',
-              ultimoBackup ? `Última cópia ${haQuantoTempo(ultimoBackup)}` : 'Nenhuma cópia ainda',
-              seta,
-              onOpenBackups
-            )
-          )}
+          <View>
+            <Text style={[styles.tituloDoBloco, { color: theme.faint }]}>Cópias de segurança</Text>
+            {grupo(
+              linha(
+                'backup',
+                'Backups',
+                ultimoBackup ? `Última cópia ${haQuantoTempo(ultimoBackup)}` : 'Nenhuma cópia ainda',
+                seta,
+                onOpenBackups
+              )
+            )}
+          </View>
         </View>
       ) : null}
 
@@ -513,25 +529,34 @@ const styles = StyleSheet.create({
   fixo: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8 },
 
   dica: { fontSize: 11, fontWeight: '500', lineHeight: 16, paddingHorizontal: 2 },
+  tituloDoBloco: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
+    paddingHorizontal: 2,
+  },
 
-  azulejos: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  azulejos: { flexDirection: 'row', gap: 8 },
   azulejo: {
-    flexGrow: 1,
-    flexBasis: '46%',
+    flex: 1,
     minWidth: 0,
     borderWidth: 1,
-    borderRadius: 18,
-    padding: 13,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
   },
   azulejoIcone: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 11,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 9,
   },
-  azulejoTitulo: { fontSize: 13.5, fontWeight: '800', letterSpacing: -0.2 },
-  azulejoDescricao: { fontSize: 10.5, fontWeight: '500', lineHeight: 14, marginTop: 3 },
+  azulejoLargo: { flexBasis: '100%' },
+  azulejoTitulo: { fontSize: 12.5, fontWeight: '800', letterSpacing: -0.2 },
+  azulejoDescricao: { fontSize: 10, fontWeight: '500', lineHeight: 13, marginTop: 3 },
 })

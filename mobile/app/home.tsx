@@ -30,7 +30,7 @@ import * as Haptics from 'expo-haptics'
 import BottomTabItem from '../components/home/BottomTabItem'
 import Calendario from '../components/common/Calendario'
 import SeletorCompetencia from '../components/common/SeletorCompetencia'
-import PreviaPlanilha from '../components/modals/PreviaPlanilha'
+import PreviaExportacaoModal from '../components/modals/PreviaExportacaoModal'
 import { gerarPdfUri } from '../src/utils/export/pdfDoc'
 import { lerExtrato, lerTabela } from '../src/utils/importar/extrato'
 import type { Leitura } from '../src/utils/importar/extrato'
@@ -1800,6 +1800,8 @@ function HomeScreenContent() {
   const resumoExportacaoMes = useMemo(
     () => ({
       competencia: `${mesSelecionado}/${anoSelecionado}`,
+      mesNome: mesSelecionado,
+      ano: Number(anoSelecionado),
       salario,
       entradas: totalEntradas,
       fixosPagos: totalFixoPago,
@@ -1868,7 +1870,7 @@ function HomeScreenContent() {
   const exportarPdf = async () => {
     try {
       setProcessandoArquivo('pdf')
-      const finalUri = await gerarArquivoPdf()
+      const finalUri = previewPdfUri || (await gerarArquivoPdf())
       baixarUrl(finalUri, `${exportFileBaseName}.pdf`)
     } catch (error) {
       console.error('[pdf] Falha ao exportar PDF:', error)
@@ -1892,7 +1894,12 @@ function HomeScreenContent() {
         setPreviewPdfGerando(true)
         const uri = await gerarArquivoPdf()
         if (ativo) {
-          setPreviewPdfUri(uri)
+          setPreviewPdfUri((anterior) => {
+            if (anterior) URL.revokeObjectURL(anterior)
+            return uri
+          })
+        } else {
+          URL.revokeObjectURL(uri)
         }
       } catch (error) {
         console.error('[pdf] Falha ao gerar prévia do PDF:', error)
@@ -1907,7 +1914,10 @@ function HomeScreenContent() {
     if (previewExportacaoTipo === 'pdf') {
       prepararPreviewPdf()
     } else {
-      setPreviewPdfUri('')
+      setPreviewPdfUri((anterior) => {
+        if (anterior) URL.revokeObjectURL(anterior)
+        return ''
+      })
       setPreviewPdfGerando(false)
     }
 
@@ -1970,14 +1980,24 @@ function HomeScreenContent() {
 
     try {
       setProcessandoArquivo('importar')
-      const arquivo = await escolherArquivo('.csv,.ofx,.xls,.xlsx,.txt,text/csv,application/vnd.ms-excel')
+      const arquivo = await escolherArquivo('')
       if (!arquivo) return
 
       const nomeArquivo = String(arquivo.name || '')
       const minusculo = nomeArquivo.toLowerCase()
 
       if (minusculo.endsWith('.pdf')) {
-        Alert.alert('Importação PDF', 'A importação automática de PDF ainda não está disponível nesta versão.')
+        Alert.alert(
+          'Importação de PDF',
+          'Ainda não leio extrato em PDF. No site do banco, baixe o mesmo extrato em OFX ou CSV — costuma ser a mesma tela.'
+        )
+        return
+      }
+
+      // Agora que a janela de arquivos nao filtra nada, da para escolher uma
+      // foto por engano. Melhor dizer isso do que abrir uma previa vazia.
+      if (/\.(png|jpe?g|gif|webp|heic|zip|rar|docx?|pptx?|mp[34]|mov)$/.test(minusculo)) {
+        Alert.alert('Arquivo não é um extrato', 'Escolha o extrato do banco em CSV, Excel ou OFX.')
         return
       }
 
@@ -3852,62 +3872,18 @@ function HomeScreenContent() {
         onConfirm={confirmarRecorteImagemWeb}
       />
 
-      <AppModal visible={modalPreviewExportacaoAberto} onClose={() => setModalPreviewExportacaoAberto(false)}>
-        <View style={[styles.modalCard, styles.modalCardExportPreview, styles.modalCardWithFixedFooter, { backgroundColor: theme.card, borderColor: theme.border }]}> 
-          <View style={styles.modalContentFill}>
-            <ScrollView
-              style={styles.modalScroll}
-              contentContainerStyle={[styles.modalScrollContent, styles.modalScrollContentWithFooter]}
-              showsVerticalScrollIndicator
-              keyboardShouldPersistTaps='handled'
-            >
-              <View style={styles.exportPreviewBodyWrap}>
-                <Text style={[styles.modalTitle, { color: theme.text }]}>Prévia da exportação</Text>
-                <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 10 }]}>Formato: {previewExportacaoTipo.toUpperCase()} · Arquivo {exportFileBaseName}</Text>
-
-                {previewExportacaoTipo === 'pdf' ? (
-                  <View style={styles.exportPreviewPdfWrap}>
-                    {previewPdfGerando ? (
-                      <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft, flex: 1 }]}> 
-                        <ActivityIndicator size='large' color={theme.primary} />
-                        <Text style={[styles.emptyChartText, { color: theme.muted, marginTop: 10 }]}>Gerando PDF real...</Text>
-                      </View>
-                    ) : previewPdfUri ? (
-                      <View style={[styles.exportPreviewPdfCard, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}> 
-                        <PdfPreview
-                          style={styles.exportPreviewPdfNative}
-                          uri={previewPdfUri}
-                          theme={theme}
-                        />
-                      </View>
-                    ) : (
-                      <View style={[styles.emptyChart, { backgroundColor: theme.cardSoft, flex: 1 }]}> 
-                        <Text style={[styles.emptyChartText, { color: theme.muted }]}>Não foi possível abrir o PDF agora.</Text>
-                      </View>
-                    )}
-                  </View>
-                ) : previewExportacaoTipo === 'excel' ? (
-                  <PreviaPlanilha theme={theme} dados={dadosExportacao} />
-                ) : (
-                  <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border, marginTop: 0 }]}> 
-                    <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Prévia do CSV</Text>
-                    <View style={[styles.fullRowCard, { borderColor: theme.border, backgroundColor: theme.card, marginTop: 0 }]}> 
-                      <Text style={[styles.rowItemMeta, { color: theme.text, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }]} selectable>{buildExportRows(dadosExportacao, ';').slice(0, 1400)}</Text>
-                    </View>
-                  </View>
-                )}
-              </View>
-            </ScrollView>
-
-            <View style={[styles.modalActionsSticky, { borderTopColor: theme.border, backgroundColor: theme.card }]}> 
-              <View style={styles.modalActions}>
-                <PressableScale onPress={() => setModalPreviewExportacaoAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalActionText, { color: theme.text }]}>Fechar</Text></PressableScale>
-                <PressableScale onPress={confirmarExportacaoPreview} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>{previewExportacaoTipo === 'pdf' ? 'Compartilhar PDF' : 'Exportar'}</Text></PressableScale>
-              </View>
-            </View>
-          </View>
-        </View>
-      </AppModal>
+      <PreviaExportacaoModal
+        visible={modalPreviewExportacaoAberto}
+        onClose={() => setModalPreviewExportacaoAberto(false)}
+        theme={theme}
+        dados={dadosExportacao}
+        nomeBase={exportFileBaseName}
+        formato={previewExportacaoTipo}
+        onTrocarFormato={setPreviewExportacaoTipo}
+        pdfUri={previewPdfUri}
+        pdfGerando={previewPdfGerando}
+        onConfirmar={confirmarExportacaoPreview}
+      />
 
       <PreviaImportacaoModal
         visible={modalPreviewImportacaoAberto}
