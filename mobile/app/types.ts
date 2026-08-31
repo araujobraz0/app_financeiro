@@ -6,6 +6,13 @@ export type EntradaItem = {
   nome: string
   valor: number
   dia?: number
+  /**
+   * Identificador que o banco deu a transacao no extrato (FITID do OFX).
+   *
+   * Guardado so para que reimportar o mesmo arquivo reconheca o que ja
+   * entrou, em vez de duplicar tudo em silencio.
+   */
+  fitid?: string
 }
 
 export type SaidaItem = {
@@ -14,6 +21,8 @@ export type SaidaItem = {
   valor: number
   categoria: string
   dia?: number
+  /** Igual ao de `EntradaItem`: o identificador do extrato importado. */
+  fitid?: string
   /**
    * Lugar onde foi, quando o lancamento veio da fala ("padaria").
    *

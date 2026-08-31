@@ -32,14 +32,20 @@ import Calendario from '../components/common/Calendario'
 import SeletorCompetencia from '../components/common/SeletorCompetencia'
 import PreviaPlanilha from '../components/modals/PreviaPlanilha'
 import { gerarPdfUri } from '../src/utils/export/pdfDoc'
-import { parseCsv, parseOfx, parseTabela } from '../src/utils/importar/parse'
-import type { TransacaoImportada } from '../src/utils/importar/parse'
+import { lerExtrato, lerTabela } from '../src/utils/importar/extrato'
+import type { Leitura } from '../src/utils/importar/extrato'
+import {
+  assinaturasDoBanco,
+  montarPrevia,
+  type ItemPrevia,
+} from '../src/utils/importar/previa'
 import AppHeader from '../components/home/AppHeader'
 import BuscaGlobal from '../components/home/BuscaGlobal'
 import PeriodoSelector from '../components/home/PeriodoSelector'
 import HomeSkeleton from '../components/home/HomeSkeleton'
 import PressableScale from '../components/common/motion/PressableScale'
 import AppearIn from '../components/common/motion/AppearIn'
+import PreviaImportacaoModal from '../components/modals/PreviaImportacaoModal'
 import SelectionModal from '../components/modals/SelectionModal'
 import CategoryNameModal from '../components/modals/CategoryNameModal'
 import NoteModal, { emptyNoteFormValues } from '../components/modals/NoteModal'
@@ -368,7 +374,8 @@ function HomeScreenContent() {
   const [compraDesejoComprado, setCompraDesejoComprado] = useState(false)
   const [modalPreviewImportacaoAberto, setModalPreviewImportacaoAberto] = useState(false)
   const [arquivoImportacaoNome, setArquivoImportacaoNome] = useState('')
-  const [previewImportacao, setPreviewImportacao] = useState<{ entradas: EntradaItem[]; saidas: SaidaItem[] }>({ entradas: [], saidas: [] })
+  const [leituraImportacao, setLeituraImportacao] = useState<Leitura | null>(null)
+  const [itensImportacao, setItensImportacao] = useState<ItemPrevia[]>([])
   const [modalCalendarioAberto, setModalCalendarioAberto] = useState(false)
   const [backupsDisponiveis, setBackupsDisponiveis] = useState<{ id: string; created_at: string }[]>([])
   const [carregandoBackups, setCarregandoBackups] = useState(false)
@@ -1945,44 +1952,17 @@ function HomeScreenContent() {
   }
 
   /**
-   * Converte as transacoes lidas do arquivo nos lancamentos do app.
+   * Le o arquivo escolhido e monta a previa.
    *
-   * A leitura em si (CSV com aspas, Excel, OFX, formatos de data e de valor)
-   * mora em src/utils/importar, que e testavel isoladamente.
+   * A leitura em si (OFX 1.x e 2.x, CSV com aspas e cabecalho de banco antes
+   * da tabela, planilha, formatos de data e de valor) mora em
+   * src/utils/importar, que e testavel isoladamente. Aqui so entra o que
+   * depende do app: em que mes cada lancamento cai e o que ja foi lancado.
    */
-  const converterTransacoes = (transacoes: TransacaoImportada[]) => {
-    const importedEntradas: EntradaItem[] = []
-    const importedSaidas: SaidaItem[] = []
-    const carimbo = Date.now()
-
-    transacoes.forEach((t, indice) => {
-      const diaSeguro = Math.min(31, Math.max(1, Number(t.dia || 1)))
-
-      if (t.valor >= 0) {
-        importedEntradas.push({
-          id: `entrada-import-${carimbo}-${indice}`,
-          nome: t.descricao,
-          valor: t.valor,
-          dia: diaSeguro,
-        })
-      } else {
-        importedSaidas.push({
-          id: `saida-import-${carimbo}-${indice}`,
-          nome: t.descricao,
-          valor: Math.abs(t.valor),
-          categoria: categorizarAutomaticamente(t.descricao),
-          dia: diaSeguro,
-        })
-      }
-    })
-
-    return { importedEntradas, importedSaidas }
-  }
-
   const importarDadosBanco = async () => {
     if (
       bloquearAcaoSemPremium(
-        'Importar arquivos é um recurso premium. Ative o Brazllet Premium para importar PDF, CSV, Excel ou OFX.'
+        'Importar arquivos é um recurso premium. Ative o Brazllet Premium para importar CSV, Excel ou OFX.'
       )
     ) {
       return
@@ -1993,16 +1973,17 @@ function HomeScreenContent() {
       const arquivo = await escolherArquivo('.csv,.ofx,.xls,.xlsx,.txt,text/csv,application/vnd.ms-excel')
       if (!arquivo) return
 
-      const lowerName = String(arquivo.name || '').toLowerCase()
-      if (lowerName.endsWith('.pdf')) {
+      const nomeArquivo = String(arquivo.name || '')
+      const minusculo = nomeArquivo.toLowerCase()
+
+      if (minusculo.endsWith('.pdf')) {
         Alert.alert('Importação PDF', 'A importação automática de PDF ainda não está disponível nesta versão.')
         return
       }
 
-      let importedEntradas: EntradaItem[] = []
-      let importedSaidas: SaidaItem[] = []
+      let leitura: Leitura
 
-      if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
+      if (minusculo.endsWith('.xlsx') || minusculo.endsWith('.xls')) {
         // A planilha vira matriz de celulas direto, sem passar por texto: o
         // caminho antigo juntava as celulas com ';' e corrompia qualquer
         // descricao que ja tivesse ponto e virgula.
@@ -2014,47 +1995,123 @@ function HomeScreenContent() {
           defval: '',
           raw: true,
         })
-        ;({ importedEntradas, importedSaidas } = converterTransacoes(parseTabela(matriz)))
+        leitura = lerTabela(matriz, 'planilha')
       } else {
-        const textContent = await lerArquivoComoTexto(arquivo)
-        const transacoes = lowerName.endsWith('.ofx')
-          ? parseOfx(textContent)
-          : parseTabela(parseCsv(textContent))
-        ;({ importedEntradas, importedSaidas } = converterTransacoes(transacoes))
+        const conteudo = await lerArquivoComoTexto(arquivo)
+        leitura = lerExtrato(nomeArquivo, conteudo)
       }
-      if (!importedEntradas.length && !importedSaidas.length) {
-        Alert.alert('Importação', 'Nenhum lançamento reconhecido no arquivo.')
-        return
-      }
-      setArquivoImportacaoNome(arquivo.name || 'arquivo importado')
-      setPreviewImportacao({ entradas: importedEntradas, saidas: importedSaidas })
+
+      const itens = montarPrevia(leitura.lancamentos, {
+        competenciaPadrao: chaveAtual,
+        categorizar: categorizarAutomaticamente,
+        jaNoApp: assinaturasDoBanco(bancoDeDados),
+      })
+
+      // Mesmo vindo vazia a previa abre: e la que estao os avisos dizendo por
+      // que nada foi reconhecido. Antes so aparecia um alerta generico.
+      setArquivoImportacaoNome(nomeArquivo || 'arquivo importado')
+      setLeituraImportacao(leitura)
+      setItensImportacao(itens)
       setModalPreviewImportacaoAberto(true)
     } catch (error) {
       console.error('[importar] Falha ao importar arquivo:', error)
-      Alert.alert('Erro', 'Não foi possível importar o arquivo. Confira se o formato é CSV, OFX ou XLSX.')
+      Alert.alert('Erro', 'Não foi possível ler o arquivo. Confira se o formato é CSV, OFX ou XLSX.')
     } finally {
       setProcessandoArquivo(null)
     }
   }
 
-  const confirmarImportacaoPreview = () => {
-    const importedEntradas = previewImportacao.entradas
-    const importedSaidas = previewImportacao.saidas
-    setAppData((prev) => ({
-      ...prev,
-      bancoDeDados: {
-        ...prev.bancoDeDados,
-        [chaveAtual]: {
-          ...prev.bancoDeDados[chaveAtual],
-          entradas: [...prev.bancoDeDados[chaveAtual].entradas, ...importedEntradas],
-          saidas: [...prev.bancoDeDados[chaveAtual].saidas, ...importedSaidas],
-          categoriasSaidas: importedSaidas.length ? Array.from(new Set([...prev.bancoDeDados[chaveAtual].categoriasSaidas, ...importedSaidas.map((i) => i.categoria)])) : prev.bancoDeDados[chaveAtual].categoriasSaidas,
-        },
-      },
-    }))
+  const alternarItemImportacao = useCallback((id: string) => {
+    setItensImportacao((atuais) =>
+      atuais.map((item) => (item.id === id ? { ...item, incluir: !item.incluir } : item))
+    )
+  }, [])
+
+  const marcarTodosImportacao = useCallback((marcar: boolean) => {
+    setItensImportacao((atuais) => atuais.map((item) => ({ ...item, incluir: marcar })))
+  }, [])
+
+  const desmarcarRepetidosImportacao = useCallback(() => {
+    setItensImportacao((atuais) =>
+      atuais.map((item) => (item.repetido !== 'nao' ? { ...item, incluir: false } : item))
+    )
+  }, [])
+
+  const trocarCategoriaImportacao = useCallback((id: string, categoria: string) => {
+    setItensImportacao((atuais) =>
+      atuais.map((item) => (item.id === id ? { ...item, categoria } : item))
+    )
+  }, [])
+
+  const fecharPreviaImportacao = useCallback(() => {
     setModalPreviewImportacaoAberto(false)
-    setPreviewImportacao({ entradas: [], saidas: [] })
+    setItensImportacao([])
+    setLeituraImportacao(null)
     setArquivoImportacaoNome('')
+  }, [])
+
+  /**
+   * Grava o que ficou marcado na previa.
+   *
+   * Cada item vai para o mes da sua propria data — um extrato de tres meses
+   * nao empilha mais tudo no mes que estava aberto na tela. O mes que ainda
+   * nao existe e criado em branco na hora.
+   */
+  const confirmarImportacaoPreview = () => {
+    const marcados = itensImportacao.filter((item) => item.incluir)
+    if (!marcados.length) return
+
+    const carimbo = Date.now()
+
+    setAppData((prev) => {
+      const banco = { ...prev.bancoDeDados }
+
+      marcados.forEach((item, indice) => {
+        const mes = banco[item.competencia] || mesEmBranco()
+
+        if (item.tipo === 'entrada') {
+          banco[item.competencia] = {
+            ...mes,
+            entradas: [
+              ...mes.entradas,
+              {
+                id: `entrada-import-${carimbo}-${indice}`,
+                nome: item.descricao,
+                valor: item.valor,
+                dia: item.dia,
+                // Guardado para que a proxima importacao do mesmo extrato
+                // reconheca o que ja entrou.
+                ...(item.fitid ? { fitid: item.fitid } : {}),
+              },
+            ],
+          }
+          return
+        }
+
+        const categoria = item.categoria || 'Extra'
+        banco[item.competencia] = {
+          ...mes,
+          saidas: [
+            ...mes.saidas,
+            {
+              id: `saida-import-${carimbo}-${indice}`,
+              nome: item.descricao,
+              valor: item.valor,
+              categoria,
+              dia: item.dia,
+              ...(item.fitid ? { fitid: item.fitid } : {}),
+            },
+          ],
+          categoriasSaidas: mes.categoriasSaidas.includes(categoria)
+            ? mes.categoriasSaidas
+            : [...mes.categoriasSaidas, categoria],
+        }
+      })
+
+      return { ...prev, bancoDeDados: banco }
+    })
+
+    fecharPreviaImportacao()
   }
 
   const iniciarEdicaoSalario = () => {
@@ -3852,26 +3909,20 @@ function HomeScreenContent() {
         </View>
       </AppModal>
 
-      <AppModal visible={modalPreviewImportacaoAberto} onClose={() => setModalPreviewImportacaoAberto(false)}>
-        <View style={[styles.modalCard, styles.modalCardSettings, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.modalTitle, { color: theme.text }]}>Prévia da importação</Text>
-          <Text style={[styles.rowItemMeta, { color: theme.muted, marginBottom: 10 }]}>Arquivo: {arquivoImportacaoNome}</Text>
-          <ScrollView style={styles.modalSettingsScroll} showsVerticalScrollIndicator={false}>
-            <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Entradas reconhecidas ({previewImportacao.entradas.length})</Text>
-              {previewImportacao.entradas.length === 0 ? <Text style={[styles.rowItemMeta, { color: theme.muted }]}>Nenhuma entrada</Text> : previewImportacao.entradas.slice(0, 8).map((item) => <View key={item.id} style={[styles.fullRowCard, { borderColor: theme.border, backgroundColor: theme.card }]}><Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.nome}</Text><Text style={[styles.rowItemMeta, { color: theme.muted }]}>{formatarValorVisivel(item.valor)} · {formatarDiaMes(item.dia, chaveAtual)}</Text></View>)}
-            </View>
-            <View style={[styles.settingsCard, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
-              <Text style={[styles.settingsSectionTitle, { color: theme.text }]}>Saídas reconhecidas ({previewImportacao.saidas.length})</Text>
-              {previewImportacao.saidas.length === 0 ? <Text style={[styles.rowItemMeta, { color: theme.muted }]}>Nenhuma saída</Text> : previewImportacao.saidas.slice(0, 8).map((item) => <View key={item.id} style={[styles.fullRowCard, { borderColor: theme.border, backgroundColor: theme.card }]}><Text style={[styles.rowItemTitle, { color: theme.text }]}>{item.nome}</Text><Text style={[styles.rowItemMeta, { color: theme.muted }]}>{item.categoria} · {formatarValorVisivel(item.valor)} · {formatarDiaMes(item.dia, chaveAtual)}</Text></View>)}
-            </View>
-          </ScrollView>
-          <View style={styles.modalActions}>
-            <PressableScale onPress={() => setModalPreviewImportacaoAberto(false)} style={[styles.modalActionBtn, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}><Text style={[styles.modalActionText, { color: theme.text }]}>Cancelar</Text></PressableScale>
-            <PressableScale onPress={confirmarImportacaoPreview} style={[styles.modalActionBtn, { backgroundColor: theme.primary }]}><Text style={[styles.modalActionText, { color: theme.white }]}>Importar</Text></PressableScale>
-          </View>
-        </View>
-      </AppModal>
+      <PreviaImportacaoModal
+        visible={modalPreviewImportacaoAberto}
+        onClose={fecharPreviaImportacao}
+        theme={theme}
+        nomeArquivo={arquivoImportacaoNome}
+        leitura={leituraImportacao}
+        itens={itensImportacao}
+        categorias={categoriasSaidas}
+        onAlternarItem={alternarItemImportacao}
+        onMarcarTodos={marcarTodosImportacao}
+        onDesmarcarRepetidos={desmarcarRepetidosImportacao}
+        onTrocarCategoria={trocarCategoriaImportacao}
+        onConfirmar={confirmarImportacaoPreview}
+      />
 
       <ShoppingWishModal
         key={`wish-${wishFormKey}`}

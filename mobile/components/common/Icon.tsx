@@ -61,6 +61,18 @@ const GLYPHS = {
   refazer: 'arrow-redo-outline',
   microfone: 'mic',
   microfone_vazio: 'mic-outline',
+  alerta: 'alert-circle-outline',
+  aviso: 'information-circle-outline',
+  caixa_marcada: 'checkbox',
+  caixa_vazia: 'square-outline',
+  entrada: 'arrow-down-circle-outline',
+  saida: 'arrow-up-circle-outline',
+  repetido: 'copy-outline',
+  pasta: 'folder-open-outline',
+  etiqueta: 'pricetag-outline',
+  escudo: 'shield-checkmark-outline',
+  paleta: 'color-palette-outline',
+  pessoa: 'person-circle-outline',
 } satisfies Record<string, IoniconName>
 
 export type IconName = keyof typeof GLYPHS

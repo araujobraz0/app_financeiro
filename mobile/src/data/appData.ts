@@ -227,6 +227,9 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
           nome: item.nome || '',
           valor: Number(item.valor || 0),
           dia: Number(item.dia || 1),
+          // Sem guardar o identificador do extrato, reimportar o mesmo
+          // arquivo duplicaria tudo depois de recarregar o app.
+          fitid: item.fitid ? String(item.fitid) : undefined,
         })),
         // Copia legada, so para a migracao poder reler.
         //
@@ -260,6 +263,7 @@ export function normalizarAppData(dataOriginal: unknown): AppData {
           // Sem isto o lugar dito na fala se perdia a cada carga, e o "valor
           // do ultimo" nunca encontrava nada.
           referencia: item.referencia ? String(item.referencia) : undefined,
+          fitid: item.fitid ? String(item.fitid) : undefined,
         })),
         categoriasSaidas: categoriasNormalizadas,
       }
