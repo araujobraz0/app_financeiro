@@ -92,11 +92,38 @@ function registrarServiceWorker() {
   if (!('serviceWorker' in navigator)) return
 
   const registrar = () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      // Modo anonimo, http sem TLS, permissao negada: nada a fazer.
-    })
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then(() => contarOQueCarregou())
+      .catch(() => {
+        // Modo anonimo, http sem TLS, permissao negada: nada a fazer.
+      })
   }
 
   if (document.readyState === 'complete') registrar()
   else window.addEventListener('load', registrar, { once: true })
+}
+
+/**
+ * Conta ao service worker quais arquivos esta pagina realmente usou.
+ *
+ * Ele guarda no cache o que ainda nao tiver. Sem isto, o que a pagina carrega
+ * antes de o service worker assumir — o proprio JavaScript do app, as fontes
+ * dos icones — so entrava no cache na segunda visita. Quem instalava o app e
+ * ficava sem internet antes disso via uma tela branca.
+ */
+async function contarOQueCarregou() {
+  try {
+    const ativo = (await navigator.serviceWorker.ready).active
+    if (!ativo) return
+
+    const daPagina = performance
+      .getEntriesByType('resource')
+      .map((entrada) => entrada.name)
+      .filter((endereco) => endereco.startsWith(window.location.origin))
+
+    ativo.postMessage({ tipo: 'guardar-o-que-usei', enderecos: Array.from(new Set(daPagina)) })
+  } catch {
+    // Sem service worker pronto: o cache se completa na proxima visita.
+  }
 }

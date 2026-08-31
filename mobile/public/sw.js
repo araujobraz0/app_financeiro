@@ -5,7 +5,18 @@
 // batia numa tela branca do navegador — mesmo com todos os dados do mes ja
 // gravados no aparelho.
 //
-// A estrategia muda conforme o pedido, e a diferenca importa:
+// A versao anterior guardava a casca (o index.html) e mais nada util: o
+// JavaScript do app so entrava no cache se fosse pedido DEPOIS que o service
+// worker assumisse a pagina, e ele assume no fim do primeiro carregamento —
+// quando o JavaScript ja tinha sido baixado. Resultado: a casca abria sem
+// internet e ficava numa tela branca, porque o app em si nao estava guardado.
+//
+// Agora a instalacao le o proprio index.html, tira dali os endereços dos
+// arquivos que ele carrega e guarda todos. E a pagina, depois de carregar,
+// manda a lista do que realmente usou (fontes, pedacos carregados sob demanda)
+// para o service worker guardar tambem.
+//
+// A estrategia de resposta muda conforme o pedido, e a diferenca importa:
 //
 //   - Os arquivos de codigo tem o hash do conteudo no nome (/_expo/static/...).
 //     Um nome nunca aponta para dois conteudos, entao guardar para sempre e
@@ -19,21 +30,60 @@
 //   - Nada do Supabase e guardado. Sao os dados da conta: servir uma copia
 //     velha faria o app mostrar saldo errado, que e pior do que nao abrir.
 
-const VERSAO = 'brazllet-v1'
+const VERSAO = 'brazllet-v2'
 const CASCA = `${VERSAO}-casca`
 const ESTATICOS = `${VERSAO}-estaticos`
 
-/** O minimo para a primeira tela existir sem rede. */
-const ESSENCIAIS = ['/', '/index.html', '/manifest.json', '/icones/icone-192.png']
+/** O que existe independente do build. */
+const FIXOS = ['/', '/index.html', '/manifest.json', '/icones/icone-192.png']
+
+/**
+ * Os arquivos que o index.html carrega.
+ *
+ * O nome deles muda a cada build (tem o hash do conteudo), entao nao da para
+ * escrever aqui uma lista fixa: ela envelheceria no primeiro deploy. Ler o
+ * HTML e tirar os endereços de dentro dele funciona em qualquer build.
+ */
+async function arquivosDoIndex() {
+  try {
+    const resposta = await fetch('/index.html', { cache: 'reload' })
+    if (!resposta.ok) return []
+
+    const html = await resposta.text()
+    const achados = html.matchAll(/(?:src|href)\s*=\s*"([^"]+)"/g)
+
+    return Array.from(achados, (achado) => achado[1]).filter(
+      (endereco) => endereco.startsWith('/') && !endereco.startsWith('//')
+    )
+  } catch {
+    return []
+  }
+}
+
+/** Guarda um por um: um endereco que falhe nao derruba os outros. */
+async function guardarTodos(nomeDoCache, enderecos) {
+  const cache = await caches.open(nomeDoCache)
+
+  await Promise.all(
+    enderecos.map(async (endereco) => {
+      try {
+        const resposta = await fetch(endereco, { cache: 'reload' })
+        if (resposta.ok) await cache.put(endereco, resposta)
+      } catch {
+        // Sem rede ou arquivo que nao existe neste build: seguir.
+      }
+    })
+  )
+}
 
 self.addEventListener('install', (evento) => {
   evento.waitUntil(
-    caches
-      .open(CASCA)
-      .then((cache) => cache.addAll(ESSENCIAIS))
-      // Um essencial que falhe nao pode impedir a instalacao inteira.
-      .catch(() => undefined)
-      .then(() => self.skipWaiting())
+    (async () => {
+      const doIndex = await arquivosDoIndex()
+      await guardarTodos(CASCA, FIXOS)
+      await guardarTodos(ESTATICOS, doIndex)
+      await self.skipWaiting()
+    })()
   )
 })
 
@@ -49,6 +99,37 @@ self.addEventListener('activate', (evento) => {
         )
       )
       .then(() => self.clients.claim())
+  )
+})
+
+/**
+ * A pagina conta o que carregou, e o que ainda nao esta guardado entra.
+ *
+ * Cobre o que o index.html nao lista: as fontes dos icones e os pedacos de
+ * codigo carregados sob demanda. Sem isto, eles so entravam no cache na
+ * segunda visita, e a primeira visita seguida de queda de internet dava tela
+ * branca.
+ */
+self.addEventListener('message', (evento) => {
+  const dados = evento.data
+  if (!dados || dados.tipo !== 'guardar-o-que-usei' || !Array.isArray(dados.enderecos)) return
+
+  evento.waitUntil(
+    (async () => {
+      const cache = await caches.open(ESTATICOS)
+
+      await Promise.all(
+        dados.enderecos.slice(0, 120).map(async (endereco) => {
+          try {
+            if (await cache.match(endereco)) return
+            const resposta = await fetch(endereco)
+            if (resposta.ok && resposta.status === 200) await cache.put(endereco, resposta)
+          } catch {
+            // Nada a fazer: e so um aquecimento de cache.
+          }
+        })
+      )
+    })()
   )
 })
 
@@ -85,7 +166,7 @@ self.addEventListener('fetch', (evento) => {
           return resposta
         })
         .catch(async () => {
-          const guardado = await caches.match('/index.html')
+          const guardado = (await caches.match('/index.html')) || (await caches.match('/'))
           return (
             guardado ||
             new Response('<h1>Sem conexão</h1><p>Abra de novo quando a internet voltar.</p>', {

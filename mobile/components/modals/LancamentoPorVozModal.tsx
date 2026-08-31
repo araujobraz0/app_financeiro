@@ -33,7 +33,12 @@ import {
   type ContextoFala,
   type FalaInterpretada,
 } from '../../src/utils/fala'
-import { explicarErro, navegadorOuve, ouvir } from '../../src/utils/reconhecimentoDeVoz'
+import {
+  explicarErro,
+  garantirMicrofone,
+  navegadorOuve,
+  ouvir,
+} from '../../src/utils/reconhecimentoDeVoz'
 import Icon from '../common/Icon'
 import ModalSheet from '../common/ModalSheet'
 import AppearIn from '../common/motion/AppearIn'
@@ -322,9 +327,23 @@ export default function LancamentoPorVozModal({
     })
   }
 
-  const iniciar = () => {
+  const iniciar = async () => {
     setErro('')
     setAviso('')
+
+    /**
+     * O pedido de permissao vem antes de ligar o reconhecimento.
+     *
+     * Assim ele passa pelo caminho que o navegador guarda, e a permissao vale
+     * para as proximas vezes — antes, o pedido saia do proprio reconhecimento
+     * e voltava a aparecer a cada abertura do app.
+     */
+    const permissao = await garantirMicrofone()
+    if (permissao === 'negado') {
+      setErro(explicarErro('not-allowed'))
+      return
+    }
+
     seguirRef.current = true
     setOuvindo(true)
     armarOcioso()

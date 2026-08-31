@@ -11,7 +11,7 @@
 // item e trocar a categoria de cada saida antes de gravar.
 
 import { useMemo, useState } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, TextInput, View } from 'react-native'
 
 import type { Tema } from '../../app/types'
 import { formatarMoeda } from '../../src/utils/currency'
@@ -19,6 +19,7 @@ import type { Leitura } from '../../src/utils/importar/extrato'
 import {
   competenciaEmTexto,
   descreverLeitura,
+  explicarRepeticao,
   resumirPrevia,
   type ItemPrevia,
 } from '../../src/utils/importar/previa'
@@ -49,6 +50,14 @@ type Props = {
 /** Quantos itens aparecem antes do botao de mostrar mais. */
 const PASSO = 40
 
+/** Busca sem acento e sem caixa: "SAUDE" acha "Saúde". */
+const semAcento = (texto: string) =>
+  String(texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+
 const ICONE_DO_FORMATO: Record<string, IconName> = {
   ofx: 'cartao',
   csv: 'documento',
@@ -75,6 +84,7 @@ export default function PreviaImportacaoModal({
   const [editandoCategoria, setEditandoCategoria] = useState<string | null>(null)
   /** Nome do arquivo que a lista esta mostrando; vazio mostra todos. */
   const [arquivoAtivo, setArquivoAtivo] = useState('')
+  const [busca, setBusca] = useState('')
 
   const resumo = useMemo(() => resumirPrevia(itens), [itens])
 
@@ -126,8 +136,36 @@ export default function PreviaImportacaoModal({
     [filtrados, arquivoAtivo]
   )
 
-  const visiveis = filtradosPorArquivo.slice(0, limite)
-  const restantes = filtradosPorArquivo.length - visiveis.length
+  /**
+   * A busca olha tudo que aparece na linha.
+   *
+   * Um extrato de banco tem centenas de linhas, e a duvida quase sempre e
+   * sobre uma so ("aquele mercado entrou?"). Sem busca, so rolando.
+   */
+  const buscados = useMemo(() => {
+    const alvo = semAcento(busca)
+    if (!alvo) return filtradosPorArquivo
+
+    return filtradosPorArquivo.filter((item) => {
+      const valor = formatarMoeda(item.valor)
+      const campos = [
+        item.descricao,
+        item.categoria,
+        item.arquivo,
+        competenciaEmTexto(item.competencia),
+        `${String(item.dia).padStart(2, '0')}`,
+        valor,
+        // Sem o "R$" e sem o separador de milhar, para "45,90" e "4590"
+        // acharem o mesmo lancamento.
+        valor.replace(/[^\d,]/g, ''),
+        item.valor.toFixed(2).replace('.', ','),
+      ]
+      return campos.some((campo) => semAcento(String(campo)).includes(alvo))
+    })
+  }, [filtradosPorArquivo, busca])
+
+  const visiveis = buscados.slice(0, limite)
+  const restantes = buscados.length - visiveis.length
   const vazio = itens.length === 0
 
   const trocarFiltro = (novo: Filtro) => {
@@ -207,6 +245,7 @@ export default function PreviaImportacaoModal({
   const linhaItem = (item: ItemPrevia) => {
     const ehEntrada = item.tipo === 'entrada'
     const cor = ehEntrada ? theme.green : theme.red
+    const explicacao = explicarRepeticao(item)
 
     return (
       <PressableScale
@@ -268,6 +307,14 @@ export default function PreviaImportacaoModal({
               </View>
             ) : null}
           </View>
+
+          {/* Com o que ele repete: sem isto o selo obrigava a sair
+              procurando o par na lista ou no proprio app. */}
+          {explicacao ? (
+            <Text style={[styles.repeticao, { color: theme.accent }]} numberOfLines={2}>
+              {explicacao}
+            </Text>
+          ) : null}
         </View>
 
         <Text style={[styles.itemValor, { color: cor }]} numberOfLines={1}>
@@ -417,6 +464,34 @@ export default function PreviaImportacaoModal({
                 )
               : null}
 
+            {/* ---------- Buscar ---------- */}
+            <View style={[styles.busca, { backgroundColor: theme.cardSoft, borderColor: theme.border }]}>
+              <Icon name="busca" size={15} color={theme.faint} />
+              <TextInput
+                value={busca}
+                onChangeText={(texto) => {
+                  setBusca(texto)
+                  setLimite(PASSO)
+                }}
+                placeholder="Buscar nesta lista"
+                placeholderTextColor={theme.faint}
+                style={[styles.buscaEntrada, { color: theme.text }]}
+                autoCorrect={false}
+              />
+              {busca ? (
+                <PressableScale
+                  onPress={() => {
+                    setBusca('')
+                    setLimite(PASSO)
+                  }}
+                  scaleTo={0.9}
+                  accessibilityLabel="Limpar a busca"
+                >
+                  <Icon name="excluir" size={15} color={theme.faint} />
+                </PressableScale>
+              ) : null}
+            </View>
+
             {/* ---------- Filtro e acoes em massa ---------- */}
             <View style={styles.chips}>
               {chipFiltro('tudo', 'Tudo')}
@@ -437,7 +512,11 @@ export default function PreviaImportacaoModal({
             <View style={styles.lista}>
               {visiveis.length === 0 ? (
                 <Text style={[styles.vazio, { color: theme.muted }]}>
-                  {arquivoAtivo ? 'Nada deste arquivo neste filtro.' : 'Nada neste filtro.'}
+                  {busca
+                    ? `Nada com "${busca}" por aqui.`
+                    : arquivoAtivo
+                      ? 'Nada deste arquivo neste filtro.'
+                      : 'Nada neste filtro.'}
                 </Text>
               ) : (
                 visiveis.map(linhaItem)
@@ -542,7 +621,21 @@ const styles = StyleSheet.create({
   mesNome: { fontSize: 12.5, fontWeight: '800', flexShrink: 1, minWidth: 0 },
   mesContagem: { fontSize: 11, fontWeight: '600' },
 
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 20 },
+  busca: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    minHeight: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+    marginTop: 20,
+  },
+  // minWidth: 0 e obrigatorio: na web o TextInput vira <input>, que tem uma
+  // largura minima propria e nao encolhe dentro da linha sem isso.
+  buscaEntrada: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: '600', paddingVertical: 10 },
+
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 },
   chip: {
     minHeight: 32,
     paddingHorizontal: 13,
@@ -597,6 +690,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   seloTexto: { fontSize: 10, fontWeight: '700' },
+  repeticao: { fontSize: 10.5, fontWeight: '600', lineHeight: 14, marginTop: 5 },
   itemValor: { fontSize: 12.5, fontWeight: '800', letterSpacing: -0.2 },
 
   mostrarMais: {

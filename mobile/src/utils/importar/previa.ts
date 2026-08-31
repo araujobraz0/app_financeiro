@@ -18,6 +18,24 @@ export type TipoItem = 'entrada' | 'saida'
 /** Por que o item foi marcado como repetido. */
 export type Repeticao = 'nao' | 'arquivo' | 'app'
 
+/**
+ * Com qual lancamento este repete.
+ *
+ * Dizer so "repetido" obriga a pessoa a sair procurando o par: era ela quem
+ * tinha de descobrir se o app ja tinha aquilo ou se o par estava na propria
+ * lista, e em qual dos arquivos. Guardar a outra ponta responde isso na
+ * propria linha.
+ */
+export type OndeRepete = {
+  descricao: string
+  competencia: string
+  dia: number
+  /** Sempre positivo. */
+  valor: number
+  /** Nome do arquivo, quando o par veio da propria importacao. */
+  arquivo: string
+}
+
 export type ItemPrevia = {
   /** Identificador do item dentro da previa. */
   id: string
@@ -33,6 +51,8 @@ export type ItemPrevia = {
   /** Se o arquivo trouxe a data, ou se a competencia e um palpite. */
   temData: boolean
   repetido: Repeticao
+  /** O lancamento com que este repete, quando repete. */
+  repeteDe: OndeRepete | null
   incluir: boolean
   /** O identificador do banco, guardado para a proxima importacao. */
   fitid: string
@@ -65,7 +85,7 @@ type OpcoesPrevia = {
   /** De que categoria e cada saida, pela descricao. */
   categorizar: (descricao: string) => string
   /** Assinaturas do que ja esta gravado (veja `assinaturasDoBanco`). */
-  jaNoApp?: Set<string>
+  jaNoApp?: Map<string, OndeRepete>
 }
 
 const semAcento = (texto: string) =>
@@ -106,21 +126,38 @@ export function assinatura(
   return [competencia, tipo, semAcento(descricao), Math.round(Math.abs(valor) * 100), dia].join('|')
 }
 
-/** Todas as assinaturas do que ja esta gravado, para comparar com o arquivo. */
+/**
+ * O que ja esta gravado, por assinatura.
+ *
+ * E um mapa, e nao um conjunto, porque a previa precisa dizer com qual
+ * lancamento cada repetido bate — nao so que bate com algum.
+ */
 export function assinaturasDoBanco(
   banco: Record<string, { entradas?: ItemGravado[]; saidas?: ItemGravado[] }>
-): Set<string> {
-  const marcas = new Set<string>()
+): Map<string, OndeRepete> {
+  const marcas = new Map<string, OndeRepete>()
+
+  const guardar = (competencia: string, tipo: TipoItem, item: ItemGravado) => {
+    const dia = Number(item.dia || 1)
+    const onde: OndeRepete = {
+      descricao: item.nome,
+      competencia,
+      dia,
+      valor: Math.abs(item.valor),
+      arquivo: '',
+    }
+
+    // A primeira ocorrencia manda: se ha dois lancamentos identicos gravados,
+    // apontar para o primeiro e tao util quanto apontar para o segundo.
+    if (item.fitid && !marcas.has(`fitid|${item.fitid}`)) marcas.set(`fitid|${item.fitid}`, onde)
+
+    const marca = assinatura(competencia, tipo, item.nome, item.valor, dia)
+    if (!marcas.has(marca)) marcas.set(marca, onde)
+  }
 
   Object.entries(banco || {}).forEach(([competencia, mes]) => {
-    ;(mes?.entradas || []).forEach((item) => {
-      if (item.fitid) marcas.add(`fitid|${item.fitid}`)
-      marcas.add(assinatura(competencia, 'entrada', item.nome, item.valor, Number(item.dia || 1)))
-    })
-    ;(mes?.saidas || []).forEach((item) => {
-      if (item.fitid) marcas.add(`fitid|${item.fitid}`)
-      marcas.add(assinatura(competencia, 'saida', item.nome, item.valor, Number(item.dia || 1)))
-    })
+    ;(mes?.entradas || []).forEach((item) => guardar(competencia, 'entrada', item))
+    ;(mes?.saidas || []).forEach((item) => guardar(competencia, 'saida', item))
   })
 
   return marcas
@@ -131,7 +168,7 @@ export function montarPrevia(
   lancamentos: LancamentoImportado[],
   opcoes: OpcoesPrevia
 ): ItemPrevia[] {
-  const vistasNoArquivo = new Set<string>()
+  const vistasNoArquivo = new Map<string, OndeRepete>()
 
   return lancamentos.map((lancamento, indice) => {
     const tipo: TipoItem = lancamento.valor >= 0 ? 'entrada' : 'saida'
@@ -150,10 +187,35 @@ export function montarPrevia(
     const marcas = [assinatura(competencia, tipo, descricao, lancamento.valor, dia)]
     if (lancamento.fitid) marcas.unshift(`fitid|${lancamento.fitid}`)
 
+    const procurar = (onde: Map<string, OndeRepete>) => {
+      for (const marca of marcas) {
+        const achado = onde.get(marca)
+        if (achado) return achado
+      }
+      return null
+    }
+
     let repetido: Repeticao = 'nao'
-    if (marcas.some((marca) => vistasNoArquivo.has(marca))) repetido = 'arquivo'
-    else if (marcas.some((marca) => opcoes.jaNoApp?.has(marca))) repetido = 'app'
-    marcas.forEach((marca) => vistasNoArquivo.add(marca))
+    let repeteDe = procurar(vistasNoArquivo)
+
+    if (repeteDe) {
+      repetido = 'arquivo'
+    } else if (opcoes.jaNoApp) {
+      repeteDe = procurar(opcoes.jaNoApp)
+      if (repeteDe) repetido = 'app'
+    }
+
+    // A primeira linha fica sendo a referencia das proximas iguais.
+    const este: OndeRepete = {
+      descricao,
+      competencia,
+      dia,
+      valor: Math.abs(lancamento.valor),
+      arquivo: lancamento.arquivo || '',
+    }
+    marcas.forEach((marca) => {
+      if (!vistasNoArquivo.has(marca)) vistasNoArquivo.set(marca, este)
+    })
 
     return {
       id: `previa-${indice}-${lancamento.chave}`,
@@ -165,6 +227,7 @@ export function montarPrevia(
       categoria: tipo === 'saida' ? opcoes.categorizar(descricao) : '',
       temData: Boolean(lancamento.data.mes),
       repetido,
+      repeteDe,
       // O que ja existe entra desmarcado: repetir lancamento e o erro mais
       // caro da importacao, porque bagunca o saldo sem avisar.
       incluir: repetido === 'nao',
@@ -211,6 +274,26 @@ function ordemDaCompetencia(chave: string) {
   const [ano, mes] = String(chave || '').split('-')
   const indice = meses.indexOf(mes)
   return Number(ano) * 12 + (indice >= 0 ? indice : 0)
+}
+
+/**
+ * A frase que diz com o que o lancamento repete.
+ *
+ * Vazia quando ele nao repete nada. O nome do outro entra sempre, mesmo
+ * parecendo redundante: quando a comparacao foi pelo identificador do banco,
+ * os dois nomes podem ser diferentes — e ai e essa linha que explica por que
+ * o app achou que sao a mesma coisa.
+ */
+export function explicarRepeticao(item: ItemPrevia): string {
+  if (item.repetido === 'nao' || !item.repeteDe) return ''
+
+  const par = item.repeteDe
+  const quando = `${String(par.dia).padStart(2, '0')} de ${competenciaEmTexto(par.competencia)}`
+  const oQue = `"${par.descricao}", ${quando}`
+
+  if (item.repetido === 'app') return `Já está no app: ${oQue}.`
+  if (par.arquivo && par.arquivo !== item.arquivo) return `Igual a ${oQue}, de ${par.arquivo}.`
+  return `Igual a ${oQue}, deste mesmo arquivo.`
 }
 
 /** "Agosto de 2026" — como o mes de destino aparece na previa. */

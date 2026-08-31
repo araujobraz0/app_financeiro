@@ -38,6 +38,55 @@ export function navegadorOuve() {
   return construtor() !== null
 }
 
+/**
+ * Pede o microfone uma vez so, de um jeito que o navegador guarde.
+ *
+ * O reconhecimento de fala do Chrome tambem pede o microfone, mas por um
+ * caminho que nem sempre deixa marca: a pessoa permitia, fechava o app, e na
+ * proxima vez o pedido voltava. `getUserMedia` e o pedido normal de
+ * permissao, aquele que fica salvo para o site.
+ *
+ * Antes disso, `permissions.query` responde se ja foi concedido — e ai nao ha
+ * pedido nenhum a fazer. Nem todo navegador conhece a chave 'microphone'
+ * (Firefox e Safari nao), entao a consulta falhando so significa seguir para
+ * o pedido de verdade.
+ *
+ * A trilha e solta na hora: manter o microfone aberto acende o indicador de
+ * gravacao do sistema sem motivo, e o reconhecimento abre o seu proprio.
+ */
+export async function garantirMicrofone(): Promise<'ok' | 'negado' | 'indisponivel'> {
+  if (Platform.OS !== 'web' || typeof navigator === 'undefined') return 'indisponivel'
+
+  try {
+    const consulta = (navigator as any).permissions?.query
+    if (consulta) {
+      const estado = await (navigator as any).permissions.query({ name: 'microphone' })
+      if (estado?.state === 'granted') return 'ok'
+      if (estado?.state === 'denied') return 'negado'
+    }
+  } catch {
+    // Navegador sem essa chave: seguir para o pedido.
+  }
+
+  if (!navigator.mediaDevices?.getUserMedia) return 'indisponivel'
+
+  try {
+    const fluxo = await navigator.mediaDevices.getUserMedia({ audio: true })
+    fluxo.getTracks().forEach((trilha) => trilha.stop())
+    return 'ok'
+  } catch (erro: any) {
+    /**
+     * So e "negado" quando a pessoa recusou de verdade.
+     *
+     * Aparelho sem microfone, driver ocupado ou qualquer outra falha viram
+     * 'indisponivel', e ai o reconhecimento ainda tenta — bloquear a fala por
+     * causa de um erro que nao e recusa seria trocar um defeito por outro.
+     */
+    const nome = String(erro?.name || '')
+    return nome === 'NotAllowedError' || nome === 'SecurityError' ? 'negado' : 'indisponivel'
+  }
+}
+
 type Opcoes = {
   onTexto: (texto: string) => void
   onErro: (motivo: string) => void
