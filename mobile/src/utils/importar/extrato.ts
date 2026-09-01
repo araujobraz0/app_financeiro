@@ -129,6 +129,35 @@ function tagOfx(bloco: string, nomes: string[]) {
   return ''
 }
 
+/**
+ * Os identificadores que aparecem em transacoes diferentes.
+ *
+ * Aparecer duas vezes com o mesmo conteudo e a mesma transacao repetida no
+ * arquivo, o que e legitimo. Aparecer com conteudo diferente prova que aquele
+ * numero nao identifica nada.
+ */
+function fitidsNaoConfiaveis(lancamentos: LancamentoImportado[]): Set<string> {
+  const conteudoDe = new Map<string, string>()
+  const suspeitos = new Set<string>()
+
+  for (const lancamento of lancamentos) {
+    if (!lancamento.fitid) continue
+
+    const conteudo = montarChave([
+      lancamento.descricao,
+      lancamento.valor,
+      lancamento.data.dia,
+      lancamento.data.mes,
+    ])
+    const anterior = conteudoDe.get(lancamento.fitid)
+
+    if (anterior === undefined) conteudoDe.set(lancamento.fitid, conteudo)
+    else if (anterior !== conteudo) suspeitos.add(lancamento.fitid)
+  }
+
+  return suspeitos
+}
+
 export function lerOfx(texto: string): Leitura {
   const avisos: string[] = []
 
@@ -171,6 +200,38 @@ export function lerOfx(texto: string): Leitura {
       fitid,
       arquivo: '',
     })
+  }
+
+  const repetidos = fitidsNaoConfiaveis(lancamentos)
+  if (repetidos.size) {
+    /**
+     * Banco que repete o identificador nao pode mandar na comparacao.
+     *
+     * O FITID deveria ser unico por transacao, e o app confiava nisso: era a
+     * melhor chave que havia para reconhecer o que ja tinha sido importado.
+     * So que ha banco que carimba o mesmo identificador em varios
+     * lancamentos — as remuneracoes diarias da aplicacao automatica sao o
+     * caso classico. Com isso, uma compra qualquer aparecia como repeticao de
+     * um rendimento de um centavo, so porque os dois traziam o mesmo numero.
+     *
+     * Um identificador que se repete com conteudo diferente nao e
+     * identificador. Aqui ele e jogado fora, e a comparacao volta a ser por
+     * nome, valor e data — que e o que sempre funcionou.
+     */
+    lancamentos.forEach((lancamento) => {
+      if (!repetidos.has(lancamento.fitid)) return
+      lancamento.fitid = ''
+      lancamento.chave = montarChave([
+        lancamento.descricao,
+        lancamento.valor,
+        lancamento.data.dia,
+        lancamento.data.mes,
+      ])
+    })
+
+    avisos.push(
+      'Este banco repete o mesmo identificador em lançamentos diferentes; comparei por nome, valor e data.'
+    )
   }
 
   if (descartados > 0) {

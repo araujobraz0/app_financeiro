@@ -136,6 +136,16 @@ export function assinaturasDoBanco(
   banco: Record<string, { entradas?: ItemGravado[]; saidas?: ItemGravado[] }>
 ): Map<string, OndeRepete> {
   const marcas = new Map<string, OndeRepete>()
+  /**
+   * Identificadores gravados que aparecem em lancamentos diferentes.
+   *
+   * Ha banco que repete o mesmo FITID — as remuneracoes diarias da aplicacao
+   * automatica sao o caso classico —, e importacoes antigas ja gravaram esses
+   * numeros aqui dentro. Um identificador assim nao pode reconhecer nada:
+   * fazia uma compra qualquer aparecer como repeticao de um rendimento de um
+   * centavo. Ele sai da comparacao, que volta a ser por nome, valor e data.
+   */
+  const naoConfiaveis = new Set<string>()
 
   const guardar = (competencia: string, tipo: TipoItem, item: ItemGravado) => {
     const dia = Number(item.dia || 1)
@@ -147,10 +157,18 @@ export function assinaturasDoBanco(
       arquivo: '',
     }
 
+    if (item.fitid) {
+      const chave = `fitid|${item.fitid}`
+      const anterior = marcas.get(chave)
+
+      if (!anterior) marcas.set(chave, onde)
+      else if (!mesmoLancamento(anterior, onde)) {
+        naoConfiaveis.add(chave)
+      }
+    }
+
     // A primeira ocorrencia manda: se ha dois lancamentos identicos gravados,
     // apontar para o primeiro e tao util quanto apontar para o segundo.
-    if (item.fitid && !marcas.has(`fitid|${item.fitid}`)) marcas.set(`fitid|${item.fitid}`, onde)
-
     const marca = assinatura(competencia, tipo, item.nome, item.valor, dia)
     if (!marcas.has(marca)) marcas.set(marca, onde)
   }
@@ -160,7 +178,19 @@ export function assinaturasDoBanco(
     ;(mes?.saidas || []).forEach((item) => guardar(competencia, 'saida', item))
   })
 
+  naoConfiaveis.forEach((chave) => marcas.delete(chave))
+
   return marcas
+}
+
+/** Dois registros descrevem a mesma coisa? Usado para julgar um FITID. */
+function mesmoLancamento(um: OndeRepete, outro: OndeRepete) {
+  return (
+    semAcento(um.descricao) === semAcento(outro.descricao) &&
+    Math.round(um.valor * 100) === Math.round(outro.valor * 100) &&
+    um.dia === outro.dia &&
+    um.competencia === outro.competencia
+  )
 }
 
 /** Transforma o que foi lido do arquivo nos itens que a previa mostra. */
@@ -187,10 +217,20 @@ export function montarPrevia(
     const marcas = [assinatura(competencia, tipo, descricao, lancamento.valor, dia)]
     if (lancamento.fitid) marcas.unshift(`fitid|${lancamento.fitid}`)
 
+    /**
+     * Um par so vale se o valor bater.
+     *
+     * A assinatura por nome ja carrega o valor, mas a por identificador nao —
+     * e identificador repetido por banco existe. Conferir o valor antes de
+     * aceitar impede que um lancamento vire repeticao de outro completamente
+     * diferente, que era o que acontecia.
+     */
+    const emCentavos = Math.round(Math.abs(lancamento.valor) * 100)
+
     const procurar = (onde: Map<string, OndeRepete>) => {
       for (const marca of marcas) {
         const achado = onde.get(marca)
-        if (achado) return achado
+        if (achado && Math.round(achado.valor * 100) === emCentavos) return achado
       }
       return null
     }
