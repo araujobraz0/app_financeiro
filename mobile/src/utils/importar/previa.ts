@@ -10,10 +10,18 @@
 // que ja esta gravado no app. O que e repetido ja entra desmarcado.
 
 import { meses } from '../dates'
+import { reconhecerPagamentoDeCartao, type CartaoConhecido } from './cartoes'
 import type { DataLida } from './datas'
 import type { LancamentoImportado, Leitura } from './extrato'
 
-export type TipoItem = 'entrada' | 'saida'
+/**
+ * O que o lancamento vira dentro do app.
+ *
+ * 'cartao' e o pagamento da fatura: nao vira gasto do mes, porque as parcelas
+ * do cartao ja entram por conta propria — lancar os dois contaria o mesmo
+ * dinheiro duas vezes. Ele marca a fatura daquele mes como paga.
+ */
+export type TipoItem = 'entrada' | 'saida' | 'cartao'
 
 /** Por que o item foi marcado como repetido. */
 export type Repeticao = 'nao' | 'arquivo' | 'app'
@@ -48,6 +56,9 @@ export type ItemPrevia = {
   competencia: string
   /** So vale para saida. */
   categoria: string
+  /** Cartao cuja fatura este pagamento quita. So vale para tipo 'cartao'. */
+  cartaoId: string
+  cartaoNome: string
   /** Se o arquivo trouxe a data, ou se a competencia e um palpite. */
   temData: boolean
   repetido: Repeticao
@@ -65,6 +76,8 @@ export type ResumoPrevia = {
   marcados: number
   entradas: number
   saidas: number
+  /** O que vai para faturas de cartao, separado das saidas. */
+  faturas: number
   saldo: number
   repetidos: number
   semData: number
@@ -86,6 +99,10 @@ type OpcoesPrevia = {
   categorizar: (descricao: string) => string
   /** Assinaturas do que ja esta gravado (veja `assinaturasDoBanco`). */
   jaNoApp?: Map<string, OndeRepete>
+  /** Cartoes cadastrados, para reconhecer o pagamento da fatura. */
+  cartoes?: CartaoConhecido[]
+  /** "2026-Agosto|cartao1" -> dia em que aquela fatura ja foi paga. */
+  faturasPagas?: Map<string, number>
 }
 
 const semAcento = (texto: string) =>
@@ -201,10 +218,14 @@ export function montarPrevia(
   const vistasNoArquivo = new Map<string, OndeRepete>()
 
   return lancamentos.map((lancamento, indice) => {
-    const tipo: TipoItem = lancamento.valor >= 0 ? 'entrada' : 'saida'
     const competencia = competenciaDaData(lancamento.data, opcoes.competenciaPadrao)
     const dia = Math.min(31, Math.max(1, Number(lancamento.data.dia || 1)))
     const descricao = lancamento.descricao.trim() || 'Lançamento importado'
+
+    // Pagamento de fatura sai da conta como qualquer outra saida, mas dentro
+    // do app pertence ao cartao — nao a lista de gastos do mes.
+    const fatura = reconhecerPagamentoDeCartao(descricao, lancamento.valor, opcoes.cartoes || [])
+    const tipo: TipoItem = fatura ? 'cartao' : lancamento.valor >= 0 ? 'entrada' : 'saida'
 
     /**
      * Duas marcas, nao uma.
@@ -245,6 +266,27 @@ export function montarPrevia(
       if (repeteDe) repetido = 'app'
     }
 
+    /**
+     * Fatura ja quitada e repeticao, mesmo com valor diferente.
+     *
+     * O app guarda o dia em que a fatura foi paga, nao o valor: marcar duas
+     * vezes a mesma fatura nao muda numero nenhum, mas confunde quem esta
+     * conferindo. Melhor ja vir desmarcada, dizendo por que.
+     */
+    if (tipo === 'cartao' && fatura?.cartaoId && repetido === 'nao') {
+      const diaPago = opcoes.faturasPagas?.get(`${competencia}|${fatura.cartaoId}`)
+      if (typeof diaPago === 'number') {
+        repetido = 'app'
+        repeteDe = {
+          descricao: `Fatura do ${fatura.cartaoNome}`,
+          competencia,
+          dia: diaPago,
+          valor: Math.abs(lancamento.valor),
+          arquivo: '',
+        }
+      }
+    }
+
     // A primeira linha fica sendo a referencia das proximas iguais.
     const este: OndeRepete = {
       descricao,
@@ -265,6 +307,8 @@ export function montarPrevia(
       dia,
       competencia,
       categoria: tipo === 'saida' ? opcoes.categorizar(descricao) : '',
+      cartaoId: fatura?.cartaoId || '',
+      cartaoNome: fatura?.cartaoNome || '',
       temData: Boolean(lancamento.data.mes),
       repetido,
       repeteDe,
@@ -277,6 +321,44 @@ export function montarPrevia(
   })
 }
 
+/** O que a pessoa escolheu para um item, quando o app errou. */
+export type Destino =
+  | { tipo: 'saida'; categoria: string }
+  | { tipo: 'cartao'; cartaoId: string; cartaoNome: string }
+
+/**
+ * Troca o destino de um item da previa.
+ *
+ * Mudar de saida para fatura (ou o contrario) apaga a marca de repetido: ela
+ * foi calculada para o destino antigo, e continuar mostrando "já lançado"
+ * depois da troca seria mentira. O item volta a entrar marcado.
+ */
+export function aplicarDestino(item: ItemPrevia, destino: Destino): ItemPrevia {
+  const mudouDeTipo = item.tipo !== destino.tipo
+
+  const base = mudouDeTipo
+    ? { ...item, repetido: 'nao' as Repeticao, repeteDe: null, incluir: true }
+    : item
+
+  if (destino.tipo === 'cartao') {
+    return {
+      ...base,
+      tipo: 'cartao',
+      categoria: '',
+      cartaoId: destino.cartaoId,
+      cartaoNome: destino.cartaoNome,
+    }
+  }
+
+  return {
+    ...base,
+    tipo: 'saida',
+    categoria: destino.categoria,
+    cartaoId: '',
+    cartaoNome: '',
+  }
+}
+
 /** Os numeros do rodape: quanto entra, quanto sai e em que meses. */
 export function resumirPrevia(itens: ItemPrevia[]): ResumoPrevia {
   const marcados = itens.filter((item) => item.incluir)
@@ -285,9 +367,11 @@ export function resumirPrevia(itens: ItemPrevia[]): ResumoPrevia {
 
   let entradas = 0
   let saidas = 0
+  let faturas = 0
 
   marcados.forEach((item) => {
     if (item.tipo === 'entrada') entradas += item.valor
+    else if (item.tipo === 'cartao') faturas += item.valor
     else saidas += item.valor
 
     const atual = porCompetencia.get(item.competencia) || { quantidade: 0, entradas: 0, saidas: 0 }
@@ -301,7 +385,9 @@ export function resumirPrevia(itens: ItemPrevia[]): ResumoPrevia {
     marcados: marcados.length,
     entradas,
     saidas,
-    saldo: entradas - saidas,
+    faturas,
+    // A fatura sai da conta como qualquer outra saida: entra na diferenca.
+    saldo: entradas - saidas - faturas,
     repetidos: itens.filter((item) => item.repetido !== 'nao').length,
     semData: itens.filter((item) => !item.temData).length,
     porCompetencia: Array.from(porCompetencia.entries())
@@ -330,6 +416,10 @@ export function explicarRepeticao(item: ItemPrevia): string {
   const par = item.repeteDe
   const quando = `${String(par.dia).padStart(2, '0')} de ${competenciaEmTexto(par.competencia)}`
   const oQue = `"${par.descricao}", ${quando}`
+
+  if (item.tipo === 'cartao' && item.repetido === 'app' && !par.arquivo) {
+    return `A fatura já está marcada como paga em ${competenciaEmTexto(par.competencia)}, no dia ${String(par.dia).padStart(2, '0')}.`
+  }
 
   if (item.repetido === 'app') return `Já está no app: ${oQue}.`
   if (par.arquivo && par.arquivo !== item.arquivo) return `Igual a ${oQue}, de ${par.arquivo}.`

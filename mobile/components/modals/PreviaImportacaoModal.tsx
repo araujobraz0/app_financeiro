@@ -21,6 +21,7 @@ import {
   descreverLeitura,
   explicarRepeticao,
   resumirPrevia,
+  type Destino,
   type ItemPrevia,
 } from '../../src/utils/importar/previa'
 import Icon, { type IconName } from '../common/Icon'
@@ -28,7 +29,7 @@ import ModalSheet from '../common/ModalSheet'
 import PressableScale from '../common/motion/PressableScale'
 import SelectionModal from './SelectionModal'
 
-type Filtro = 'tudo' | 'entradas' | 'saidas' | 'repetidos'
+type Filtro = 'tudo' | 'entradas' | 'saidas' | 'faturas' | 'repetidos'
 
 type Props = {
   visible: boolean
@@ -43,12 +44,17 @@ type Props = {
   onAlternarItem: (id: string) => void
   onMarcarTodos: (marcar: boolean) => void
   onDesmarcarRepetidos: () => void
-  onTrocarCategoria: (id: string, categoria: string) => void
+  /** Cartoes cadastrados, para escolher de quem e a fatura. */
+  cartoes: { id: string; nome: string }[]
+  onTrocarDestino: (id: string, destino: Destino) => void
   onConfirmar: () => void
 }
 
 /** Quantos itens aparecem antes do botao de mostrar mais. */
 const PASSO = 40
+
+/** Marca as opcoes de cartao dentro da lista de destinos. */
+const PREFIXO_CARTAO = 'fatura:'
 
 /** Busca sem acento e sem caixa: "SAUDE" acha "Saúde". */
 const semAcento = (texto: string) =>
@@ -76,12 +82,13 @@ export default function PreviaImportacaoModal({
   onAlternarItem,
   onMarcarTodos,
   onDesmarcarRepetidos,
-  onTrocarCategoria,
+  cartoes,
+  onTrocarDestino,
   onConfirmar,
 }: Props) {
   const [filtro, setFiltro] = useState<Filtro>('tudo')
   const [limite, setLimite] = useState(PASSO)
-  const [editandoCategoria, setEditandoCategoria] = useState<string | null>(null)
+  const [editandoDestino, setEditandoDestino] = useState<string | null>(null)
   /** Nome do arquivo que a lista esta mostrando; vazio mostra todos. */
   const [arquivoAtivo, setArquivoAtivo] = useState('')
   const [busca, setBusca] = useState('')
@@ -93,6 +100,7 @@ export default function PreviaImportacaoModal({
       tudo: itens.length,
       entradas: itens.filter((i) => i.tipo === 'entrada').length,
       saidas: itens.filter((i) => i.tipo === 'saida').length,
+      faturas: itens.filter((i) => i.tipo === 'cartao').length,
       repetidos: itens.filter((i) => i.repetido !== 'nao').length,
     }),
     [itens]
@@ -101,6 +109,7 @@ export default function PreviaImportacaoModal({
   const filtrados = useMemo(() => {
     if (filtro === 'entradas') return itens.filter((i) => i.tipo === 'entrada')
     if (filtro === 'saidas') return itens.filter((i) => i.tipo === 'saida')
+    if (filtro === 'faturas') return itens.filter((i) => i.tipo === 'cartao')
     if (filtro === 'repetidos') return itens.filter((i) => i.repetido !== 'nao')
     return itens
   }, [itens, filtro])
@@ -178,7 +187,7 @@ export default function PreviaImportacaoModal({
     setLimite(PASSO)
   }
 
-  const itemEmEdicao = itens.find((i) => i.id === editandoCategoria)
+  const itemEmEdicao = itens.find((i) => i.id === editandoDestino)
 
   // ------------------------------------------------------------ pedacos
 
@@ -244,8 +253,12 @@ export default function PreviaImportacaoModal({
 
   const linhaItem = (item: ItemPrevia) => {
     const ehEntrada = item.tipo === 'entrada'
-    const cor = ehEntrada ? theme.green : theme.red
+    const ehFatura = item.tipo === 'cartao'
+    const cor = ehEntrada ? theme.green : ehFatura ? theme.accent : theme.red
     const explicacao = explicarRepeticao(item)
+    // Fatura sem cartao escolhido nao tem para onde ir: a previa cobra a
+    // escolha em vez de deixar o item entrar em lugar nenhum.
+    const faltaCartao = ehFatura && !item.cartaoId
 
     return (
       <PressableScale
@@ -287,9 +300,27 @@ export default function PreviaImportacaoModal({
           </View>
 
           <View style={styles.itemSelos}>
-            {ehEntrada ? null : (
+            {ehEntrada ? null : ehFatura ? (
               <PressableScale
-                onPress={() => setEditandoCategoria(item.id)}
+                onPress={() => setEditandoDestino(item.id)}
+                scaleTo={0.94}
+                style={[
+                  styles.selo,
+                  faltaCartao
+                    ? { backgroundColor: theme.redSoft, borderColor: theme.red }
+                    : { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+                ]}
+              >
+                <Icon name="cartao" size={11} color={faltaCartao ? theme.red : theme.accent} />
+                <Text
+                  style={[styles.seloTexto, { color: faltaCartao ? theme.red : theme.accent }]}
+                >
+                  {faltaCartao ? 'escolher cartão' : `fatura · ${item.cartaoNome}`}
+                </Text>
+              </PressableScale>
+            ) : (
+              <PressableScale
+                onPress={() => setEditandoDestino(item.id)}
                 scaleTo={0.94}
                 style={[styles.selo, { backgroundColor: theme.card, borderColor: theme.border }]}
               >
@@ -432,6 +463,12 @@ export default function PreviaImportacaoModal({
               <View style={styles.numeros}>
                 {cartaoNumero('Entradas', resumo.entradas, theme.green, theme.greenSoft)}
                 {cartaoNumero('Saídas', resumo.saidas, theme.red, theme.redSoft)}
+                {/* A fatura sai da conta, mas nao e gasto do mes: as parcelas
+                    do cartao ja entram por conta propria. Por isso ela tem o
+                    seu proprio numero, em vez de somar com as saidas. */}
+                {resumo.faturas
+                  ? cartaoNumero('Faturas de cartão', resumo.faturas, theme.accent, theme.accentSoft, true)
+                  : null}
                 {cartaoNumero(
                   'Diferença',
                   resumo.saldo,
@@ -497,6 +534,7 @@ export default function PreviaImportacaoModal({
               {chipFiltro('tudo', 'Tudo')}
               {chipFiltro('entradas', 'Entradas')}
               {chipFiltro('saidas', 'Saídas')}
+              {contagens.faturas ? chipFiltro('faturas', 'Faturas') : null}
               {contagens.repetidos ? chipFiltro('repetidos', 'Repetidos') : null}
             </View>
 
@@ -538,18 +576,45 @@ export default function PreviaImportacaoModal({
         )}
       </ModalSheet>
 
-      {/* Trocar a categoria de uma saida, sem sair da previa. */}
+      {/* Para onde o lancamento vai: uma categoria de saida ou a fatura de
+          um cartao. As duas escolhas moram na mesma lista porque sao a mesma
+          pergunta — o app pode ter errado nos dois sentidos. */}
       <SelectionModal
         visible={Boolean(itemEmEdicao)}
-        onClose={() => setEditandoCategoria(null)}
+        onClose={() => setEditandoDestino(null)}
         theme={theme}
-        title="Categoria"
+        title="Onde este lançamento entra"
         hint={itemEmEdicao?.descricao}
-        options={categorias.map((categoria) => ({ value: categoria, label: categoria }))}
-        selectedValue={itemEmEdicao?.categoria || ''}
+        options={[
+          ...cartoes.map((cartao) => ({
+            value: `${PREFIXO_CARTAO}${cartao.id}`,
+            label: `Fatura · ${cartao.nome}`,
+          })),
+          ...categorias.map((categoria) => ({ value: categoria, label: categoria })),
+        ]}
+        selectedValue={
+          itemEmEdicao?.tipo === 'cartao'
+            ? `${PREFIXO_CARTAO}${itemEmEdicao.cartaoId}`
+            : itemEmEdicao?.categoria || ''
+        }
         onSelect={(valor) => {
-          if (editandoCategoria) onTrocarCategoria(editandoCategoria, String(valor))
-          setEditandoCategoria(null)
+          const escolha = String(valor)
+          if (editandoDestino) {
+            if (escolha.startsWith(PREFIXO_CARTAO)) {
+              const id = escolha.slice(PREFIXO_CARTAO.length)
+              const cartao = cartoes.find((c) => c.id === id)
+              if (cartao) {
+                onTrocarDestino(editandoDestino, {
+                  tipo: 'cartao',
+                  cartaoId: cartao.id,
+                  cartaoNome: cartao.nome,
+                })
+              }
+            } else {
+              onTrocarDestino(editandoDestino, { tipo: 'saida', categoria: escolha })
+            }
+          }
+          setEditandoDestino(null)
         }}
       />
     </>

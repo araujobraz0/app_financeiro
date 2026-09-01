@@ -35,8 +35,10 @@ import { gerarPdfUri } from '../src/utils/export/pdfDoc'
 import { comArquivo, lerExtrato, lerTabela } from '../src/utils/importar/extrato'
 import type { Leitura } from '../src/utils/importar/extrato'
 import {
+  aplicarDestino,
   assinaturasDoBanco,
   montarPrevia,
+  type Destino,
   type ItemPrevia,
 } from '../src/utils/importar/previa'
 import AppHeader from '../components/home/AppHeader'
@@ -1839,6 +1841,25 @@ function HomeScreenContent() {
 
   const exportFileBaseName = montarNomeArquivoExportacao(mesSelecionado, anoSelecionado)
 
+  /** Nome e id dos cartoes, para a importacao reconhecer a fatura de cada um. */
+  const cartoesParaImportacao = useMemo(
+    () => cards.map((cartao) => ({ id: cartao.id, nome: cartao.nome })),
+    [cards]
+  )
+
+  /** "2026-Agosto|cartao1" -> dia em que aquela fatura ja foi paga. */
+  const faturasJaPagas = useMemo(() => {
+    const mapa = new Map<string, number>()
+
+    Object.entries(bancoDeDados).forEach(([competencia, mes]) => {
+      Object.entries(mes?.faturasPagas || {}).forEach(([cartaoId, dia]) => {
+        if (typeof dia === 'number') mapa.set(`${competencia}|${cartaoId}`, dia)
+      })
+    })
+
+    return mapa
+  }, [bancoDeDados])
+
   const exportarCsv = async () => {
     try {
       setProcessandoArquivo('csv')
@@ -2078,6 +2099,8 @@ function HomeScreenContent() {
           competenciaPadrao: chaveAtual,
           categorizar: categorizarAutomaticamente,
           jaNoApp: assinaturasDoBanco(bancoDeDados),
+          cartoes: cartoesParaImportacao,
+          faturasPagas: faturasJaPagas,
         }
       )
 
@@ -2111,9 +2134,9 @@ function HomeScreenContent() {
     )
   }, [])
 
-  const trocarCategoriaImportacao = useCallback((id: string, categoria: string) => {
+  const trocarDestinoImportacao = useCallback((id: string, destino: Destino) => {
     setItensImportacao((atuais) =>
-      atuais.map((item) => (item.id === id ? { ...item, categoria } : item))
+      atuais.map((item) => (item.id === id ? aplicarDestino(item, destino) : item))
     )
   }, [])
 
@@ -2132,7 +2155,11 @@ function HomeScreenContent() {
    * nao existe e criado em branco na hora.
    */
   const confirmarImportacaoPreview = () => {
-    const marcados = itensImportacao.filter((item) => item.incluir)
+    // Fatura sem cartao escolhido nao tem para onde ir; fica de fora ate a
+    // pessoa escolher, em vez de sumir dentro das saidas.
+    const marcados = itensImportacao.filter(
+      (item) => item.incluir && !(item.tipo === 'cartao' && !item.cartaoId)
+    )
     if (!marcados.length) return
 
     const carimbo = Date.now()
@@ -2142,6 +2169,20 @@ function HomeScreenContent() {
 
       marcados.forEach((item, indice) => {
         const mes = banco[item.competencia] || mesEmBranco()
+
+        /**
+         * Pagamento de fatura vira fatura paga, e nao gasto do mes.
+         *
+         * As parcelas do cartao ja entram na conta do mes por conta propria;
+         * lancar tambem o pagamento contaria o mesmo dinheiro duas vezes.
+         */
+        if (item.tipo === 'cartao') {
+          banco[item.competencia] = {
+            ...mes,
+            faturasPagas: { ...(mes.faturasPagas || {}), [item.cartaoId]: item.dia },
+          }
+          return
+        }
 
         if (item.tipo === 'entrada') {
           banco[item.competencia] = {
@@ -3947,10 +3988,11 @@ function HomeScreenContent() {
         leituras={leiturasImportacao}
         itens={itensImportacao}
         categorias={categoriasSaidas}
+        cartoes={cartoesParaImportacao}
         onAlternarItem={alternarItemImportacao}
         onMarcarTodos={marcarTodosImportacao}
         onDesmarcarRepetidos={desmarcarRepetidosImportacao}
-        onTrocarCategoria={trocarCategoriaImportacao}
+        onTrocarDestino={trocarDestinoImportacao}
         onConfirmar={confirmarImportacaoPreview}
       />
 
